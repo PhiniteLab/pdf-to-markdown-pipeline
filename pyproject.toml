@@ -36,7 +36,7 @@ gpu = [
 ]
 dev = [
     "docling>=2.86.0",
-    "pytest>=9.0",
+    "pytest>=9.0.3",
     "pytest-cov>=6.0",
     "ruff>=0.11",
     "pyright>=1.1",
