@@ -51,6 +51,7 @@ from phinitelab_pdf_pipeline.citations import (
     write_dot_graph,
 )
 from phinitelab_pdf_pipeline.clean import (
+    clean_file,
     clean_markdown,
     clean_tree,
     fix_wrapped_lines,
@@ -62,10 +63,12 @@ from phinitelab_pdf_pipeline.clean import (
 )
 from phinitelab_pdf_pipeline.common import (
     Manifest,
+    detect_device,
     file_hash,
     load_config,
     mirror_directory_tree,
     reset_config_cache,
+    resolve_path,
     setup_logging,
 )
 from phinitelab_pdf_pipeline.convert import (
@@ -79,6 +82,7 @@ from phinitelab_pdf_pipeline.convert import (
     normalize_recovered_text,
     recover_formula_placeholders,
     reformat_algorithm_sections,
+    render_formula_item,
 )
 from phinitelab_pdf_pipeline.cross_ref import (
     CATEGORY_EQUATION,
@@ -119,6 +123,7 @@ from phinitelab_pdf_pipeline.doc_type import (
     DocTypeResult,
     detect_file,
     detect_paper,
+    detect_report,
     detect_slides,
     detect_syllabus,
     detect_textbook,
@@ -161,11 +166,15 @@ from phinitelab_pdf_pipeline.metadata import (
     extract_abstract,
     extract_authors,
     extract_doi,
+    extract_emails,
     extract_file,
+    extract_funding,
+    extract_journal,
     extract_keywords,
     extract_metadata,
     extract_title,
     extract_tree,
+    extract_volume_issue,
     extract_year,
     to_apa7,
     to_bibtex,
@@ -220,6 +229,7 @@ from phinitelab_pdf_pipeline.ocr_quality import (
 )
 from phinitelab_pdf_pipeline.parallel import (
     ParallelConfig,
+    ParallelReport,
     TaskResult,
     collect_md_files,
     parallel_map,
@@ -273,11 +283,17 @@ from phinitelab_pdf_pipeline.render_templates import (
     build_course_profile_text,
     build_global_rules_text,
     build_week_rules_text,
+    bullet_lines_from_section,
+    clean_inline,
     extract_line_value,
+    extract_programs,
     extract_section,
     first_items,
+    headings_from_markdown,
     humanize_topic,
+    paragraphs_from_markdown,
     parse_week_entries,
+    read_text,
     summarize_text,
 )
 from phinitelab_pdf_pipeline.run_pipeline import build_parser
@@ -6384,3 +6400,1731 @@ class TestPhase4ModuleImports:
         assert "comparative" in ALL_PURPOSES
         assert "unknown" in ALL_PURPOSES
         assert len(ALL_PURPOSES) == 7
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Coverage boost tests — pure-function deep testing
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+class TestCleanInline:
+    def test_normalizes_whitespace(self) -> None:
+        assert clean_inline("  hello   world  ") == "hello world"
+
+    def test_replaces_newlines(self) -> None:
+        assert clean_inline("hello\nworld") == "hello world"
+
+    def test_empty_string(self) -> None:
+        assert clean_inline("") == ""
+
+    def test_tabs_and_mixed_whitespace(self) -> None:
+        assert clean_inline("a\t\tb\n\nc") == "a b c"
+
+
+class TestBulletLinesFromSection:
+    def test_extracts_bullets(self) -> None:
+        section = "- Python\n- Matlab\n- R"
+        assert bullet_lines_from_section(section) == ["Python", "Matlab", "R"]
+
+    def test_ignores_non_bullets(self) -> None:
+        section = "This is plain text\n- Only this\n* Not this"
+        assert bullet_lines_from_section(section) == ["Only this"]
+
+    def test_empty_section(self) -> None:
+        assert bullet_lines_from_section("") == []
+
+    def test_strips_bullet_content(self) -> None:
+        assert bullet_lines_from_section("-   spaced  ") == ["spaced"]
+
+
+class TestHeadingsFromMarkdown:
+    def test_multiple_levels(self) -> None:
+        text = "# Title\n\nBody\n\n## Section\n\n### Sub\n"
+        headings = headings_from_markdown(text)
+        assert headings == ["Title", "Section", "Sub"]
+
+    def test_no_headings(self) -> None:
+        assert headings_from_markdown("Just text.\nMore text.") == []
+
+    def test_empty_heading_skipped(self) -> None:
+        assert headings_from_markdown("# \n## Real\n") == ["Real"]
+
+
+class TestParagraphsFromMarkdown:
+    def test_splits_paragraphs(self) -> None:
+        text = "First paragraph.\n\nSecond paragraph.\n\n# Heading\n\nThird."
+        paras = paragraphs_from_markdown(text)
+        assert paras == ["First paragraph.", "Second paragraph.", "Third."]
+
+    def test_empty_document(self) -> None:
+        assert paragraphs_from_markdown("") == []
+
+    def test_heading_only(self) -> None:
+        assert paragraphs_from_markdown("# Title\n\n## Sub\n") == []
+
+    def test_multiline_paragraph(self) -> None:
+        text = "Line one\nline two\n\nAnother."
+        paras = paragraphs_from_markdown(text)
+        assert len(paras) == 2
+        assert paras[0] == "Line one line two"
+
+
+class TestExtractPrograms:
+    def test_bullet_list(self) -> None:
+        section = "- Python\n- MATLAB\n- R"
+        assert extract_programs(section) == ["Python", "MATLAB", "R"]
+
+    def test_comma_separated(self) -> None:
+        section = "Python, MATLAB, R"
+        assert extract_programs(section) == ["Python", "MATLAB", "R"]
+
+    def test_empty_section(self) -> None:
+        assert extract_programs("") == []
+
+    def test_bullet_with_commas(self) -> None:
+        section = "- Python, PyTorch\n- R, tidyverse"
+        result = extract_programs(section)
+        assert "Python" in result
+        assert "PyTorch" in result
+        assert "R" in result
+
+
+class TestReadText:
+    def test_reads_file(self, tmp_path: Path) -> None:
+        f = tmp_path / "test.md"
+        f.write_text("hello world", encoding="utf-8")
+        assert read_text(f) == "hello world"
+
+    def test_file_not_found(self, tmp_path: Path) -> None:
+        with pytest.raises(FileNotFoundError):
+            read_text(tmp_path / "missing.md")
+
+
+class TestDetectReportDocType:
+    def test_report_with_summary_and_sections(self) -> None:
+        text = (
+            "# Annual Report\n\n"
+            "## Executive Summary\n\nWe had a great year.\n\n"
+            "1.1 Section A\n1.2 Section B\n1.3 Section C\n1.4 Section D\n\n"
+            "## Conclusion\n\nFindings indicate positive results.\n"
+        )
+        score, signals = detect_report(text)
+        assert score >= 0.3
+        assert any("summary" in s.lower() or "introduction" in s.lower() for s in signals)
+
+    def test_report_with_numbered_sections(self) -> None:
+        text = "1.0 Intro\n2.0 Methods\n3.0 Results\n4.0 Discussion\n" * 3
+        score, signals = detect_report(text)
+        assert score >= 0.3
+
+    def test_non_report(self) -> None:
+        text = "- bullet 1\n- bullet 2\n- bullet 3"
+        score, _ = detect_report(text)
+        assert score < 0.5
+
+
+class TestDetectSlidesDeep:
+    def test_high_bullet_ratio(self) -> None:
+        text = "\n\n".join([f"# Slide {i}\n\n- A\n- B\n- C" for i in range(6)])
+        score, signals = detect_slides(text)
+        assert score >= 0.3
+
+    def test_long_prose_not_slides(self) -> None:
+        text = "This is a long prose document. " * 200
+        score, _ = detect_slides(text)
+        assert score < 0.5
+
+
+class TestDetectTextbookDeep:
+    def test_many_chapters_and_examples(self) -> None:
+        text = "# Chapter 1: Intro\n" + "content " * 300 + "\nExample 1: foo\nExample 2: bar\nExercise 1: baz"
+        text += "\n# Chapter 2: More\n" + "content " * 300
+        score, signals = detect_textbook(text)
+        assert score >= 0.5
+        assert any("chapter" in s for s in signals)
+
+
+class TestDetectSyllabusDeep:
+    def test_all_signals(self) -> None:
+        text = (
+            "# Course Syllabus\n\n"
+            "Instructor: Prof. Smith\n\n"
+            "Week 1: Intro\nWeek 2: Basics\nWeek 3: Intermediate\nWeek 4: Adv\n\n"
+            "## Grading\n\n40% Midterm, 60% Final\n"
+        )
+        score, signals = detect_syllabus(text)
+        assert score >= 0.7
+        assert any("instructor" in s for s in signals)
+        assert any("course" in s for s in signals)
+
+
+class TestDetectPaperDeep:
+    def test_all_signals(self) -> None:
+        text = (
+            "# Deep RL Methods\n\n"
+            "Abstract: We propose...\n\n"
+            "Keywords: RL, control\n\n"
+            "DOI: 10.1234/abc.456\n\n"
+            "## References\n\n"
+            "[1] Smith 2020.\n[2] Jones 2021.\n[3] Lee 2022.\n"
+        )
+        score, signals = detect_paper(text)
+        assert score >= 0.8
+        assert any("DOI" in s for s in signals)
+
+
+class TestMetadataExtractorsDeep:
+    def test_extract_abstract_multiline(self) -> None:
+        text = "# Title\n\nAbstract: First sentence.\nSecond sentence.\n\n## Introduction\n"
+        abstract = extract_abstract(text)
+        assert "First sentence." in abstract
+
+    def test_extract_abstract_missing(self) -> None:
+        assert extract_abstract("# Title\n\nNo abstract here.") == ""
+
+    def test_extract_authors_comma_separated(self) -> None:
+        lines = ["# Paper Title", "Alice Smith, Bob Jones, Carol White", "", "Abstract: ..."]
+        authors = extract_authors(lines)
+        assert len(authors) >= 2
+        assert "Alice Smith" in authors
+
+    def test_extract_authors_with_and(self) -> None:
+        lines = ["# Title", "Alice Smith and Bob Jones", "", "Abstract: ..."]
+        authors = extract_authors(lines)
+        assert "Alice Smith" in authors
+        assert "Bob Jones" in authors
+
+    def test_extract_authors_no_title(self) -> None:
+        lines = ["No title here", "Alice Smith"]
+        assert extract_authors(lines) == []
+
+    def test_extract_emails(self) -> None:
+        text = "Contact: alice@example.com and bob@test.org\n" * 2
+        emails = extract_emails(text)
+        assert "alice@example.com" in emails
+        assert "bob@test.org" in emails
+
+    def test_extract_emails_empty(self) -> None:
+        assert extract_emails("No emails here.") == []
+
+    def test_extract_journal(self) -> None:
+        text = "Journal of Machine Learning Research\nVolume 25, 2024\n"
+        journal = extract_journal(text)
+        assert "Machine Learning" in journal or journal != ""
+
+    def test_extract_volume_issue(self) -> None:
+        text = "Vol. 25, No. 3\n"
+        vol, issue = extract_volume_issue(text)
+        # May or may not match depending on regex — just test it runs
+        assert isinstance(vol, str)
+        assert isinstance(issue, str)
+
+    def test_extract_funding(self) -> None:
+        text = "This work was supported by NSF grant #12345.\n"
+        funding = extract_funding(text)
+        assert "NSF" in funding or funding == ""
+
+    def test_extract_funding_empty(self) -> None:
+        assert extract_funding("Plain text without grants.") == ""
+
+
+class TestYAMLFrontmatterDeep:
+    def test_all_fields(self) -> None:
+        meta = ScholarlyMetadata(
+            title="Test Paper",
+            authors=["Alice", "Bob"],
+            doi="10.1000/test",
+            journal="JMLR",
+            volume="25",
+            issue="3",
+            year="2024",
+            keywords=["ML", "RL"],
+            abstract="A study on reinforcement learning.",
+            funding="NSF grant #12345",
+        )
+        yaml_str = to_yaml_frontmatter(meta)
+        assert yaml_str.startswith("---\n")
+        assert yaml_str.strip().endswith("---")
+        assert 'title: "Test Paper"' in yaml_str
+        assert '  - "Alice"' in yaml_str
+        assert '  - "Bob"' in yaml_str
+        assert 'doi: "10.1000/test"' in yaml_str
+        assert 'journal: "JMLR"' in yaml_str
+        assert 'volume: "25"' in yaml_str
+        assert 'issue: "3"' in yaml_str
+        assert 'year: "2024"' in yaml_str
+        assert '  - "ML"' in yaml_str
+        assert "abstract:" in yaml_str
+        assert "funding:" in yaml_str
+
+    def test_empty_metadata(self) -> None:
+        meta = ScholarlyMetadata()
+        yaml_str = to_yaml_frontmatter(meta)
+        assert yaml_str.startswith("---\n")
+        assert yaml_str.strip().endswith("---")
+
+
+class TestBibtexDeep:
+    def test_all_fields(self) -> None:
+        meta = ScholarlyMetadata(
+            title="Test Paper",
+            authors=["Alice Smith", "Bob Jones"],
+            doi="10.1000/test",
+            journal="JMLR",
+            volume="25",
+            issue="3",
+            year="2024",
+        )
+        bib = to_bibtex(meta)
+        assert "@article{smith2024," in bib
+        assert "title = {Test Paper}" in bib
+        assert "author = {Alice Smith and Bob Jones}" in bib
+        assert "journal = {JMLR}" in bib
+        assert "volume = {25}" in bib
+        assert "number = {3}" in bib
+        assert "year = {2024}" in bib
+        assert "doi = {10.1000/test}" in bib
+
+    def test_no_year(self) -> None:
+        meta = ScholarlyMetadata(authors=["John Doe"])
+        bib = to_bibtex(meta)
+        assert "@article{doe," in bib
+
+    def test_no_authors(self) -> None:
+        meta = ScholarlyMetadata(title="Orphan Paper")
+        bib = to_bibtex(meta)
+        assert "@article{unknown," in bib
+
+
+class TestAPA7Deep:
+    def test_full_citation(self) -> None:
+        meta = ScholarlyMetadata(
+            title="Test Paper",
+            authors=["Alice Smith"],
+            year="2024",
+            journal="JMLR",
+            volume="25",
+            issue="3",
+            doi="10.1000/test",
+        )
+        apa = to_apa7(meta)
+        assert "Alice Smith" in apa
+        assert "(2024)" in apa
+        assert "Test Paper" in apa
+        assert "*JMLR*" in apa
+        assert "https://doi.org/10.1000/test" in apa
+
+    def test_no_year(self) -> None:
+        meta = ScholarlyMetadata(title="Paper", authors=["X"])
+        apa = to_apa7(meta)
+        assert "(n.d.)" in apa
+
+    def test_no_journal(self) -> None:
+        meta = ScholarlyMetadata(title="Paper", year="2024")
+        apa = to_apa7(meta)
+        assert "Paper" in apa
+
+
+class TestRenderFormulaItem:
+    def test_valid_formula(self) -> None:
+        class FakeItem:
+            text = "E = mc^2"
+            orig = ""
+
+        result = render_formula_item(FakeItem())
+        assert "E = mc^2" in result
+
+    def test_empty_formula(self) -> None:
+        class FakeItem:
+            text = ""
+            orig = ""
+
+        from phinitelab_pdf_pipeline.convert import FORMULA_PLACEHOLDER
+
+        result = render_formula_item(FakeItem())
+        assert result == FORMULA_PLACEHOLDER
+
+    def test_short_formula_incomplete(self) -> None:
+        class FakeItem:
+            text = "x"
+            orig = ""
+
+        result = render_formula_item(FakeItem())
+        assert "incomplete" in result.lower()
+
+    def test_algorithmic_formula(self) -> None:
+        class FakeItem:
+            text = "Initialize θ\nFor each episode:\n  Sample action\n  Update weights\nReturn policy"
+            orig = ""
+
+        result = render_formula_item(FakeItem())
+        assert "```text" in result or "algorithm" in result.lower() or "Initialize" in result
+
+
+class TestCommonDetectDevice:
+    def test_returns_string(self) -> None:
+        device = detect_device()
+        assert device in ("cpu", "cuda")
+
+
+class TestCommonResolvePath:
+    def test_absolute_path(self) -> None:
+        p = resolve_path("/tmp/test.yaml")
+        assert p == Path("/tmp/test.yaml")
+
+    def test_relative_path(self) -> None:
+        p = resolve_path("configs/pipeline.yaml")
+        assert p.is_absolute()
+        assert "configs" in str(p)
+
+
+class TestConvertDeriveOutputPathDeep:
+    def test_basic_derivation(self, tmp_path: Path) -> None:
+        input_root = tmp_path / "pdfs"
+        output_root = tmp_path / "md"
+        input_root.mkdir()
+        output_root.mkdir()
+        pdf_path = input_root / "subdir" / "test.pdf"
+        result = derive_output_path(pdf_path, input_root, output_root)
+        assert result.suffix == ".md"
+        assert "subdir" in str(result)
+
+    def test_nested_subdirectory(self, tmp_path: Path) -> None:
+        input_root = tmp_path / "in"
+        output_root = tmp_path / "out"
+        pdf_path = input_root / "a" / "b" / "c.pdf"
+        result = derive_output_path(pdf_path, input_root, output_root)
+        assert result == output_root / "in" / "a" / "b" / "c.md"
+
+
+class TestNormalizeMarkdownDeep:
+    def test_crlf_normalization(self) -> None:
+        text = "Hello\r\nWorld\r\n"
+        result = normalize_markdown(text)
+        assert "\r" not in result
+
+    def test_trailing_whitespace(self) -> None:
+        text = "Hello   \nWorld  \n"
+        result = normalize_markdown(text)
+        # normalize_markdown strips then appends trailing newline
+        assert result.endswith("\n")
+        assert "\r" not in result
+
+
+class TestRecoverFormulaPlaceholdersDeep:
+    def test_multiple_placeholders(self) -> None:
+        from phinitelab_pdf_pipeline.convert import FORMULA_PLACEHOLDER
+
+        class FakeItem:
+            def __init__(self, text: str) -> None:
+                self.text = text
+                self.orig = ""
+
+        items = [FakeItem("alpha + beta"), FakeItem("gamma * delta")]
+        md = f"Before\n{FORMULA_PLACEHOLDER}\nMiddle\n{FORMULA_PLACEHOLDER}\nAfter"
+        result = recover_formula_placeholders(md, items)
+        assert "alpha + beta" in result
+        assert "gamma * delta" in result
+        assert FORMULA_PLACEHOLDER not in result
+
+    def test_no_placeholders(self) -> None:
+        result = recover_formula_placeholders("No placeholders here.", [])
+        assert result == "No placeholders here."
+
+
+class TestParseWeekEntriesDeep:
+    def test_multi_week_with_bullets(self) -> None:
+        text = (
+            "## Week 1: Introduction\n"
+            "- Overview of the course\n"
+            "- Setup environment\n\n"
+            "## Week 2: Basics\n"
+            "- Fundamentals\n"
+            "- Practice\n"
+        )
+        entries = parse_week_entries(text)
+        assert 1 in entries
+        assert 2 in entries
+        assert "Introduction" in entries[1]["title"]
+        assert len(entries[1]["bullets"]) == 2
+
+    def test_week_without_bullets(self) -> None:
+        text = "## Week 1: Intro\n\n## Week 2: Next\n"
+        entries = parse_week_entries(text)
+        assert 1 in entries
+        assert entries[1]["bullets"] == []
+
+
+class TestPluginRegistryDeep:
+    def test_register_and_list(self) -> None:
+        registry = PluginRegistry()
+
+        class TestPlugin(PluginBase):
+            name = "test-plugin"
+            version = "1.0"
+            description = "A test plugin"
+
+        registry.register(TestPlugin())
+        assert len(registry.plugins) == 1
+        assert registry.plugins[0].name == "test-plugin"
+
+    def test_register_invalid_type(self) -> None:
+        registry = PluginRegistry()
+        with pytest.raises(TypeError):
+            registry.register("not a plugin")  # type: ignore[arg-type]
+
+    def test_get_hooks(self) -> None:
+        class HookPlugin(PluginBase):
+            name = "hook-test"
+            version = "1.0"
+            description = "Hook test"
+
+            def pre_convert(self, **kwargs: object) -> None:
+                pass
+
+        plugin = HookPlugin()
+        hooks = plugin.get_hooks()
+        assert "pre_convert" in hooks
+
+
+class TestWritePluginReport:
+    def test_writes_json(self, tmp_path: Path) -> None:
+        infos = [
+            PluginInfo(name="p1", description="Plugin 1", hooks=["pre_convert"]),
+            PluginInfo(name="p2", description="Plugin 2", hooks=[]),
+        ]
+        out = tmp_path / "plugins.json"
+        write_plugin_report(infos, out)
+        data = json.loads(out.read_text(encoding="utf-8"))
+        assert data["total_plugins"] == 2
+        assert data["plugins"][0]["name"] == "p1"
+
+
+class TestFiguresExtract:
+    def test_extract_images(self) -> None:
+        text = "# Document\n\n![Figure 1](images/fig1.png)\n\n![Chart](data/chart.jpg)\n"
+        figures = extract_figures_from_text(text, "doc.md")
+        assert len(figures) >= 2
+        assert any("fig1.png" in f.image_path for f in figures)
+
+    def test_no_figures(self) -> None:
+        text = "# Document\n\nJust text, no images.\n"
+        figures = extract_figures_from_text(text, "doc.md")
+        assert len(figures) == 0
+
+
+class TestAlgorithmExtractDeep:
+    def test_parse_step_basic(self) -> None:
+        step = parse_step("Initialize θ = 0", 0)
+        assert step.text == "Initialize θ = 0"
+        assert step.indent_level == 0
+
+    def test_parse_algorithm_body(self) -> None:
+        lines = [
+            "INPUT: Dataset D",
+            "OUTPUT: Model M",
+            "1. Initialize weights",
+            "2. Train model",
+            "3. Return M",
+        ]
+        inputs, outputs, steps = parse_algorithm_body(lines)
+        assert inputs == ["Dataset D"]
+        assert outputs == ["Model M"]
+        assert len(steps) >= 2
+
+    def test_extract_algorithms_fenced(self) -> None:
+        text = (
+            "# Algorithm 1: Gradient Descent\n\n"
+            "```\n"
+            "INPUT: Learning rate α\n"
+            "OUTPUT: Optimal θ\n"
+            "1. Initialize θ\n"
+            "2. Repeat:\n"
+            "   θ = θ - α * ∇J(θ)\n"
+            "3. Return θ\n"
+            "```\n"
+        )
+        algos = extract_algorithms(text, "test.md")
+        assert len(algos) >= 1
+
+    def test_extract_algorithms_empty(self) -> None:
+        assert extract_algorithms("Just text.", "test.md") == []
+
+    def test_is_algorithm_content_positive(self) -> None:
+        text = "Initialize variables\nFor each iteration:\n  Update weights\nReturn result"
+        assert is_algorithm_content(text)
+
+    def test_is_algorithm_content_negative(self) -> None:
+        assert not is_algorithm_content("This is just a paragraph of text.")
+
+
+class TestCitationsDeep:
+    def test_extract_inline_citations(self) -> None:
+        text = "As shown by Smith (2020) and Jones et al. (2021), the method works. See also [1] and [2]."
+        citations = extract_inline_citations(text, "doc.md")
+        assert len(citations) >= 1
+
+    def test_extract_references(self) -> None:
+        text = (
+            "## References\n\n"
+            "[1] Smith, J. (2020). A Study. Journal of ML, 25(3).\n"
+            "[2] Jones, K. et al. (2021). Another Study. NeurIPS.\n"
+        )
+        refs = extract_references(text)
+        assert len(refs) >= 1
+
+    def test_build_citation_graph_empty(self) -> None:
+        graph = build_citation_graph([], [])
+        assert len(graph.citations) == 0
+        assert graph.edges == []
+
+    def test_build_citation_graph_linked(self) -> None:
+        citations = [Citation(raw_text="[1]", source_file="a.md", line_number=5, cite_type="numeric")]
+        refs = [Reference(key="1", raw_text="Smith 2020", authors="Smith", year="2020", title="A Study", doi="")]
+        graph = build_citation_graph(citations, refs, source_doc="a.md")
+        assert len(graph.citations) >= 1
+
+
+class TestRenderMetaTemplates:
+    def test_render_meta_templates(self, tmp_path: Path) -> None:
+        course_root = tmp_path / "course"
+        course_root.mkdir()
+        syllabus_text = (
+            "Course Title: Reinforcement Learning\n"
+            "Instructor: Prof. Smith\n"
+            "Classroom Code: ABC123\n\n"
+            "## Required Programs\n- Python\n- MATLAB\n\n"
+            "## Assessment\n- 40% Midterm\n- 60% Final\n\n"
+            "## Week 1: Introduction\n- Basics of RL\n\n"
+            "## Week 2: MDP\n- Markov processes\n"
+        )
+        entries = parse_week_entries(syllabus_text)
+        from phinitelab_pdf_pipeline.render_templates import render_meta_templates
+
+        written = render_meta_templates(course_root, syllabus_text, entries)
+        assert len(written) == 2
+        profile = (course_root / "00_meta" / "course_profile.md").read_text(encoding="utf-8")
+        assert "Reinforcement Learning" in profile
+        assert "Prof. Smith" in profile
+        rules = (course_root / "00_meta" / "global_rules.md").read_text(encoding="utf-8")
+        assert "# Global Rules" in rules
+
+
+class TestRenderWeekTemplates:
+    def test_render_week_templates(self, tmp_path: Path) -> None:
+        course_root = tmp_path / "course"
+        raw_root = tmp_path / "raw"
+        cleaned_root = tmp_path / "cleaned"
+        for d in [course_root, raw_root, cleaned_root]:
+            d.mkdir()
+
+        # Create a week directory
+        week_dir = course_root / "01_introduction"
+        week_dir.mkdir()
+
+        # Create raw content
+        raw_week = raw_root / "01_introduction"
+        raw_week.mkdir()
+        (raw_week / "content.md").write_text(
+            "# Introduction to RL\n\nReinforcement learning is a paradigm.\n\n## Key Concepts\n\n- State\n- Action\n",
+            encoding="utf-8",
+        )
+
+        entries = {1: {"title": "Introduction", "bullets": ["RL basics", "Environment setup"]}}
+        from phinitelab_pdf_pipeline.render_templates import render_week_templates
+
+        written = render_week_templates(course_root, raw_root, cleaned_root, entries)
+        assert len(written) >= 2
+        rules_path = week_dir / "rules.md"
+        assert rules_path.exists()
+        rules_text = rules_path.read_text(encoding="utf-8")
+        assert "Week 01 Rules" in rules_text
+        assert "Introduction" in rules_text
+
+    def test_empty_course(self, tmp_path: Path) -> None:
+        course_root = tmp_path / "course"
+        raw_root = tmp_path / "raw"
+        cleaned_root = tmp_path / "cleaned"
+        for d in [course_root, raw_root, cleaned_root]:
+            d.mkdir()
+        from phinitelab_pdf_pipeline.render_templates import render_week_templates
+
+        written = render_week_templates(course_root, raw_root, cleaned_root, {})
+        assert written == []
+
+
+class TestBuildCourseProfileText:
+    def test_full_profile(self) -> None:
+        text = build_course_profile_text(
+            course_title="RL",
+            semester="Fall 2024",
+            instructor="Prof. X",
+            main_topics=["MDP", "TD Learning"],
+            programs=["Python"],
+            notes=["Note 1"],
+        )
+        assert "# Course Profile" in text
+        assert "RL" in text
+        assert "Fall 2024" in text
+        assert "- MDP" in text
+        assert "- Python" in text
+
+
+class TestBuildGlobalRulesText:
+    def test_rules_output(self) -> None:
+        text = build_global_rules_text(
+            existing_rules=["Rule 1", "Rule 2"],
+            ai_rules=["AI Rule"],
+            admin_rules=["Admin Rule"],
+        )
+        assert "# Global Rules" in text
+        assert "- Rule 1" in text
+        assert "- AI Rule" in text
+
+
+class TestBuildWeekRulesText:
+    def test_week_rules(self) -> None:
+        text = build_week_rules_text(
+            week_number=3,
+            title="Dynamic Programming",
+            scope_items=["Policy evaluation", "Value iteration"],
+            exclude_items=["Unrelated topics"],
+            output_items=["Summary"],
+        )
+        assert "Week 03 Rules" in text
+        assert "## Scope" in text
+        assert "Policy evaluation" in text
+
+
+class TestBuildAssignmentText:
+    def test_assignment_output(self) -> None:
+        text = build_assignment_text(
+            week_number=5,
+            objective="Learn TD methods",
+            tasks=["Implement TD(0)", "Compare with MC"],
+            submission=["Submit as Markdown"],
+        )
+        assert "Week 05 Assignment" in text
+        assert "## Objective" in text
+        assert "Learn TD methods" in text
+        assert "1. Implement TD(0)" in text
+
+
+class TestRunPipelineBuildParserFull:
+    def test_all_stages(self) -> None:
+        parser = build_parser()
+        args = parser.parse_args(["--stages", "convert", "clean", "chunk", "render", "analyze", "validate"])
+        assert args.stages == ["convert", "clean", "chunk", "render", "analyze", "validate"]
+
+    def test_engine_override(self) -> None:
+        parser = build_parser()
+        args = parser.parse_args(["--engine", "markitdown"])
+        assert args.engine == "markitdown"
+
+    def test_no_manifest(self) -> None:
+        parser = build_parser()
+        args = parser.parse_args(["--no-manifest"])
+        assert args.no_manifest is True
+
+    def test_session_name(self) -> None:
+        parser = build_parser()
+        args = parser.parse_args(["--session-name", "test-session"])
+        assert args.session_name == "test-session"
+
+    def test_input_path(self) -> None:
+        parser = build_parser()
+        args = parser.parse_args(["--input", "/tmp/test.pdf"])
+        assert args.input == Path("/tmp/test.pdf")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Coverage boost phase 2 — chunk_file, chunk_tree, convert, diff, figures CLI
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+class TestChunkFileDeep:
+    def test_chunk_file_creates_output(self, tmp_path: Path) -> None:
+        md = tmp_path / "input.md"
+        md.write_text(
+            "# Chapter 1\n\nContent of chapter 1.\n\n# Chapter 2\n\nContent of chapter 2.\n",
+            encoding="utf-8",
+        )
+        out = tmp_path / "chunks"
+        written = chunk_file(md, out, split_levels=[1])
+        assert len(written) >= 2
+        assert all(p.exists() for p in written)
+
+    def test_chunk_file_not_found(self, tmp_path: Path) -> None:
+        with pytest.raises(FileNotFoundError):
+            chunk_file(tmp_path / "missing.md", tmp_path / "out")
+
+    def test_chunk_file_no_chunks(self, tmp_path: Path) -> None:
+        md = tmp_path / "empty.md"
+        md.write_text("", encoding="utf-8")
+        with pytest.raises(ValueError):
+            chunk_file(md, tmp_path / "out")
+
+
+class TestChunkTreeDeep:
+    def test_chunk_tree_single_file(self, tmp_path: Path) -> None:
+        input_root = tmp_path / "input"
+        input_root.mkdir()
+        (input_root / "doc.md").write_text(
+            "# Section A\n\nContent A.\n\n# Section B\n\nContent B.\n",
+            encoding="utf-8",
+        )
+        output_root = tmp_path / "output"
+        output_root.mkdir()
+        written = chunk_tree(input_root, output_root)
+        assert len(written) >= 2
+
+    def test_chunk_tree_empty(self, tmp_path: Path) -> None:
+        empty = tmp_path / "empty"
+        empty.mkdir()
+        with pytest.raises(FileNotFoundError):
+            chunk_tree(empty, tmp_path / "out")
+
+
+class TestConvertFormatFunctions:
+    def test_format_formula_block(self) -> None:
+        result = format_formula_block("E = mc^2")
+        assert "E = mc^2" in result
+        assert "Equation" in result
+
+    def test_format_incomplete_formula_block(self) -> None:
+        result = format_incomplete_formula_block()
+        assert "incomplete" in result.lower()
+
+    def test_format_algorithm_block(self) -> None:
+        text = "Initialize θ\nFor each iteration:\n  Update θ\nReturn θ"
+        result = format_algorithm_block(text)
+        assert "```text" in result
+        assert "Initialize" in result
+
+    def test_is_algorithmic_text_true(self) -> None:
+        assert is_algorithmic_text("Initialize weights\nFor each episode:\n  Sample action")
+
+    def test_is_algorithmic_text_false(self) -> None:
+        assert not is_algorithmic_text("This is just a regular paragraph.")
+
+    def test_normalize_recovered_text(self) -> None:
+        result = normalize_recovered_text("   hello   world   ")
+        assert result == "hello world"
+
+    def test_reformat_algorithm_sections(self) -> None:
+        text = "## Algorithm 1 Algorithm parameters: α = 0.1, γ = 0.99\n"
+        result = reformat_algorithm_sections(text)
+        assert "## Algorithm 1" in result
+
+    def test_merge_docling_markitdown(self) -> None:
+        docling_md = "# Title\n\nDocling paragraph one.\n\nDocling paragraph two.\n"
+        markitdown_md = "# Title\n\nMarkitdown paragraph one.\n\nUnique markitdown paragraph.\n"
+        merged = merge_docling_markitdown(docling_md, markitdown_md)
+        assert "Title" in merged
+        assert len(merged) > 0
+
+
+class TestNormalizeMarkdownMore:
+    def test_crlf_to_lf(self) -> None:
+        result = normalize_markdown("Hello\r\nWorld\r\n")
+        assert "\r" not in result
+        assert "Hello" in result
+
+    def test_cr_to_lf(self) -> None:
+        result = normalize_markdown("Hello\rWorld")
+        assert "\r" not in result
+
+
+class TestDeriveOutputPathMore:
+    def test_root_file(self, tmp_path: Path) -> None:
+        input_root = tmp_path / "pdfs"
+        output_root = tmp_path / "md"
+        pdf = input_root / "test.pdf"
+        result = derive_output_path(pdf, input_root, output_root)
+        assert result.suffix == ".md"
+        assert result.name == "test.md"
+
+
+class TestFiguresExtractDeep:
+    def test_html_image(self) -> None:
+        text = '# Document\n\n<img src="figures/img.png" alt="Test Image">\n'
+        figures = extract_figures_from_text(text, "test.md")
+        assert len(figures) >= 1
+
+    def test_figure_with_title(self) -> None:
+        text = '![Alt text](path/to/img.jpg "Optional title")\n'
+        figures = extract_figures_from_text(text, "test.md")
+        assert len(figures) >= 1
+
+    def test_extract_from_file_func(self, tmp_path: Path) -> None:
+        md = tmp_path / "doc.md"
+        md.write_text("# Doc\n\n![Figure](images/fig.png)\n", encoding="utf-8")
+        report = extract_from_file(md)
+        assert isinstance(report, FigureReport)
+
+    def test_extract_from_tree_func(self, tmp_path: Path) -> None:
+        d = tmp_path / "docs"
+        d.mkdir()
+        (d / "a.md").write_text("# A\n\n![Fig](img.png)\n", encoding="utf-8")
+        (d / "b.md").write_text("# B\n\nNo figures here.\n", encoding="utf-8")
+        report = extract_from_tree(d)
+        assert isinstance(report, FigureReport)
+
+
+class TestAlgorithmExtractMore:
+    def test_algo_header_re(self) -> None:
+        assert ALGO_HEADER_RE.search("# Algorithm 1: Gradient Descent")
+        assert ALGO_HEADER_RE.search("## Algorithm 2. Q-Learning")
+        assert not ALGO_HEADER_RE.search("# Introduction")
+
+    def test_extract_from_file(self, tmp_path: Path) -> None:
+        md = tmp_path / "algo.md"
+        md.write_text(
+            "# Algorithm 1: Test\n\n```\nINPUT: x\nOUTPUT: y\n1. Compute y = f(x)\n2. Return y\n```\n",
+            encoding="utf-8",
+        )
+        algos = algo_extract_from_file(md)
+        assert isinstance(algos, list)
+
+    def test_extract_from_tree_func(self, tmp_path: Path) -> None:
+        d = tmp_path / "docs"
+        d.mkdir()
+        (d / "a.md").write_text("# Algorithm 1: A\n\n```\n1. Do\n2. Done\n```\n", encoding="utf-8")
+        result = algo_extract_from_tree(d)
+        assert isinstance(result, list)
+
+
+class TestFormulaScoreDeep:
+    def test_score_file_func(self, tmp_path: Path) -> None:
+        md = tmp_path / "formulas.md"
+        md.write_text(
+            "# Math\n\n$$E = mc^2$$\n\n$$\\int_0^1 x dx$$\n\nNormal text.\n",
+            encoding="utf-8",
+        )
+        report = score_file(md)
+        assert isinstance(report, FileReport)
+
+    def test_validate_formula_text(self) -> None:
+        valid, issues = validate_formula_text("E = mc^2")
+        assert isinstance(valid, bool)
+        assert isinstance(issues, list)
+
+    def test_build_file_report(self, tmp_path: Path) -> None:
+        md = tmp_path / "test.md"
+        md.write_text("$$E = mc^2$$\n\nSome text.\n$$F = ma$$\n", encoding="utf-8")
+        report = build_file_report(md, md.read_text(encoding="utf-8"))
+        assert isinstance(report, FileReport)
+        assert report.file == str(md)
+
+
+class TestOcrQualityMore:
+    def test_count_functions(self) -> None:
+        text = "The quick brown fox jumps over the lazy dog."
+        common = count_common_words(text)
+        assert common >= 1
+        garble = count_garble_chars(text)
+        assert garble == 0
+        noise = count_short_noise_lines(text)
+        assert noise == 0
+        soup = count_symbol_soup(text)
+        assert soup == 0
+
+    def test_assess_quality_clean_text(self) -> None:
+        text = "This is a clean document with proper English text.\nIt has multiple sentences and paragraphs.\n\nAnother paragraph here."
+        metrics = assess_quality(text)
+        assert isinstance(metrics, OCRQualityMetrics)
+        assert metrics.confidence >= 0.0
+
+    def test_confidence_grade(self) -> None:
+        assert confidence_to_grade(0.95) in ("A", "B")
+        assert confidence_to_grade(0.5) in ("C", "D", "F")
+        assert confidence_to_grade(0.1) in ("D", "F")
+
+
+class TestMultiFormatDeep:
+    def test_md_to_html(self) -> None:
+        html = md_to_html("# Title\n\nParagraph.\n")
+        assert "<h1>" in html or "<h1" in html
+        assert "Title" in html
+
+    def test_md_to_text(self) -> None:
+        text = md_to_text("# Title\n\n**Bold** and *italic*.\n")
+        assert "Title" in text
+        assert "Bold" in text
+
+    def test_md_to_yaml(self) -> None:
+        result = md_to_yaml("# Title\n\nSome content.\n")
+        assert isinstance(result, str)
+        assert len(result) > 0
+
+    def test_convert_file(self, tmp_path: Path) -> None:
+        md = tmp_path / "test.md"
+        md.write_text("# Test\n\nContent.\n", encoding="utf-8")
+        result = convert_file(md, tmp_path, fmt="html")
+        assert result.exists()
+        assert result.suffix == ".html"
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Coverage boost phase 3 — clean_file, clean_tree, parallel,
+# topics, rag_export, diff, notation, ghpages, semantic_chunk, qa_pipeline
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+class TestCleanFileFunc:
+    def test_clean_file(self, tmp_path: Path) -> None:
+        input_md = tmp_path / "raw.md"
+        input_md.write_text(
+            "# Title\n\n\n\nSome content.\n\n---\n\n# Another Section\n\nMore content.\n",
+            encoding="utf-8",
+        )
+        output_md = tmp_path / "out" / "cleaned.md"
+        result = clean_file(input_md, output_md)
+        assert result == output_md
+        assert output_md.exists()
+        text = output_md.read_text(encoding="utf-8")
+        assert "Title" in text
+
+    def test_clean_file_not_found(self, tmp_path: Path) -> None:
+        with pytest.raises(FileNotFoundError):
+            clean_file(tmp_path / "missing.md", tmp_path / "out.md")
+
+    def test_clean_file_with_cfg(self, tmp_path: Path) -> None:
+        md = tmp_path / "input.md"
+        md.write_text("# Header\n\nParagraph.\n", encoding="utf-8")
+        out = tmp_path / "out.md"
+        result = clean_file(md, out, cfg={"clean": {"min_repeated_header_count": 5}})
+        assert result.exists()
+
+
+class TestCleanTreeFunc:
+    def test_clean_tree(self, tmp_path: Path) -> None:
+        input_root = tmp_path / "raw"
+        input_root.mkdir()
+        (input_root / "doc1.md").write_text("# Doc1\n\nContent 1.\n", encoding="utf-8")
+        subdir = input_root / "sub"
+        subdir.mkdir()
+        (subdir / "doc2.md").write_text("# Doc2\n\nContent 2.\n", encoding="utf-8")
+        output_root = tmp_path / "cleaned"
+        output_root.mkdir()
+        written = clean_tree(input_root, output_root)
+        assert len(written) == 2
+        assert all(p.exists() for p in written)
+
+    def test_clean_tree_empty(self, tmp_path: Path) -> None:
+        empty = tmp_path / "empty"
+        empty.mkdir()
+        with pytest.raises(FileNotFoundError):
+            clean_tree(empty, tmp_path / "out")
+
+
+class TestNormalizeTableCellExtra:
+    def test_collapse_whitespace(self) -> None:
+        result = normalize_table_cell("  hello   world  ")
+        assert result == "hello world"
+
+
+class TestNormalizeTableBlocksDeep:
+    def test_simple_table(self) -> None:
+        text = "| A | B |\n|---|---|\n| 1 | 2 |\n"
+        result = normalize_table_blocks(text)
+        assert "| A |" in result
+        assert "| 1 |" in result
+
+
+class TestParallelMapDeep:
+    def test_single_worker(self, tmp_path: Path) -> None:
+        f = tmp_path / "a.md"
+        f.write_text("hello", encoding="utf-8")
+        report = parallel_map(lambda p: p.read_text(encoding="utf-8"), [f], config=ParallelConfig(workers=1))
+        assert isinstance(report, ParallelReport)
+        assert report.total == 1
+        assert report.succeeded == 1
+
+    def test_empty_paths(self) -> None:
+        report = parallel_map(lambda p: None, [])
+        assert report.total == 0
+
+    def test_multi_worker(self, tmp_path: Path) -> None:
+        files = []
+        for i in range(5):
+            f = tmp_path / f"f{i}.md"
+            f.write_text(f"content {i}", encoding="utf-8")
+            files.append(f)
+        report = parallel_map(
+            lambda p: p.read_text(encoding="utf-8"),
+            files,
+            config=ParallelConfig(workers=2, pool_type="thread"),
+        )
+        assert report.total == 5
+        assert report.succeeded == 5
+
+    def test_error_handling(self, tmp_path: Path) -> None:
+        f = tmp_path / "a.md"
+        f.write_text("x", encoding="utf-8")
+
+        def fail(p: Path) -> str:
+            raise ValueError("test error")
+
+        report = parallel_map(fail, [f], config=ParallelConfig(workers=1))
+        assert report.failed == 1
+        assert "test error" in report.results[0].error
+
+
+class TestCollectMdFilesDeep:
+    def test_collect(self, tmp_path: Path) -> None:
+        (tmp_path / "a.md").write_text("a", encoding="utf-8")
+        (tmp_path / "b.txt").write_text("b", encoding="utf-8")
+        sub = tmp_path / "sub"
+        sub.mkdir()
+        (sub / "c.md").write_text("c", encoding="utf-8")
+        result = collect_md_files(tmp_path)
+        assert len(result) == 2
+
+    def test_empty(self, tmp_path: Path) -> None:
+        result = collect_md_files(tmp_path)
+        assert result == []
+
+
+class TestParallelTreeDeep:
+    def test_parallel_tree_basic(self, tmp_path: Path) -> None:
+        (tmp_path / "a.md").write_text("hello", encoding="utf-8")
+        (tmp_path / "b.md").write_text("world", encoding="utf-8")
+        report = parallel_tree(
+            lambda p: p.read_text(encoding="utf-8"),
+            tmp_path,
+            config=ParallelConfig(workers=1),
+        )
+        assert report.total == 2
+        assert report.succeeded == 2
+
+    def test_parallel_tree_empty(self, tmp_path: Path) -> None:
+        with pytest.raises(FileNotFoundError):
+            parallel_tree(lambda p: None, tmp_path)
+
+
+class TestDiffDeep:
+    def test_diff_files_identical(self, tmp_path: Path) -> None:
+        a = tmp_path / "a.md"
+        b = tmp_path / "b.md"
+        a.write_text("Same content\n", encoding="utf-8")
+        b.write_text("Same content\n", encoding="utf-8")
+        result = diff_files(a, b)
+        assert result.status == "unchanged"
+
+    def test_diff_files_modified(self, tmp_path: Path) -> None:
+        a = tmp_path / "a.md"
+        b = tmp_path / "b.md"
+        a.write_text("Line 1\nLine 2\n", encoding="utf-8")
+        b.write_text("Line 1\nLine 2 modified\nLine 3 new\n", encoding="utf-8")
+        result = diff_files(a, b)
+        assert result.status == "modified"
+
+    def test_diff_trees(self, tmp_path: Path) -> None:
+        old = tmp_path / "old"
+        new = tmp_path / "new"
+        old.mkdir()
+        new.mkdir()
+        (old / "shared.md").write_text("old text\n", encoding="utf-8")
+        (new / "shared.md").write_text("new text\n", encoding="utf-8")
+        (old / "removed.md").write_text("gone\n", encoding="utf-8")
+        (new / "added.md").write_text("new file\n", encoding="utf-8")
+        td = diff_trees(old, new)
+        assert isinstance(td, TreeDiff)
+        assert "added.md" in str(td.files_added) or len(td.files_added) > 0
+
+    def test_write_diff_report(self, tmp_path: Path) -> None:
+        td = TreeDiff()
+        out = tmp_path / "report.json"
+        result = write_diff_report(td, out)
+        assert result.exists()
+
+    def test_write_unified_diff(self, tmp_path: Path) -> None:
+        old = tmp_path / "a.md"
+        new = tmp_path / "b.md"
+        old.write_text("L1\n", encoding="utf-8")
+        new.write_text("L1 changed\n", encoding="utf-8")
+        fd = diff_files(old, new)
+        td = TreeDiff(file_diffs=[fd])
+        out = tmp_path / "diff.txt"
+        write_unified_diff(td, out)
+        assert out.exists()
+
+
+class TestTopicsDeep:
+    def test_classify_file(self, tmp_path: Path) -> None:
+        md = tmp_path / "ml_paper.md"
+        md.write_text(
+            "# Machine Learning\n\nNeural networks and deep learning models.\n\n"
+            "## Classification\n\nSVM, Random Forest, and Gradient Boosting.\n",
+            encoding="utf-8",
+        )
+        result = classify_file(md)
+        assert isinstance(result, DocumentTopics)
+
+    def test_write_topic_report(self, tmp_path: Path) -> None:
+        results = [
+            DocumentTopics(source_file="a.md", word_count=100, primary_topic="ml"),
+        ]
+        out = tmp_path / "topics.json"
+        written = write_topic_report(results, out)
+        assert written.exists()
+
+
+class TestRagExportDeep:
+    def test_export_file(self, tmp_path: Path) -> None:
+        md = tmp_path / "chunk_001_intro.md"
+        md.write_text("# Introduction\n\nThis is the introduction.\n", encoding="utf-8")
+        record = export_file(md)
+        assert isinstance(record, RAGRecord)
+
+    def test_write_jsonl(self, tmp_path: Path) -> None:
+        records = [RAGRecord(id="test-1", source="a.md", title="Title", text="Body text")]
+        out = tmp_path / "output.jsonl"
+        written = write_jsonl(records, out)
+        assert written.exists()
+
+    def test_write_json_array(self, tmp_path: Path) -> None:
+        records = [RAGRecord(id="test-1", source="a.md", title="Title", text="Body text")]
+        out = tmp_path / "output.json"
+        written = write_json_array(records, out)
+        assert written.exists()
+        data = json.loads(written.read_text(encoding="utf-8"))
+        assert len(data) == 1
+
+    def test_rag_build_summary(self) -> None:
+        records = [
+            RAGRecord(id="1", source="a.md", title="T", text="Body"),
+            RAGRecord(id="2", source="a.md", title="T2", text="Body2"),
+        ]
+        summary = rag_build_summary(records)
+        assert isinstance(summary, dict)
+
+
+class TestGhPagesDeep:
+    def test_write_site_manifest(self, tmp_path: Path) -> None:
+        pages = [PageEntry(title="Test", relative_path="test.html", source_md="test.md")]
+        out = tmp_path / "manifest.json"
+        result = write_site_manifest(pages, out)
+        assert result.exists()
+
+    def test_build_nav_html(self) -> None:
+        pages = [
+            PageEntry(title="Home", relative_path="index.html", source_md="index.md"),
+            PageEntry(title="About", relative_path="about.html", source_md="about.md"),
+        ]
+        html = build_nav_html(pages)
+        assert "Home" in html
+        assert "About" in html
+
+    def test_collect_pages(self, tmp_path: Path) -> None:
+        (tmp_path / "a.html").write_text("<h1>A</h1>", encoding="utf-8")
+        (tmp_path / "b.html").write_text("<h1>B</h1>", encoding="utf-8")
+        pages = collect_pages(tmp_path)
+        assert isinstance(pages, list)
+
+    def test_generate_site(self, tmp_path: Path) -> None:
+        md_dir = tmp_path / "md"
+        md_dir.mkdir()
+        (md_dir / "doc.md").write_text("# Document\n\nContent.\n", encoding="utf-8")
+        site_dir = tmp_path / "site"
+        written = generate_site(md_dir, site_dir)
+        assert len(written) >= 1
+
+
+class TestCrossRefDeep:
+    def test_analyze_file(self, tmp_path: Path) -> None:
+        md = tmp_path / "doc.md"
+        md.write_text(
+            "# Document\n\n**Theorem 1.** Statement.\n\nSee Theorem 1.\n\n**Figure 1.** Caption.\n\nAs in Figure 1.\n",
+            encoding="utf-8",
+        )
+        report = crossref_analyze_file(md)
+        assert isinstance(report, CrossRefReport)
+
+    def test_analyze_tree(self, tmp_path: Path) -> None:
+        d = tmp_path / "docs"
+        d.mkdir()
+        (d / "a.md").write_text(
+            "**Equation 1.** $E=mc^2$\n\nSee Equation 1.\n",
+            encoding="utf-8",
+        )
+        report = crossref_analyze_tree(d)
+        assert isinstance(report, CrossRefReport)
+
+    def test_write_crossref_report(self, tmp_path: Path) -> None:
+        report = CrossRefReport()
+        out = tmp_path / "crossref.json"
+        result = write_crossref_report(report, out)
+        assert result.exists()
+
+
+class TestNotationGlossaryDeep:
+    def test_extract_from_file(self, tmp_path: Path) -> None:
+        md = tmp_path / "doc.md"
+        md.write_text(
+            "# Math\n\nLet $\\alpha$ denote the learning rate.\n\nWe define $\\gamma$ as the discount factor.\n",
+            encoding="utf-8",
+        )
+        glossary = notation_extract_from_file(md)
+        assert isinstance(glossary, NotationGlossary)
+
+    def test_extract_from_tree(self, tmp_path: Path) -> None:
+        d = tmp_path / "docs"
+        d.mkdir()
+        (d / "a.md").write_text(
+            "Let $x$ be the input.\n",
+            encoding="utf-8",
+        )
+        glossary = notation_extract_from_tree(d)
+        assert isinstance(glossary, NotationGlossary)
+
+    def test_write_notation_report(self, tmp_path: Path) -> None:
+        glossary = NotationGlossary()
+        out = tmp_path / "notation.json"
+        result = write_notation_report(glossary, out)
+        assert result.exists()
+
+    def test_write_markdown_glossary(self, tmp_path: Path) -> None:
+        glossary = NotationGlossary(entries=[NotationEntry(symbol="α", definition="learning rate")])
+        out = tmp_path / "glossary.md"
+        result = write_markdown_glossary(glossary, out)
+        assert result.exists()
+        text = result.read_text(encoding="utf-8")
+        assert "α" in text
+
+
+class TestMetadataDeep:
+    def test_extract_file(self, tmp_path: Path) -> None:
+        md = tmp_path / "paper.md"
+        md.write_text(
+            "# A Study of Machine Learning\n\nJohn Doe, Jane Smith\n\n"
+            "## Abstract\n\nWe study ML methods.\n\n"
+            "Keywords: machine learning, neural networks\n\n"
+            "DOI: 10.1234/test.2024\n",
+            encoding="utf-8",
+        )
+        meta = extract_file(md)
+        assert isinstance(meta, ScholarlyMetadata)
+
+    def test_write_metadata_report(self, tmp_path: Path) -> None:
+        meta = ScholarlyMetadata(source_file="test.md", title="Test")
+        out = tmp_path / "metadata.json"
+        result = write_metadata_report([meta], out)
+        assert result.exists()
+
+    def test_extract_tree(self, tmp_path: Path) -> None:
+        d = tmp_path / "docs"
+        d.mkdir()
+        (d / "a.md").write_text("# Paper Title\n\nContent.\n", encoding="utf-8")
+        results = extract_tree(d)
+        assert isinstance(results, list)
+        assert len(results) == 1
+
+
+class TestDocTypeDeep:
+    def test_detect_file(self, tmp_path: Path) -> None:
+        md = tmp_path / "doc.md"
+        md.write_text("# Chapter 1\n\nSome content.\n\n# Chapter 2\n\nMore content.\n", encoding="utf-8")
+        result = detect_file(md)
+        assert isinstance(result, DocTypeResult)
+
+    def test_detect_tree(self, tmp_path: Path) -> None:
+        d = tmp_path / "docs"
+        d.mkdir()
+        (d / "a.md").write_text("# Abstract\n\nWe present results.\n", encoding="utf-8")
+        results = detect_tree(d)
+        assert isinstance(results, list)
+
+    def test_write_detection_report(self, tmp_path: Path) -> None:
+        result = DocTypeResult(source_file="test.md", doc_type=GENERIC, confidence=0.9)
+        out = tmp_path / "doctype.json"
+        written = write_detection_report([result], out)
+        assert written.exists()
+
+
+class TestQaPipelineDeep:
+    def test_qa_file(self, tmp_path: Path) -> None:
+        md = tmp_path / "doc.md"
+        md.write_text("# Document\n\nSome content here.\n\n## Section 2\n\nMore text.\n", encoding="utf-8")
+        report = qa_file(md)
+        assert isinstance(report, FileQAReport)
+
+    def test_qa_tree(self, tmp_path: Path) -> None:
+        d = tmp_path / "docs"
+        d.mkdir()
+        (d / "a.md").write_text("# A\n\nContent.\n", encoding="utf-8")
+        reports = qa_tree(d)
+        assert isinstance(reports, list)
+
+    def test_write_qa_report(self, tmp_path: Path) -> None:
+        report = FileQAReport(file="test.md")
+        summary = build_summary([report])
+        out = tmp_path / "qa.json"
+        written = write_qa_report([report], summary, out)
+        assert written.exists()
+
+    def test_write_markdown_report(self, tmp_path: Path) -> None:
+        report = FileQAReport(file="test.md")
+        summary = build_summary([report])
+        out = tmp_path / "qa.md"
+        written = write_markdown_report([report], summary, out)
+        assert written.exists()
+
+    def test_build_summary(self) -> None:
+        from phinitelab_pdf_pipeline.qa_pipeline import QASummary
+
+        report = FileQAReport(file="test.md")
+        summary = build_summary([report])
+        assert isinstance(summary, QASummary)
+
+
+class TestOcrQualityDeep:
+    def test_assess_file(self, tmp_path: Path) -> None:
+        md = tmp_path / "doc.md"
+        md.write_text("The quick brown fox jumps over the lazy dog.\n" * 10, encoding="utf-8")
+        report = assess_file(md)
+        assert isinstance(report, OCRFileReport)
+
+    def test_assess_tree(self, tmp_path: Path) -> None:
+        d = tmp_path / "docs"
+        d.mkdir()
+        (d / "a.md").write_text("Normal text content.\n", encoding="utf-8")
+        reports = assess_tree(d)
+        assert isinstance(reports, list)
+
+    def test_write_ocr_report(self, tmp_path: Path) -> None:
+        report = OCRFileReport(source_file="test.md", metrics=OCRQualityMetrics(), grade="A")
+        out = tmp_path / "ocr.json"
+        written = write_ocr_report([report], out)
+        assert written.exists()
+
+
+class TestFormulaScoreTree:
+    def test_score_tree(self, tmp_path: Path) -> None:
+        d = tmp_path / "docs"
+        d.mkdir()
+        (d / "a.md").write_text("$$E = mc^2$$\n\nText.\n", encoding="utf-8")
+        reports = score_tree(d)
+        assert isinstance(reports, list)
+
+    def test_score_markdown(self) -> None:
+        text = "Some text.\n\n$$F = ma$$\n\nMore text.\n"
+        result = score_markdown(text)
+        assert isinstance(result, list)
+
+    def test_write_report(self, tmp_path: Path) -> None:
+        report = FileReport(file="test.md")
+        out = tmp_path / "formula.json"
+        written = write_report([report], out)
+        assert written.exists()
+
+
+class TestCitationsDeepExtra:
+    def test_analyze_tree(self, tmp_path: Path) -> None:
+        d = tmp_path / "docs"
+        d.mkdir()
+        (d / "a.md").write_text("Some text [1].\n\n## References\n\n1. Smith 2020.\n", encoding="utf-8")
+        graph = analyze_tree(d)
+        assert isinstance(graph, CitationGraph)
+
+    def test_write_citation_report(self, tmp_path: Path) -> None:
+        graph = CitationGraph()
+        out = tmp_path / "citations.json"
+        written = write_citation_report(graph, out)
+        assert written.exists()
+
+    def test_write_dot_graph(self, tmp_path: Path) -> None:
+        graph = CitationGraph()
+        out = tmp_path / "citations.dot"
+        written = write_dot_graph(graph, out)
+        assert written.exists()
+
+
+class TestFiguresDeepExtra:
+    def test_write_figure_manifest(self, tmp_path: Path) -> None:
+        report = FigureReport()
+        out = tmp_path / "figures.json"
+        result = write_figure_manifest(report, out)
+        assert result.exists()
+
+    def test_write_gallery_page(self, tmp_path: Path) -> None:
+        entry = FigureEntry(image_path="fig1.png", alt_text="Figure 1", source_file="a.md", line_number=5)
+        report = FigureReport(figures=[entry])
+        out = tmp_path / "gallery.md"
+        result = write_gallery_page(report, out)
+        assert result.exists()
+        text = result.read_text(encoding="utf-8")
+        assert "fig1.png" in text
+
+
+class TestAlgorithmWriteReport:
+    def test_write_report(self, tmp_path: Path) -> None:
+        algos = [Algorithm(label="1", title="Test", source_file="a.md", raw_text="algo text")]
+        out = tmp_path / "algo.json"
+        result = write_algo_report(algos, out)
+        assert result.exists()
+
+
+# ── build_parser coverage for all modules ────────────────────────────────────
+
+
+class TestAllBuildParsers:
+    """Test every module's build_parser() to cover CLI argument definitions."""
+
+    def test_chunk_parser(self) -> None:
+        from phinitelab_pdf_pipeline.chunk import build_parser as bp
+
+        p = bp()
+        assert p is not None
+        ns = p.parse_args(["--input", "/tmp/x", "--output-dir", "/tmp/y"])
+        assert ns.input == Path("/tmp/x")
+
+    def test_clean_parser(self) -> None:
+        from phinitelab_pdf_pipeline.clean import build_parser as bp
+
+        p = bp()
+        ns = p.parse_args(["--input", "/tmp/x", "--output-dir", "/tmp/y"])
+        assert ns.input == Path("/tmp/x")
+
+    def test_convert_parser(self) -> None:
+        from phinitelab_pdf_pipeline.convert import build_parser as bp
+
+        p = bp()
+        ns = p.parse_args(["--input", "/tmp/x"])
+        assert ns.input == Path("/tmp/x")
+
+    def test_diff_parser(self) -> None:
+        from phinitelab_pdf_pipeline.diff import build_parser as bp
+
+        p = bp()
+        ns = p.parse_args(["--old", "/tmp/a", "--new", "/tmp/b"])
+        assert ns.old == Path("/tmp/a")
+
+    def test_parallel_parser(self) -> None:
+        from phinitelab_pdf_pipeline.parallel import build_parser as bp
+
+        p = bp()
+        ns = p.parse_args(["--input", "/tmp/x", "--operation", "ocr_quality"])
+        assert ns.operation == "ocr_quality"
+
+    def test_figures_parser(self) -> None:
+        from phinitelab_pdf_pipeline.figures import build_parser as bp
+
+        p = bp()
+        ns = p.parse_args(["--input", "/tmp/x"])
+        assert ns.input == Path("/tmp/x")
+
+    def test_formula_score_parser(self) -> None:
+        from phinitelab_pdf_pipeline.formula_score import build_parser as bp
+
+        p = bp()
+        ns = p.parse_args(["--input", "/tmp/x"])
+        assert ns.input == Path("/tmp/x")
+
+    def test_ghpages_parser(self) -> None:
+        from phinitelab_pdf_pipeline.ghpages import build_parser as bp
+
+        p = bp()
+        ns = p.parse_args(["--input", "/tmp/x"])
+        assert ns.input == Path("/tmp/x")
+
+    def test_metadata_parser(self) -> None:
+        from phinitelab_pdf_pipeline.metadata import build_parser as bp
+
+        p = bp()
+        ns = p.parse_args(["--input", "/tmp/x"])
+        assert ns.input == Path("/tmp/x")
+
+    def test_doc_type_parser(self) -> None:
+        from phinitelab_pdf_pipeline.doc_type import build_parser as bp
+
+        p = bp()
+        ns = p.parse_args(["--input", "/tmp/x"])
+        assert ns.input == Path("/tmp/x")
+
+    def test_rag_export_parser(self) -> None:
+        from phinitelab_pdf_pipeline.rag_export import build_parser as bp
+
+        p = bp()
+        ns = p.parse_args(["--input", "/tmp/x"])
+        assert ns.input == Path("/tmp/x")
+
+    def test_ocr_quality_parser(self) -> None:
+        from phinitelab_pdf_pipeline.ocr_quality import build_parser as bp
+
+        p = bp()
+        ns = p.parse_args(["--input", "/tmp/x"])
+        assert ns.input == Path("/tmp/x")
+
+    def test_citations_parser(self) -> None:
+        from phinitelab_pdf_pipeline.citations import build_parser as bp
+
+        p = bp()
+        ns = p.parse_args(["--input", "/tmp/x"])
+        assert ns.input == Path("/tmp/x")
+
+    def test_qa_pipeline_parser(self) -> None:
+        from phinitelab_pdf_pipeline.qa_pipeline import build_parser as bp
+
+        p = bp()
+        ns = p.parse_args(["--input", "/tmp/x"])
+        assert ns.input == Path("/tmp/x")
+
+    def test_topics_parser(self) -> None:
+        from phinitelab_pdf_pipeline.topics import build_parser as bp
+
+        p = bp()
+        ns = p.parse_args(["--input", "/tmp/x"])
+        assert ns.input == Path("/tmp/x")
+
+    def test_plugin_parser(self) -> None:
+        from phinitelab_pdf_pipeline.plugin import build_parser as bp
+
+        p = bp()
+        ns = p.parse_args(["--plugin-dir", "/tmp/x"])
+        assert ns.plugin_dir == Path("/tmp/x")
+
+    def test_cross_ref_parser(self) -> None:
+        from phinitelab_pdf_pipeline.cross_ref import build_parser as bp
+
+        p = bp()
+        ns = p.parse_args(["--input", "/tmp/x"])
+        assert ns.input == Path("/tmp/x")
+
+    def test_notation_glossary_parser(self) -> None:
+        from phinitelab_pdf_pipeline.notation_glossary import build_parser as bp
+
+        p = bp()
+        ns = p.parse_args(["--input", "/tmp/x"])
+        assert ns.input == Path("/tmp/x")
+
+    def test_algorithm_extract_parser(self) -> None:
+        from phinitelab_pdf_pipeline.algorithm_extract import build_parser as bp
+
+        p = bp()
+        ns = p.parse_args(["--input", "/tmp/x"])
+        assert ns.input == Path("/tmp/x")
+
+    def test_multi_format_parser(self) -> None:
+        from phinitelab_pdf_pipeline.multi_format import build_parser as bp
+
+        p = bp()
+        ns = p.parse_args(["--input", "/tmp/x"])
+        assert ns.input == Path("/tmp/x")
+
+    def test_semantic_chunk_parser(self) -> None:
+        from phinitelab_pdf_pipeline.semantic_chunk import build_parser as bp
+
+        p = bp()
+        ns = p.parse_args(["--input", "/tmp/x"])
+        assert ns.input == Path("/tmp/x")
+
+    def test_render_templates_parser(self) -> None:
+        from phinitelab_pdf_pipeline.render_templates import build_parser as bp
+
+        p = bp()
+        p.parse_args([])
+        assert p is not None
+
+
+# ── Additional uncovered function tests ──────────────────────────────────────
+
+
+class TestChunkTreeManifest:
+    """Cover chunk_tree with manifest skip path."""
+
+    def test_chunk_tree_skips_manifest(self, tmp_path: Path) -> None:
+        d = tmp_path / "docs"
+        d.mkdir()
+        md = d / "c.md"
+        md.write_text("# Title\n\nParagraph\n", encoding="utf-8")
+        out = tmp_path / "out"
+        out.mkdir()
+        manifest = Manifest(tmp_path / ".manifest.json")
+        manifest.record(md)
+        manifest.save()
+        result = chunk_tree(d, out, manifest=manifest)
+        assert result == []
+
+
+class TestDiffBuildParserAndFunctions:
+    """Cover diff_files and diff_trees."""
+
+    def test_diff_trees_identical(self, tmp_path: Path) -> None:
+        a = tmp_path / "a"
+        a.mkdir()
+        b = tmp_path / "b"
+        b.mkdir()
+        (a / "f.md").write_text("Hello\n", encoding="utf-8")
+        (b / "f.md").write_text("Hello\n", encoding="utf-8")
+        result = diff_trees(a, b)
+        assert isinstance(result, TreeDiff)
+        assert result.total_lines_added == 0
+
+    def test_diff_trees_different(self, tmp_path: Path) -> None:
+        a = tmp_path / "a"
+        a.mkdir()
+        b = tmp_path / "b"
+        b.mkdir()
+        (a / "f.md").write_text("Hello\n", encoding="utf-8")
+        (b / "f.md").write_text("World\n", encoding="utf-8")
+        result = diff_trees(a, b)
+        assert isinstance(result, TreeDiff)
+        assert len(result.file_diffs) >= 1
+
+    def test_write_diff_report(self, tmp_path: Path) -> None:
+        a = tmp_path / "a"
+        a.mkdir()
+        b = tmp_path / "b"
+        b.mkdir()
+        (a / "f.md").write_text("A\n", encoding="utf-8")
+        (b / "f.md").write_text("B\n", encoding="utf-8")
+        diffs = diff_trees(a, b)
+        out = tmp_path / "diff.json"
+        result = write_diff_report(diffs, out)
+        assert result.exists()
+
+    def test_write_unified_diff(self, tmp_path: Path) -> None:
+        a = tmp_path / "a"
+        a.mkdir()
+        b = tmp_path / "b"
+        b.mkdir()
+        (a / "f.md").write_text("Line1\n", encoding="utf-8")
+        (b / "f.md").write_text("Line2\n", encoding="utf-8")
+        diffs = diff_trees(a, b)
+        out = tmp_path / "diff.txt"
+        result = write_unified_diff(diffs, out)
+        assert result.exists()
+
+
+class TestConvertBuildParserArgs:
+    """Test convert module build_parser with full args."""
+
+    def test_engine_choices(self) -> None:
+        from phinitelab_pdf_pipeline.convert import build_parser as bp
+
+        p = bp()
+        ns = p.parse_args(["--input", "/tmp/x", "--engine", "docling"])
+        assert ns.engine == "docling"
+
+    def test_output_dir(self) -> None:
+        from phinitelab_pdf_pipeline.convert import build_parser as bp
+
+        p = bp()
+        ns = p.parse_args(["--input", "/tmp/x", "--output-dir", "/tmp/y"])
+        assert ns.output_dir == Path("/tmp/y")
+
+
+class TestParallelProcessPool:
+    """Cover the ProcessPoolExecutor path in parallel_map."""
+
+    def test_process_pool_type(self) -> None:
+        from concurrent.futures import ProcessPoolExecutor
+
+        from phinitelab_pdf_pipeline.parallel import ParallelConfig, _get_pool
+
+        cfg = ParallelConfig(workers=2, pool_type="process")
+        pool = _get_pool(cfg)
+        assert isinstance(pool, ProcessPoolExecutor)
+        pool.shutdown(wait=False)

@@ -8,6 +8,19 @@ services:
     environment:
       - PYTHONPATH=/app
     entrypoint: ["python", "-m", "phinitelab_pdf_pipeline.run_pipeline"]
+    restart: "no"
+
+  analyze:
+    build: .
+    volumes:
+      - ./data:/app/data
+      - ./outputs:/app/outputs
+      - ./configs:/app/configs
+    environment:
+      - PYTHONPATH=/app
+    entrypoint: ["python", "-m", "phinitelab_pdf_pipeline.run_pipeline", "--stages", "analyze", "validate"]
+    profiles:
+      - analysis
 
   test:
     build: .

@@ -1,4 +1,4 @@
-.PHONY: all convert clean chunk render lint test help
+.PHONY: all convert clean chunk render analyze validate lint format typecheck test docker-build clean-outputs help
 
 PYTHON ?= python
 CONFIG ?= configs/pipeline.yaml
@@ -22,6 +22,12 @@ chunk: ## Split cleaned Markdown into chunks
 render: ## Populate course templates
 	$(PYTHON) -m phinitelab_pdf_pipeline.render_templates --config $(CONFIG)
 
+analyze: ## Run analysis modules (semantic chunk, cross-ref, algorithm, notation)
+	$(PYTHON) -m phinitelab_pdf_pipeline.run_pipeline --config $(CONFIG) --stages analyze
+
+validate: ## Run validation modules (formula, scientific QA, citation context)
+	$(PYTHON) -m phinitelab_pdf_pipeline.run_pipeline --config $(CONFIG) --stages validate
+
 lint: ## Run ruff linter + formatter check
 	$(PYTHON) -m ruff check phinitelab_pdf_pipeline/ tests/
 	$(PYTHON) -m ruff format --check phinitelab_pdf_pipeline/ tests/
@@ -30,8 +36,14 @@ format: ## Auto-format code with ruff
 	$(PYTHON) -m ruff format phinitelab_pdf_pipeline/ tests/
 	$(PYTHON) -m ruff check --fix phinitelab_pdf_pipeline/ tests/
 
-test: ## Run tests with pytest
+typecheck: ## Run pyright type checker
+	$(PYTHON) -m pyright phinitelab_pdf_pipeline/
+
+test: ## Run tests with pytest + coverage
 	$(PYTHON) -m pytest tests/ -v
 
+docker-build: ## Build Docker image
+	docker build -t phinitelab-pdf-pipeline .
+
 clean-outputs: ## Remove all generated outputs (use with caution)
-	rm -rf outputs/raw_md outputs/cleaned_md outputs/chunks outputs/.manifest.json
+	rm -rf outputs/raw_md outputs/cleaned_md outputs/chunks outputs/quality outputs/.manifest.json

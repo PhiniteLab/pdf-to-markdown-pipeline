@@ -23,8 +23,15 @@ RUN pip install --no-cache-dir -r requirements.txt
 # ── Stage 3: application ────────────────────────────────────────────────────
 FROM deps AS app
 
+RUN groupadd --gid 1000 pipeline && \
+    useradd --uid 1000 --gid pipeline --create-home pipeline
+
 COPY . .
 RUN pip install --no-cache-dir --no-deps .
 
-# Default command: run the full pipeline
+USER pipeline
+
+HEALTHCHECK --interval=30s --timeout=5s --retries=2 \
+    CMD ["python", "-c", "import phinitelab_pdf_pipeline; print('ok')"]
+
 ENTRYPOINT ["phinitelab-pdf-pipeline"]

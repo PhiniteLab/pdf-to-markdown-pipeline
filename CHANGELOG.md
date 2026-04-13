@@ -7,6 +7,20 @@ The project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html
 
 ### Added
 
+#### Infrastructure & DevOps
+- **CI/CD**: Rewrote `.github/workflows/ci.yml` with 5 parallel jobs — lint (ruff), typecheck (pyright), test (matrix Python 3.11/3.12/3.13 with coverage upload on 3.12 push), ts-build (Node 20, tsc --noEmit), docker (build verification)
+- **Makefile**: Added `analyze`, `validate`, `typecheck`, `docker-build` targets (12 total)
+- **Docker**: Non-root `pipeline` user (uid/gid 1000), `HEALTHCHECK`, `restart: "no"` policy
+- **docker-compose**: New `analyze` service with profile-based `test` and `lint` services
+- **GitHub community files**: `SECURITY.md`, issue templates (bug report, feature request), PR template
+
+### Changed
+- Test coverage increased from 74.83% → 81.11% (969 tests, 0 failures)
+- Docker image hardened with non-root user and health check
+- Makefile expanded from 8 to 12 targets
+
+### Added
+
 #### Phase 4: Quality & Integration Hardening
 - **`formula_validate.py`**: Enhanced LaTeX formula validation — balanced delimiter checking (braces, brackets, parentheses with escape handling), \begin{}/\end{} environment matching, inline ($...$) vs display ($$...$$) math classification, standard LaTeX command validation against 80+ known commands and 20 known environments, nesting depth computation, weighted complexity scoring (0–100), and error/warning issue collection
 - `FormulaIssue`, `Formula`, `FileValidation`, `ValidationSummary` dataclasses with `error_count`/`warning_count` properties
