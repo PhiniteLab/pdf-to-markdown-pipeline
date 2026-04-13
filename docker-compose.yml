@@ -1,0 +1,33 @@
+services:
+  pipeline:
+    build: .
+    volumes:
+      - ./data:/app/data
+      - ./outputs:/app/outputs
+      - ./configs:/app/configs
+    environment:
+      - PYTHONPATH=/app
+    entrypoint: ["python", "-m", "scripts.run_pipeline"]
+
+  test:
+    build: .
+    volumes:
+      - ./tests:/app/tests
+      - ./scripts:/app/scripts
+      - ./configs:/app/configs
+    environment:
+      - PYTHONPATH=/app
+    entrypoint: ["python", "-m", "pytest", "tests/", "-v"]
+    profiles:
+      - test
+
+  lint:
+    build: .
+    volumes:
+      - ./scripts:/app/scripts
+      - ./tests:/app/tests
+    environment:
+      - PYTHONPATH=/app
+    entrypoint: ["python", "-m", "ruff", "check", "scripts/", "tests/"]
+    profiles:
+      - lint

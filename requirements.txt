@@ -1,0 +1,5 @@
+# Runtime dependencies (pinned versions for reproducibility)
+# For development dependencies, use: pip install -e ".[dev]"
+docling==2.86.0
+markitdown[pdf]==0.1.5
+PyYAML==6.0.3

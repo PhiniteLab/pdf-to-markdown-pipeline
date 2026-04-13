@@ -1,0 +1,105 @@
+{
+  "name": "pdf-pipeline-vscode",
+  "displayName": "PDF Markdown Pipeline",
+  "description": "Convert PDFs to structured Markdown with sessions, auto-processing, and a chat panel.",
+  "version": "0.2.0",
+  "publisher": "phinitelab",
+  "engines": {
+    "vscode": "^1.92.0"
+  },
+  "categories": ["Other"],
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "pdfPipeline",
+          "title": "PDF Pipeline",
+          "icon": "media/pipeline.svg"
+        }
+      ]
+    },
+    "views": {
+      "pdfPipeline": [
+        {
+          "id": "pdfPipelinePanel",
+          "name": "Pipeline"
+        },
+        {
+          "id": "pdfPipelineChat",
+          "name": "Chat",
+          "type": "webview"
+        }
+      ]
+    },
+    "commands": [
+      { "command": "pdfPipeline.refresh",          "title": "Refresh",                "icon": "$(refresh)" },
+      { "command": "pdfPipeline.newSession",        "title": "New Session",            "icon": "$(add)" },
+      { "command": "pdfPipeline.deleteSession",     "title": "Delete Session",         "icon": "$(trash)" },
+      { "command": "pdfPipeline.setActiveSession",  "title": "Set as Active",          "icon": "$(star-empty)" },
+      { "command": "pdfPipeline.processSession",    "title": "Process Active Session", "icon": "$(run-all)" },
+      { "command": "pdfPipeline.addPdf",            "title": "Add PDFs...",            "icon": "$(file-add)" },
+      { "command": "pdfPipeline.runFull",           "title": "Run Full Pipeline",      "icon": "$(play-circle)" },
+      { "command": "pdfPipeline.runConvert",        "title": "Convert Only",           "icon": "$(play)" },
+      { "command": "pdfPipeline.runQA",             "title": "Generate QA Report",     "icon": "$(graph)" },
+      { "command": "pdfPipeline.runDiff",           "title": "Compare Two Folders",    "icon": "$(diff)" },
+      { "command": "pdfPipeline.openConfig",        "title": "Open Config",            "icon": "$(gear)" },
+      { "command": "pdfPipeline.openOutput",        "title": "Reveal in Explorer",     "icon": "$(folder-opened)" }
+    ],
+    "menus": {
+      "view/title": [
+        { "command": "pdfPipeline.refresh",       "when": "view == pdfPipelinePanel", "group": "navigation" },
+        { "command": "pdfPipeline.newSession",    "when": "view == pdfPipelinePanel", "group": "navigation" },
+        { "command": "pdfPipeline.addPdf",        "when": "view == pdfPipelinePanel", "group": "navigation" }
+      ],
+      "view/item/context": [
+        { "command": "pdfPipeline.processSession",   "when": "view == pdfPipelinePanel && viewItem == session.active", "group": "inline" },
+        { "command": "pdfPipeline.setActiveSession",  "when": "view == pdfPipelinePanel && viewItem == session",        "group": "inline" },
+        { "command": "pdfPipeline.deleteSession",     "when": "view == pdfPipelinePanel && viewItem =~ /^session/",     "group": "inline" },
+        { "command": "pdfPipeline.runFull",           "when": "view == pdfPipelinePanel && viewItem == action.runFull",    "group": "inline" },
+        { "command": "pdfPipeline.runConvert",        "when": "view == pdfPipelinePanel && viewItem == action.runConvert", "group": "inline" },
+        { "command": "pdfPipeline.runQA",             "when": "view == pdfPipelinePanel && viewItem == action.runQA",      "group": "inline" },
+        { "command": "pdfPipeline.runDiff",           "when": "view == pdfPipelinePanel && viewItem == action.runDiff",    "group": "inline" },
+        { "command": "pdfPipeline.openConfig",        "when": "view == pdfPipelinePanel && viewItem == action.openConfig", "group": "inline" },
+        { "command": "pdfPipeline.openOutput",        "when": "view == pdfPipelinePanel && viewItem == output.folder",     "group": "inline" }
+      ]
+    },
+    "configuration": {
+      "title": "PDF Pipeline",
+      "properties": {
+        "pdfPipeline.pythonPath": {
+          "type": "string",
+          "default": "python",
+          "description": "Python executable used to run pipeline commands."
+        },
+        "pdfPipeline.configPath": {
+          "type": "string",
+          "default": "configs/pipeline.yaml",
+          "description": "Pipeline config file path relative to workspace root."
+        },
+        "pdfPipeline.defaultEngine": {
+          "type": "string",
+          "default": "dual",
+          "enum": ["docling", "markitdown", "dual"],
+          "description": "Default engine for convert/full pipeline commands."
+        },
+        "pdfPipeline.autoProcess": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically run the pipeline when new PDFs are detected in data/raw/."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p .",
+    "watch": "tsc -watch -p .",
+    "vscode:prepublish": "npm run compile"
+  },
+  "devDependencies": {
+    "@types/node": "^20.16.5",
+    "@types/vscode": "^1.92.0",
+    "typescript": "^5.6.2"
+  }
+}
