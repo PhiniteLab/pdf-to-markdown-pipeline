@@ -29,13 +29,13 @@ dependencies = [
 
 [project.optional-dependencies]
 docling = [
-    "docling>=2.86.0",
+    "docling>=2.88.0",
 ]
 gpu = [
-    "docling>=2.86.0",
+    "docling>=2.88.0",
 ]
 dev = [
-    "docling>=2.86.0",
+    "docling>=2.88.0",
     "pytest>=9.0",
     "pytest-cov>=6.0",
     "ruff>=0.11",
