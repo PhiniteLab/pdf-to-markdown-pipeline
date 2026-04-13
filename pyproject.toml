@@ -40,7 +40,7 @@ dev = [
     "pytest-cov>=6.0",
     "ruff>=0.11",
     "pyright>=1.1",
-    "pre-commit>=4.0",
+    "pre-commit>=4.5.1",
 ]
 docs = [
     "mkdocs-material>=9.5",
