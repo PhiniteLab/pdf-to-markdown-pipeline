@@ -42,6 +42,10 @@ dev = [
     "pyright>=1.1",
     "pre-commit>=4.0",
 ]
+docs = [
+    "mkdocs-material>=9.5",
+    "mkdocstrings[python]>=0.27",
+]
 
 [project.scripts]
 phinitelab-pdf-pipeline = "phinitelab_pdf_pipeline.run_pipeline:main"
@@ -72,3 +76,14 @@ known-first-party = ["phinitelab_pdf_pipeline"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--cov=phinitelab_pdf_pipeline --cov-report=term-missing --cov-fail-under=70"
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+version = "0.1.0"
+version_files = [
+    "pyproject.toml:version",
+    "vscode-extension/package.json:version",
+]
+tag_format = "v$version"
+update_changelog_on_bump = true
+changelog_file = "CHANGELOG.md"

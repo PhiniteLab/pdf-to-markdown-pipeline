@@ -1,0 +1,92 @@
+site_name: PhiniteLab PDF Pipeline
+site_url: https://phinitelab.github.io/pdf-to-markdown-pipeline/
+site_description: Convert PDF documents to structured Markdown with a multi-stage pipeline.
+site_author: Mehmet İşcan
+
+repo_name: PhiniteLab/pdf-to-markdown-pipeline
+repo_url: https://github.com/PhiniteLab/pdf-to-markdown-pipeline
+edit_uri: edit/main/docs/
+
+copyright: Copyright &copy; 2024–2026 PhiniteLab
+
+theme:
+  name: material
+  language: en
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: amber
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: amber
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.tabs.link
+  icon:
+    repo: fontawesome/brands/github
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            show_source: true
+            show_root_heading: true
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.snippets
+  - tables
+  - attr_list
+  - md_in_html
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Getting Started:
+      - Installation: getting-started/installation.md
+      - Quick Start: getting-started/quickstart.md
+  - User Guide:
+      - Pipeline Stages: guide/pipeline-stages.md
+      - Configuration: guide/configuration.md
+      - Docker: guide/docker.md
+  - Architecture:
+      - Overview: architecture/overview.md
+      - Plugin System: architecture/plugins.md
+  - VS Code Extension:
+      - Setup: vscode/setup.md
+      - Commands: vscode/commands.md
+  - API Reference:
+      - Modules: api/modules.md
+  - Contributing: contributing.md
+  - Changelog: changelog.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/PhiniteLab

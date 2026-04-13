@@ -7,6 +7,17 @@ The project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html
 
 ### Added
 
+#### Advanced Tooling (Phase 5)
+- **Dependabot**: `.github/dependabot.yml` — automated dependency update PRs for pip, npm, and GitHub Actions (weekly schedule)
+- **Release workflow**: `.github/workflows/release.yml` — tag-triggered release automation with auto-generated changelog and GitHub Release with sdist/wheel artifacts
+- **Codecov**: CI uploads `coverage.xml` via `codecov/codecov-action@v4`; README codecov badge added
+- **Conventional commits**: `commitizen` added to pre-commit hooks (commit-msg stage); `[tool.commitizen]` config in `pyproject.toml`
+- **MkDocs Material**: Full documentation site with 12 pages — Installation, Quick Start, Pipeline Stages, Configuration, Docker, Architecture Overview, Plugin System, VS Code Setup, VS Code Commands, API Reference (mkdocstrings autodoc for 27 modules), Contributing, Changelog
+- **Docs CI**: `.github/workflows/docs.yml` — builds and deploys MkDocs site to GitHub Pages on push to main
+- **Pre-commit hooks**: `pre-commit-hooks` v5.0.0 — trailing-whitespace, end-of-file-fixer, check-yaml, check-json, check-added-large-files
+
+### Added
+
 #### Infrastructure & DevOps
 - **CI/CD**: Rewrote `.github/workflows/ci.yml` with 5 parallel jobs — lint (ruff), typecheck (pyright), test (matrix Python 3.11/3.12/3.13 with coverage upload on 3.12 push), ts-build (Node 20, tsc --noEmit), docker (build verification)
 - **Makefile**: Added `analyze`, `validate`, `typecheck`, `docker-build` targets (12 total)
