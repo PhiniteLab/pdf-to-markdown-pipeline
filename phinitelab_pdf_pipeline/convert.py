@@ -140,11 +140,7 @@ def format_formula_block(text: str) -> str:
 
 
 def format_incomplete_formula_block() -> str:
-    return "\n".join(
-        [
-            "> Equation present in PDF, but text recovery was incomplete.",
-        ]
-    )
+    return "> Equation present in PDF, but text recovery was incomplete."
 
 
 def reformat_algorithm_sections(markdown: str) -> str:
@@ -199,7 +195,7 @@ def _paragraph_set(text: str) -> set[str]:
     paragraphs: set[str] = set()
     for block in re.split(r"\n{2,}", text):
         stripped = block.strip()
-        if not stripped or stripped.startswith("#") or stripped.startswith(">") or stripped.startswith("```"):
+        if not stripped or stripped.startswith(("#", ">", "```")):
             continue
         normalised = " ".join(stripped.lower().split())
         if len(normalised) > 40:
@@ -218,7 +214,7 @@ def merge_docling_markitdown(docling_md: str, markitdown_md: str) -> str:
 
     for block in re.split(r"\n{2,}", markitdown_md):
         stripped = block.strip()
-        if not stripped or stripped.startswith("#") or stripped.startswith(">") or stripped.startswith("```"):
+        if not stripped or stripped.startswith(("#", ">", "```")):
             continue
         # Skip markitdown table artifacts (page layout garbage)
         if stripped.startswith("|") and stripped.endswith("|"):

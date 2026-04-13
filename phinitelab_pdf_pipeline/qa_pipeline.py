@@ -136,7 +136,7 @@ def check_broken_links(text: str) -> list[QAIssue]:
         for m in BROKEN_LINK_RE.finditer(line):
             target = m.group(2).strip()
             # Skip anchors (#section) and common patterns
-            if target.startswith("#") or target.startswith("mailto:"):
+            if target.startswith(("#", "mailto:")):
                 continue
             # Flag if target looks incomplete or suspicious
             if not target or target.startswith(".."):
@@ -218,11 +218,10 @@ def check_table_integrity(text: str) -> list[QAIssue]:
             if table_start < 0:
                 table_start = i
             table_rows.append((i, stripped))
-        else:
-            if table_rows:
-                check_table_block()
-                table_rows = []
-                table_start = -1
+        elif table_rows:
+            check_table_block()
+            table_rows = []
+            table_start = -1
 
     if table_rows:
         check_table_block()

@@ -92,9 +92,7 @@ def _bullet_ratio(text: str) -> float:
     lines = [line.strip() for line in text.split("\n") if line.strip()]
     if not lines:
         return 0.0
-    bullet_lines = sum(
-        1 for line in lines if line.startswith("- ") or line.startswith("* ") or re.match(r"^\d+\.\s", line)
-    )
+    bullet_lines = sum(1 for line in lines if line.startswith(("- ", "* ")) or re.match(r"^\d+\.\s", line))
     return bullet_lines / len(lines)
 
 

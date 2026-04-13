@@ -5,7 +5,8 @@ Each output record contains:
   - source: original file path
   - title: chunk heading
   - text: chunk body text
-  - metadata: chapter, section, token estimate
+  - metadata: chapter, section, token estimate, entity_type, formulas,
+    cross_refs, entity_label
 """
 
 from __future__ import annotations
@@ -19,6 +20,12 @@ from pathlib import Path
 from typing import Any
 
 from phinitelab_pdf_pipeline.common import load_config, resolve_path, setup_logging
+from phinitelab_pdf_pipeline.semantic_chunk import (
+    ENTITY_NARRATIVE,
+    extract_cross_refs,
+    extract_formulas,
+    parse_semantic_chunks,
+)
 
 # ── Data structures ──────────────────────────────────────────────────────────
 
@@ -51,7 +58,11 @@ def make_chunk_id(source: str, title: str, index: int) -> str:
 
 
 def parse_chunk_file(file_path: Path) -> RAGRecord:
-    """Parse a single chunk Markdown file into a RAGRecord."""
+    """Parse a single chunk Markdown file into a RAGRecord.
+
+    Detects semantic entity types (theorem, proof, definition, etc.) and
+    extracts formulas and cross-references into metadata.
+    """
     text = file_path.read_text(encoding="utf-8")
     lines = text.strip().split("\n")
 
@@ -73,6 +84,18 @@ def parse_chunk_file(file_path: Path) -> RAGRecord:
     title = section or chapter or file_path.stem
     body_text = "\n".join(line for line in body_lines if line).strip()
 
+    # Semantic enrichment: detect entity type from body content
+    entity_type = ENTITY_NARRATIVE
+    entity_label: str | None = None
+    sem_chunks = parse_semantic_chunks(body_text, split_on_headings=False)
+    if sem_chunks:
+        primary = sem_chunks[0]
+        entity_type = primary.entity_type
+        entity_label = primary.entity_label
+
+    formulas = extract_formulas(body_text)
+    cross_refs = extract_cross_refs(body_text)
+
     return RAGRecord(
         id=make_chunk_id(str(file_path), title, 0),
         source=str(file_path),
@@ -82,6 +105,10 @@ def parse_chunk_file(file_path: Path) -> RAGRecord:
             "chapter": chapter,
             "section": section,
             "token_estimate": estimate_tokens(body_text),
+            "entity_type": entity_type,
+            "entity_label": entity_label,
+            "formulas": formulas,
+            "cross_refs": cross_refs,
         },
     )
 
@@ -133,13 +160,20 @@ def write_json_array(records: list[RAGRecord], output_path: Path) -> Path:
 
 
 def build_summary(records: list[RAGRecord]) -> dict[str, Any]:
-    """Build a summary of the RAG export."""
+    """Build a summary of the RAG export including entity type distribution."""
     total_tokens = sum(r.metadata.get("token_estimate", 0) for r in records)
+    entity_counts: dict[str, int] = {}
+    for r in records:
+        etype = r.metadata.get("entity_type", ENTITY_NARRATIVE)
+        entity_counts[etype] = entity_counts.get(etype, 0) + 1
+    total_formulas = sum(len(r.metadata.get("formulas", [])) for r in records)
     return {
         "total_records": len(records),
         "total_tokens_estimate": total_tokens,
         "avg_tokens_per_record": round(total_tokens / max(len(records), 1)),
         "sources": len({r.source for r in records}),
+        "entity_types": entity_counts,
+        "total_formulas": total_formulas,
     }
 
 

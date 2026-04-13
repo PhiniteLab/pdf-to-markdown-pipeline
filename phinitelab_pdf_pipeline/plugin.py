@@ -128,7 +128,7 @@ class PluginRegistry:
 
     def register(self, plugin: PluginBase) -> None:
         """Register a plugin instance."""
-        if not isinstance(plugin, PluginBase):
+        if not isinstance(plugin, PluginBase):  # pyright: ignore[reportUnnecessaryIsInstance]
             raise TypeError(f"Expected PluginBase, got {type(plugin).__name__}")
         self._plugins.append(plugin)
         self._log.debug("registered plugin: %s", plugin.name)

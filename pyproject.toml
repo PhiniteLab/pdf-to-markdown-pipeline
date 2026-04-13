@@ -47,9 +47,9 @@ dev = [
 phinitelab-pdf-pipeline = "phinitelab_pdf_pipeline.run_pipeline:main"
 
 [project.urls]
-Homepage = "https://github.com/PhiniteLab/phinitelab-pdf-pipeline"
-Repository = "https://github.com/PhiniteLab/phinitelab-pdf-pipeline"
-Issues = "https://github.com/PhiniteLab/phinitelab-pdf-pipeline/issues"
+Homepage = "https://github.com/PhiniteLab/pdf-to-markdown-pipeline"
+Repository = "https://github.com/PhiniteLab/pdf-to-markdown-pipeline"
+Issues = "https://github.com/PhiniteLab/pdf-to-markdown-pipeline/issues"
 
 [tool.setuptools.packages.find]
 where = ["."]

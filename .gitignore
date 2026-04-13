@@ -208,6 +208,9 @@ outputs/cleaned_md/
 outputs/chunks/
 outputs/.manifest.json
 
+# Local session state (created by VS Code extension at runtime)
+.phinitelab-pdf-pipeline/
+
 # VS Code extension build artifacts
 vscode-extension/out/
 vscode-extension/node_modules/

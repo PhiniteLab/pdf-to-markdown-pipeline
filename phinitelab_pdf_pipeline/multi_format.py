@@ -119,7 +119,7 @@ def md_to_html(text: str, *, title: str = "", css: str = DEFAULT_CSS) -> str:
             continue
 
         # Unordered lists
-        if stripped.startswith("- ") or stripped.startswith("* "):
+        if stripped.startswith(("- ", "* ")):
             if not in_list:
                 out.append("<ul>")
                 in_list = True
@@ -243,9 +243,8 @@ def md_to_yaml(text: str, *, source: str = "") -> str:
             if not title and len(hm.group(1)) == 1:
                 title = hm.group(2).strip()
             headings.append(hm.group(2).strip())
-        else:
-            if stripped:
-                body_lines.append(stripped)
+        elif stripped:
+            body_lines.append(stripped)
 
     data: dict[str, Any] = {
         "title": title or "Untitled",

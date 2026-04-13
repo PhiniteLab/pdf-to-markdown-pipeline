@@ -1,17 +1,13 @@
 import * as vscode from "vscode";
-import type { SessionManager } from "./sessionManager";
-import type { PipelineRunner } from "./pipelineRunner";
 
 export class ChatViewProvider implements vscode.WebviewViewProvider {
-  static readonly viewId = "pdfPipelineChat";
+  static readonly viewType = "pdfPipelineChat";
 
   private view?: vscode.WebviewView;
   private pending: Array<{ role: string; text: string }> = [];
 
   constructor(
     private readonly extensionUri: vscode.Uri,
-    private readonly sessions: SessionManager,
-    private readonly runner: PipelineRunner,
   ) {}
 
   // ── Public API ─────────────────────────────────────────────────────────
@@ -61,42 +57,70 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
     // /status or durum
     if (lower === "status" || lower === "durum") {
-      const s = this.sessions.active();
-      if (!s) {
-        this.postMessage("system", "No active session. Create one from the sidebar.");
-        return;
-      }
-      const q = s.files.filter((f) => f.status === "queued").length;
-      const p = s.files.filter((f) => f.status === "processing").length;
-      const d = s.files.filter((f) => f.status === "done").length;
-      const e = s.files.filter((f) => f.status === "error").length;
-      this.postMessage(
-        "system",
-        `**${s.name}** (${s.files.length} files)\n` +
-          `\u2B1C Queued: ${q}  \u23F3 Processing: ${p}  \u2705 Done: ${d}  \u274C Error: ${e}`,
-      );
+      await vscode.commands.executeCommand("pdfPipeline.refresh");
+      this.postMessage("system", "\u{1F504} Status refreshed. Check the sidebar for details.");
       return;
     }
 
     // /process or run or çalıştır
     if (lower === "process" || lower === "run" || lower.startsWith("çalıştır") || lower.startsWith("calistir")) {
-      if (this.runner.busy) {
-        this.postMessage("system", "\u23F3 A pipeline is already running.");
-        return;
-      }
       this.postMessage("system", "\uD83D\uDE80 Starting pipeline...");
       await vscode.commands.executeCommand("pdfPipeline.processSession");
+      this.postMessage("system", "\u{2705} Pipeline finished.");
       return;
     }
 
     // /qa
     if (lower === "qa" || lower === "kalite") {
-      if (this.runner.busy) {
-        this.postMessage("system", "\u23F3 A pipeline is already running.");
-        return;
-      }
       this.postMessage("system", "\uD83D\uDCCA Running QA report...");
       await vscode.commands.executeCommand("pdfPipeline.runQA");
+      this.postMessage("system", "\u{2705} QA report complete. Check the dashboard.");
+      return;
+    }
+
+    // /crossref
+    if (lower === "crossref" || lower === "cross-ref" || lower === "çapraz referans") {
+      this.postMessage("system", "\u{1F517} Running cross-reference analysis...");
+      await vscode.commands.executeCommand("pdfPipeline.runCrossRef");
+      this.postMessage("system", "\u{2705} Cross-reference analysis complete.");
+      return;
+    }
+
+    // /algorithm
+    if (lower === "algorithm" || lower === "algo" || lower === "algoritma") {
+      this.postMessage("system", "\u{1F4BB} Running algorithm extraction...");
+      await vscode.commands.executeCommand("pdfPipeline.runAlgorithm");
+      this.postMessage("system", "\u{2705} Algorithm extraction complete.");
+      return;
+    }
+
+    // /notation
+    if (lower === "notation" || lower === "notasyon" || lower === "glossary") {
+      this.postMessage("system", "\u{1D70B} Running notation glossary...");
+      await vscode.commands.executeCommand("pdfPipeline.runNotation");
+      this.postMessage("system", "\u{2705} Notation glossary complete.");
+      return;
+    }
+
+    // /chunk
+    if (lower === "chunk" || lower === "semantic" || lower === "bölümleme") {
+      this.postMessage("system", "\u{1F9E9} Running semantic chunking...");
+      await vscode.commands.executeCommand("pdfPipeline.runSemanticChunk");
+      this.postMessage("system", "\u{2705} Semantic chunking complete.");
+      return;
+    }
+
+    // /analyze-all
+    if (lower === "analyze" || lower === "analyse" || lower === "analiz" || lower === "all") {
+      this.postMessage("system", "\u{1F50D} Running all analyses...");
+      await vscode.commands.executeCommand("pdfPipeline.runAllAnalysis");
+      this.postMessage("system", "\u{2705} All analyses complete.");
+      return;
+    }
+
+    // /preview
+    if (lower === "preview" || lower === "önizleme" || lower === "onizleme") {
+      await vscode.commands.executeCommand("pdfPipeline.previewFile");
       return;
     }
 
@@ -105,9 +129,15 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       this.postMessage(
         "system",
         "Commands:\n" +
-          "\u2022 **status** \u2014 Active session status\n" +
+          "\u2022 **status** \u2014 Refresh session status\n" +
           "\u2022 **process** \u2014 Run pipeline on active session\n" +
           "\u2022 **qa** \u2014 Generate QA report\n" +
+          "\u2022 **crossref** \u2014 Cross-reference analysis\n" +
+          "\u2022 **algorithm** \u2014 Algorithm extraction\n" +
+          "\u2022 **notation** \u2014 Notation glossary\n" +
+          "\u2022 **chunk** \u2014 Semantic chunking\n" +
+          "\u2022 **analyze** \u2014 Run all analyses\n" +
+          "\u2022 **preview** \u2014 Preview active Markdown\n" +
           "\u2022 **help** \u2014 This message",
       );
       return;

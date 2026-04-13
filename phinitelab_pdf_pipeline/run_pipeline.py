@@ -1,4 +1,4 @@
-"""Run all pipeline stages in order: convert → clean → chunk → render_templates."""
+"""Run all pipeline stages in order: convert → clean → chunk → render → analyze → validate."""
 
 from __future__ import annotations
 
@@ -17,9 +17,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--stages",
         nargs="+",
-        choices=["convert", "clean", "chunk", "render"],
+        choices=["convert", "clean", "chunk", "render", "analyze", "validate"],
         default=["convert", "clean", "chunk", "render"],
-        help="Which stages to run (default: all)",
+        help="Which stages to run (default: convert clean chunk render). "
+        "Use 'analyze' for semantic-chunk / cross-ref / algorithm / notation analysis, "
+        "and 'validate' for formula validation / scientific QA / citation context.",
     )
     parser.add_argument("--engine", choices=["docling", "markitdown", "dual"], help="Conversion engine override")
     parser.add_argument("--no-manifest", action="store_true", help="Disable idempotency manifest")
@@ -122,6 +124,107 @@ def main() -> int:
                 written_list.extend(render_meta_templates(course_root, syllabus_text, week_entries))
                 written_list.extend(render_week_templates(course_root, raw_root, cleaned_root, week_entries, cfg=cfg))
                 log.info("populated %d template(s)", len(written_list))
+
+        if "analyze" in stages:
+            analysis_input = (cleaned_md / rel_label).resolve()
+            quality_dir = resolve_path("outputs/quality")
+
+            from phinitelab_pdf_pipeline.semantic_chunk import chunk_tree as semantic_chunk_tree
+
+            log.info("── stage: analyze / semantic-chunk ──")
+            sem_out = resolve_path("outputs/semantic_chunks")
+            if args.session_name:
+                sem_out = sem_out / args.session_name
+            sem_written = semantic_chunk_tree(analysis_input, sem_out.resolve(), manifest=manifest)
+            log.info("wrote %d semantic chunk(s)", len(sem_written))
+
+            from phinitelab_pdf_pipeline.cross_ref import analyze_tree as crossref_tree
+            from phinitelab_pdf_pipeline.cross_ref import write_report as crossref_write
+
+            log.info("── stage: analyze / cross-ref ──")
+            cr_report = crossref_tree(analysis_input)
+            crossref_write(cr_report, quality_dir / "crossref_report.json")
+            log.info(
+                "cross-ref: %d definitions, %.0f%% resolved",
+                len(cr_report.definitions),
+                cr_report.resolution_rate * 100,
+            )
+
+            from phinitelab_pdf_pipeline.algorithm_extract import build_summary as algo_summary
+            from phinitelab_pdf_pipeline.algorithm_extract import extract_from_tree as algo_tree
+            from phinitelab_pdf_pipeline.algorithm_extract import write_report as algo_write
+
+            log.info("── stage: analyze / algorithm-extract ──")
+            al_algos = algo_tree(analysis_input)
+            al_summ = algo_summary(al_algos)
+            algo_write(al_algos, quality_dir / "algorithm_report.json")
+            log.info(
+                "algorithms: %d found",
+                al_summ.get("total_algorithms", 0),
+            )
+
+            from phinitelab_pdf_pipeline.notation_glossary import build_summary as notation_summary
+            from phinitelab_pdf_pipeline.notation_glossary import extract_from_tree as notation_tree
+            from phinitelab_pdf_pipeline.notation_glossary import write_report as notation_write
+
+            log.info("── stage: analyze / notation-glossary ──")
+            nt_glossary = notation_tree(analysis_input)
+            nt_summ = notation_summary(nt_glossary)
+            notation_write(nt_glossary, quality_dir / "notation_report.json")
+            log.info(
+                "notation: %d unique symbols, %d entries",
+                nt_summ.get("unique_symbols", 0),
+                nt_summ.get("total_entries", 0),
+            )
+
+        if "validate" in stages:
+            validate_input = (cleaned_md / rel_label).resolve()
+            quality_dir = resolve_path("outputs/quality")
+
+            from phinitelab_pdf_pipeline.formula_validate import build_summary as fv_summary
+            from phinitelab_pdf_pipeline.formula_validate import validate_tree as fv_tree
+            from phinitelab_pdf_pipeline.formula_validate import write_report as fv_write
+
+            log.info("── stage: validate / formula-validate ──")
+            fv_results = fv_tree(validate_input)
+            fv_summ = fv_summary(fv_results)
+            fv_write(fv_results, fv_summ, quality_dir / "formula_validation.json")
+            log.info(
+                "formulas: %d total (%d valid, %d errors)",
+                fv_summ.total_formulas,
+                fv_summ.total_valid,
+                fv_summ.total_errors,
+            )
+
+            from phinitelab_pdf_pipeline.scientific_qa import analyze_tree as sciqa_tree
+            from phinitelab_pdf_pipeline.scientific_qa import build_summary as sciqa_summary
+            from phinitelab_pdf_pipeline.scientific_qa import write_report as sciqa_write
+
+            log.info("── stage: validate / scientific-qa ──")
+            sq_reports = sciqa_tree(validate_input)
+            sq_summ = sciqa_summary(sq_reports)
+            sciqa_write(sq_reports, sq_summ, quality_dir / "scientific_qa.json")
+            log.info(
+                "scientific QA: %d issues (%d errors, %d warnings)",
+                sq_summ.total_issues,
+                sq_summ.total_errors,
+                sq_summ.total_warnings,
+            )
+
+            from phinitelab_pdf_pipeline.citation_context import analyze_tree as citctx_tree
+            from phinitelab_pdf_pipeline.citation_context import build_summary as citctx_summary
+            from phinitelab_pdf_pipeline.citation_context import write_report as citctx_write
+
+            log.info("── stage: validate / citation-context ──")
+            cc_reports = citctx_tree(validate_input)
+            cc_summ = citctx_summary(cc_reports)
+            citctx_write(cc_reports, cc_summ, quality_dir / "citation_context.json")
+            log.info(
+                "citations: %d total (%d self, %d co-citation pairs)",
+                cc_summ.total_citations,
+                cc_summ.total_self_citations,
+                cc_summ.total_co_citation_pairs,
+            )
 
         if manifest:
             manifest.save()

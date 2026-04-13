@@ -1,7 +1,10 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
+import { ChatViewProvider } from "./chatView";
+import { DashboardPanel } from "./dashboardPanel";
 import { PipelineRunner } from "./pipelineRunner";
+import { PreviewPanel } from "./previewPanel";
 import { SessionManager } from "./sessionManager";
 import { PipelineItem, SessionTreeProvider } from "./sessionTree";
 
@@ -67,6 +70,9 @@ export function activate(context: vscode.ExtensionContext): void {
   // ── Core services ──────────────────────────────────────────────────────
   const sessions = new SessionManager(wsRoot);
   const runner = new PipelineRunner();
+  const preview = new PreviewPanel(context.extensionUri);
+  const dashboard = new DashboardPanel(context.extensionUri, wsRoot);
+  const chat = new ChatViewProvider(context.extensionUri);
 
   // ── Tree view ──────────────────────────────────────────────────────────
   const tree = new SessionTreeProvider(sessions, wsRoot);
@@ -99,13 +105,19 @@ export function activate(context: vscode.ExtensionContext): void {
   // ── Register everything ────────────────────────────────────────────────
   context.subscriptions.push(
     vscode.window.registerTreeDataProvider("pdfPipelinePanel", tree),
+    vscode.window.registerWebviewViewProvider(DashboardPanel.viewId, dashboard),
+    vscode.window.registerWebviewViewProvider(ChatViewProvider.viewType, chat),
     watcher,
     outWatcher,
     sessions,
     runner,
+    preview,
 
     // Session commands
-    vscode.commands.registerCommand("pdfPipeline.refresh", () => tree.refresh()),
+    vscode.commands.registerCommand("pdfPipeline.refresh", () => {
+      tree.refresh();
+      dashboard.refresh();
+    }),
     vscode.commands.registerCommand("pdfPipeline.newSession", () => cmdNewSession(sessions)),
     vscode.commands.registerCommand("pdfPipeline.deleteSession", (item?: PipelineItem) =>
       cmdDeleteSession(sessions, wsRoot, item),
@@ -122,7 +134,7 @@ export function activate(context: vscode.ExtensionContext): void {
     // Pipeline commands (use spawn runner)
     vscode.commands.registerCommand("pdfPipeline.runFull", () => cmdRunFull(runner, wsRoot, sessions)),
     vscode.commands.registerCommand("pdfPipeline.runConvert", () => cmdRunConvert(runner, wsRoot, sessions)),
-    vscode.commands.registerCommand("pdfPipeline.runQA", () => cmdRunQA(runner, wsRoot)),
+    vscode.commands.registerCommand("pdfPipeline.runQA", () => cmdRunQA(runner, wsRoot, dashboard)),
     vscode.commands.registerCommand("pdfPipeline.runDiff", () => cmdRunDiff(runner, wsRoot)),
     vscode.commands.registerCommand("pdfPipeline.openConfig", () => cmdOpenConfig(wsRoot)),
     vscode.commands.registerCommand("pdfPipeline.openOutput", (arg?: string | PipelineItem) =>
@@ -131,6 +143,30 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("pdfPipeline.deleteOutput", (item?: PipelineItem) =>
       cmdDeleteOutput(item, tree),
     ),
+
+    // Analysis commands
+    vscode.commands.registerCommand("pdfPipeline.runCrossRef", () =>
+      cmdRunAnalysis(runner, wsRoot, "crossRef", dashboard),
+    ),
+    vscode.commands.registerCommand("pdfPipeline.runAlgorithm", () =>
+      cmdRunAnalysis(runner, wsRoot, "algorithm", dashboard),
+    ),
+    vscode.commands.registerCommand("pdfPipeline.runNotation", () =>
+      cmdRunAnalysis(runner, wsRoot, "notation", dashboard),
+    ),
+    vscode.commands.registerCommand("pdfPipeline.runSemanticChunk", () =>
+      cmdRunAnalysis(runner, wsRoot, "semanticChunk", dashboard),
+    ),
+    vscode.commands.registerCommand("pdfPipeline.runAllAnalysis", () =>
+      cmdRunAllAnalysis(runner, wsRoot, dashboard),
+    ),
+
+    // Preview commands
+    vscode.commands.registerCommand("pdfPipeline.previewFile", (arg?: string | PipelineItem) =>
+      cmdPreview(preview, wsRoot, arg),
+    ),
+    vscode.commands.registerCommand("pdfPipeline.refreshPreview", () => preview.refresh()),
+    vscode.commands.registerCommand("pdfPipeline.refreshDashboard", () => dashboard.refresh()),
   );
 }
 
@@ -330,7 +366,7 @@ async function cmdRunConvert(runner: PipelineRunner, wsRoot: string, mgr: Sessio
   });
 }
 
-async function cmdRunQA(runner: PipelineRunner, wsRoot: string): Promise<void> {
+async function cmdRunQA(runner: PipelineRunner, wsRoot: string, dashboard: DashboardPanel): Promise<void> {
   if (!need(wsRoot) || runner.busy) return;
   await runner.runQA({
     python: resolvePython(wsRoot),
@@ -339,6 +375,7 @@ async function cmdRunQA(runner: PipelineRunner, wsRoot: string): Promise<void> {
     input: path.resolve(wsRoot, "outputs/cleaned_md"),
     output: path.resolve(wsRoot, "outputs/quality/qa_report.json"),
   });
+  dashboard.refresh();
 }
 
 async function cmdRunDiff(runner: PipelineRunner, wsRoot: string): Promise<void> {
@@ -398,6 +435,126 @@ async function cmdDeleteOutput(item: PipelineItem | undefined, tree: SessionTree
   if (answer !== "Delete") return;
   fs.rmSync(item.fsPath, { recursive: true, force: true });
   tree.refresh();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Analysis commands
+// ═══════════════════════════════════════════════════════════════════════════
+
+type AnalysisKind = "crossRef" | "algorithm" | "notation" | "semanticChunk";
+
+async function cmdRunAnalysis(
+  runner: PipelineRunner,
+  wsRoot: string,
+  kind: AnalysisKind,
+  dashboard: DashboardPanel,
+): Promise<void> {
+  if (!need(wsRoot) || runner.busy) return;
+
+  const inputDir = path.resolve(wsRoot, "outputs/cleaned_md");
+  if (!fs.existsSync(inputDir)) {
+    void vscode.window.showWarningMessage("No cleaned Markdown output found. Run the pipeline first.");
+    return;
+  }
+
+  const python = resolvePython(wsRoot);
+  const opts = { python, root: wsRoot, input: inputDir };
+
+  let result;
+  switch (kind) {
+    case "crossRef":
+      result = await runner.runCrossRef(opts);
+      break;
+    case "algorithm":
+      result = await runner.runAlgorithmExtract(opts);
+      break;
+    case "notation":
+      result = await runner.runNotationGlossary(opts);
+      break;
+    case "semanticChunk":
+      result = await runner.runSemanticChunk(opts);
+      break;
+  }
+
+  if (result.exitCode === 0) {
+    void vscode.window.showInformationMessage(`${kind} analysis complete.`);
+  } else {
+    void vscode.window.showErrorMessage(`${kind} analysis failed. Check Output for details.`);
+  }
+
+  dashboard.refresh();
+}
+
+async function cmdRunAllAnalysis(
+  runner: PipelineRunner,
+  wsRoot: string,
+  dashboard: DashboardPanel,
+): Promise<void> {
+  if (!need(wsRoot) || runner.busy) return;
+
+  const inputDir = path.resolve(wsRoot, "outputs/cleaned_md");
+  if (!fs.existsSync(inputDir)) {
+    void vscode.window.showWarningMessage("No cleaned Markdown output found. Run the pipeline first.");
+    return;
+  }
+
+  const python = resolvePython(wsRoot);
+  const opts = { python, root: wsRoot, input: inputDir };
+
+  const analyses: [string, () => Promise<import("./pipelineRunner").RunResult>][] = [
+    ["Cross References", () => runner.runCrossRef(opts)],
+    ["Algorithm Extraction", () => runner.runAlgorithmExtract(opts)],
+    ["Notation Glossary", () => runner.runNotationGlossary(opts)],
+    ["Semantic Chunking", () => runner.runSemanticChunk(opts)],
+  ];
+
+  let failed = 0;
+  for (const [label, run] of analyses) {
+    const res = await run();
+    if (res.exitCode !== 0) {
+      void vscode.window.showWarningMessage(`${label} failed.`);
+      failed++;
+    }
+  }
+
+  dashboard.refresh();
+
+  if (failed === 0) {
+    void vscode.window.showInformationMessage("All analyses complete.");
+  } else {
+    void vscode.window.showWarningMessage(`${failed} analysis module(s) failed.`);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Preview command
+// ═══════════════════════════════════════════════════════════════════════════
+
+function cmdPreview(preview: PreviewPanel, wsRoot: string, arg?: string | PipelineItem): void {
+  if (!need(wsRoot)) return;
+
+  let filePath: string | undefined;
+
+  if (typeof arg === "string") {
+    filePath = path.isAbsolute(arg) ? arg : path.resolve(wsRoot, arg);
+  } else if (arg instanceof PipelineItem && arg.fsPath) {
+    filePath = arg.fsPath;
+  }
+
+  if (!filePath) {
+    // Try to preview the active editor's file
+    const editor = vscode.window.activeTextEditor;
+    if (editor && editor.document.languageId === "markdown") {
+      filePath = editor.document.uri.fsPath;
+    }
+  }
+
+  if (!filePath) {
+    void vscode.window.showWarningMessage("No Markdown file to preview. Select a file or open one in the editor.");
+    return;
+  }
+
+  preview.show(filePath);
 }
 
 

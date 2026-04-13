@@ -1,8 +1,8 @@
 {
   "name": "phinitelab-pdf-pipeline-vscode",
   "displayName": "PhiniteLab PDF Pipeline",
-  "description": "Convert PDFs to structured Markdown with sessions, auto-processing, and a chat panel.",
-  "version": "0.2.0",
+  "description": "Convert PDFs to structured Markdown with sessions, auto-processing, preview panel, dashboard, and a chat panel.",
+  "version": "0.3.0",
   "publisher": "phinitelab",
   "engines": {
     "vscode": "^1.92.0"
@@ -24,32 +24,51 @@
       "pdfPipeline": [
         {
           "id": "pdfPipelinePanel",
-          "name": "PhiniteLab PDF Pipeline"
+          "name": "Pipeline"
+        },
+        {
+          "id": "pdfPipelineDashboard",
+          "name": "Dashboard",
+          "type": "webview"
+        },
+        {
+          "id": "pdfPipelineChat",
+          "name": "Chat",
+          "type": "webview"
         }
       ]
     },
     "commands": [
-      { "command": "pdfPipeline.refresh",          "title": "Refresh",                "icon": "$(refresh)" },
-      { "command": "pdfPipeline.newSession",        "title": "New Session",            "icon": "$(add)" },
-      { "command": "pdfPipeline.deleteSession",     "title": "Delete Session",         "icon": "$(trash)" },
-      { "command": "pdfPipeline.setActiveSession",  "title": "Set as Active",          "icon": "$(star-empty)" },
-      { "command": "pdfPipeline.processSession",    "title": "Process Active Session", "icon": "$(run-all)" },
-      { "command": "pdfPipeline.addPdf",            "title": "Add PDFs...",            "icon": "$(file-add)" },
-      { "command": "pdfPipeline.addFolder",          "title": "Add PDF Folder...",      "icon": "$(folder-add)" },
-      { "command": "pdfPipeline.runFull",           "title": "Run Full Pipeline",      "icon": "$(play-circle)" },
-      { "command": "pdfPipeline.runConvert",        "title": "Convert Only",           "icon": "$(play)" },
-      { "command": "pdfPipeline.runQA",             "title": "Generate QA Report",     "icon": "$(graph)" },
-      { "command": "pdfPipeline.runDiff",           "title": "Compare Two Folders",    "icon": "$(diff)" },
-      { "command": "pdfPipeline.openConfig",        "title": "Open Config",            "icon": "$(gear)" },
-      { "command": "pdfPipeline.openOutput",        "title": "Reveal in Explorer",     "icon": "$(folder-opened)" },
-      { "command": "pdfPipeline.deleteOutput",      "title": "Delete",                "icon": "$(trash)" }
+      { "command": "pdfPipeline.refresh",             "title": "Refresh",                   "icon": "$(refresh)" },
+      { "command": "pdfPipeline.newSession",           "title": "New Session",               "icon": "$(add)" },
+      { "command": "pdfPipeline.deleteSession",        "title": "Delete Session",            "icon": "$(trash)" },
+      { "command": "pdfPipeline.setActiveSession",     "title": "Set as Active",             "icon": "$(star-empty)" },
+      { "command": "pdfPipeline.processSession",       "title": "Process Active Session",    "icon": "$(run-all)" },
+      { "command": "pdfPipeline.addPdf",               "title": "Add PDFs...",               "icon": "$(file-add)" },
+      { "command": "pdfPipeline.addFolder",            "title": "Add PDF Folder...",         "icon": "$(folder-add)" },
+      { "command": "pdfPipeline.runFull",              "title": "Run Full Pipeline",         "icon": "$(play-circle)" },
+      { "command": "pdfPipeline.runConvert",           "title": "Convert Only",              "icon": "$(play)" },
+      { "command": "pdfPipeline.runQA",                "title": "Generate QA Report",        "icon": "$(graph)" },
+      { "command": "pdfPipeline.runDiff",              "title": "Compare Two Folders",       "icon": "$(diff)" },
+      { "command": "pdfPipeline.openConfig",           "title": "Open Config",               "icon": "$(gear)" },
+      { "command": "pdfPipeline.openOutput",           "title": "Reveal in Explorer",        "icon": "$(folder-opened)" },
+      { "command": "pdfPipeline.deleteOutput",         "title": "Delete",                   "icon": "$(trash)" },
+      { "command": "pdfPipeline.runCrossRef",          "title": "Run Cross-Reference Analysis", "icon": "$(references)" },
+      { "command": "pdfPipeline.runAlgorithm",         "title": "Run Algorithm Extraction",     "icon": "$(code)" },
+      { "command": "pdfPipeline.runNotation",          "title": "Run Notation Glossary",        "icon": "$(symbol-variable)" },
+      { "command": "pdfPipeline.runSemanticChunk",     "title": "Run Semantic Chunking",        "icon": "$(split-horizontal)" },
+      { "command": "pdfPipeline.runAllAnalysis",       "title": "Run All Analyses",             "icon": "$(run-all)" },
+      { "command": "pdfPipeline.previewFile",          "title": "Preview Markdown",             "icon": "$(open-preview)" },
+      { "command": "pdfPipeline.refreshPreview",       "title": "Refresh Preview",              "icon": "$(refresh)" },
+      { "command": "pdfPipeline.refreshDashboard",     "title": "Refresh Dashboard",            "icon": "$(refresh)" }
     ],
     "menus": {
       "view/title": [
         { "command": "pdfPipeline.refresh",       "when": "view == pdfPipelinePanel", "group": "navigation" },
         { "command": "pdfPipeline.newSession",    "when": "view == pdfPipelinePanel", "group": "navigation" },
         { "command": "pdfPipeline.addPdf",        "when": "view == pdfPipelinePanel", "group": "navigation" },
-        { "command": "pdfPipeline.addFolder",     "when": "view == pdfPipelinePanel", "group": "navigation" }
+        { "command": "pdfPipeline.addFolder",     "when": "view == pdfPipelinePanel", "group": "navigation" },
+        { "command": "pdfPipeline.refreshDashboard", "when": "view == pdfPipelineDashboard", "group": "navigation" }
       ],
       "view/item/context": [
         { "command": "pdfPipeline.processSession",   "when": "view == pdfPipelinePanel && viewItem == session.active", "group": "inline" },
@@ -60,6 +79,12 @@
         { "command": "pdfPipeline.runQA",             "when": "view == pdfPipelinePanel && viewItem == action.runQA",      "group": "inline" },
         { "command": "pdfPipeline.runDiff",           "when": "view == pdfPipelinePanel && viewItem == action.runDiff",    "group": "inline" },
         { "command": "pdfPipeline.openConfig",        "when": "view == pdfPipelinePanel && viewItem == action.openConfig", "group": "inline" },
+        { "command": "pdfPipeline.runCrossRef",       "when": "view == pdfPipelinePanel && viewItem == analysis.crossRef",      "group": "inline" },
+        { "command": "pdfPipeline.runAlgorithm",      "when": "view == pdfPipelinePanel && viewItem == analysis.algorithm",     "group": "inline" },
+        { "command": "pdfPipeline.runNotation",       "when": "view == pdfPipelinePanel && viewItem == analysis.notation",      "group": "inline" },
+        { "command": "pdfPipeline.runSemanticChunk",  "when": "view == pdfPipelinePanel && viewItem == analysis.semanticChunk", "group": "inline" },
+        { "command": "pdfPipeline.runAllAnalysis",    "when": "view == pdfPipelinePanel && viewItem == analysis.runAll",        "group": "inline" },
+        { "command": "pdfPipeline.previewFile",       "when": "view == pdfPipelinePanel && viewItem == output.file",            "group": "inline" },
         { "command": "pdfPipeline.openOutput",        "when": "view == pdfPipelinePanel && viewItem == output.folder",     "group": "inline" },
         { "command": "pdfPipeline.deleteOutput",       "when": "view == pdfPipelinePanel && viewItem == output.dir",        "group": "inline" },
         { "command": "pdfPipeline.deleteOutput",       "when": "view == pdfPipelinePanel && viewItem == output.file",       "group": "inline" }

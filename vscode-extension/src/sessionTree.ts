@@ -56,6 +56,14 @@ const ACTIONS: Array<{ label: string; desc: string; ctx: string; icon: string; c
   { label: "Open Config",        desc: "pipeline.yaml",                                    ctx: "action.openConfig", icon: "gear",        cmd: "pdfPipeline.openConfig" },
 ];
 
+const ANALYSIS_ACTIONS: Array<{ label: string; desc: string; ctx: string; icon: string; cmd: string }> = [
+  { label: "Cross References",      desc: "resolve \u0026 link refs",     ctx: "analysis.crossRef",      icon: "references",    cmd: "pdfPipeline.runCrossRef" },
+  { label: "Algorithm Extraction",  desc: "find pseudocode",              ctx: "analysis.algorithm",     icon: "code",          cmd: "pdfPipeline.runAlgorithm" },
+  { label: "Notation Glossary",     desc: "build symbol table",           ctx: "analysis.notation",      icon: "symbol-variable", cmd: "pdfPipeline.runNotation" },
+  { label: "Semantic Chunking",     desc: "theorem-aware splitting",      ctx: "analysis.semanticChunk", icon: "split-horizontal", cmd: "pdfPipeline.runSemanticChunk" },
+  { label: "Run All Analyses",      desc: "cross-ref + algo + notation + chunk", ctx: "analysis.runAll", icon: "run-all",       cmd: "pdfPipeline.runAllAnalysis" },
+];
+
 const OUTPUTS: Array<{ label: string; desc: string; rel: string }> = [
   { label: "raw_md",     desc: "converted outputs", rel: "outputs/raw_md" },
   { label: "cleaned_md", desc: "cleaned outputs",   rel: "outputs/cleaned_md" },
@@ -88,6 +96,9 @@ export class SessionTreeProvider implements vscode.TreeDataProvider<PipelineItem
         }),
         new PipelineItem("Actions", vscode.TreeItemCollapsibleState.Expanded, "group.actions", {
           icon: new vscode.ThemeIcon("rocket"),
+        }),
+        new PipelineItem("Analysis", vscode.TreeItemCollapsibleState.Collapsed, "group.analysis", {
+          icon: new vscode.ThemeIcon("beaker"),
         }),
         new PipelineItem("Outputs", vscode.TreeItemCollapsibleState.Collapsed, "group.outputs", {
           icon: new vscode.ThemeIcon("folder"),
@@ -153,6 +164,18 @@ export class SessionTreeProvider implements vscode.TreeDataProvider<PipelineItem
     // ── Actions group ──────────────────────────────────────────────────
     if (el.contextValue === "group.actions") {
       return ACTIONS.map(
+        (a) =>
+          new PipelineItem(a.label, vscode.TreeItemCollapsibleState.None, a.ctx, {
+            icon: new vscode.ThemeIcon(a.icon),
+            desc: a.desc,
+            cmd: { title: a.label, command: a.cmd },
+          }),
+      );
+    }
+
+    // ── Analysis group ─────────────────────────────────────────────────
+    if (el.contextValue === "group.analysis") {
+      return ANALYSIS_ACTIONS.map(
         (a) =>
           new PipelineItem(a.label, vscode.TreeItemCollapsibleState.None, a.ctx, {
             icon: new vscode.ThemeIcon(a.icon),

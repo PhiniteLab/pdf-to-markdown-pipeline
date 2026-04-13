@@ -11,6 +11,7 @@ export interface RunResult {
 export class PipelineRunner implements vscode.Disposable {
   private readonly output: vscode.OutputChannel;
   private proc: cp.ChildProcess | null = null;
+  private progressResolve: (() => void) | null = null;
 
   constructor() {
     this.output = vscode.window.createOutputChannel("PhiniteLab PDF Pipeline");
@@ -103,7 +104,10 @@ export class PipelineRunner implements vscode.Disposable {
     if (opts.stages?.length) {
       args.push("--stages", ...opts.stages);
     }
-    return this.exec(opts.python, args, opts.root, "Full Pipeline", onLine);
+    const label = opts.stages?.length
+      ? `Pipeline [${opts.stages.join(", ")}]`
+      : "Full Pipeline";
+    return this.execWithProgress(opts.python, args, opts.root, label);
   }
 
   runQA(opts: {
@@ -137,6 +141,92 @@ export class PipelineRunner implements vscode.Disposable {
       ],
       opts.root,
       "Diff Report",
+    );
+  }
+
+  // ── Analysis module commands ─────────────────────────────────────────
+
+  runCrossRef(opts: {
+    python: string; root: string; input: string;
+  }): Promise<RunResult> {
+    return this.execWithProgress(
+      opts.python,
+      ["-m", "phinitelab_pdf_pipeline.cross_ref", opts.input],
+      opts.root,
+      "Cross Reference Analysis",
+    );
+  }
+
+  runAlgorithmExtract(opts: {
+    python: string; root: string; input: string;
+  }): Promise<RunResult> {
+    return this.execWithProgress(
+      opts.python,
+      ["-m", "phinitelab_pdf_pipeline.algorithm_extract", opts.input],
+      opts.root,
+      "Algorithm Extraction",
+    );
+  }
+
+  runNotationGlossary(opts: {
+    python: string; root: string; input: string;
+  }): Promise<RunResult> {
+    return this.execWithProgress(
+      opts.python,
+      ["-m", "phinitelab_pdf_pipeline.notation_glossary", opts.input],
+      opts.root,
+      "Notation Glossary",
+    );
+  }
+
+  runSemanticChunk(opts: {
+    python: string; root: string; input: string;
+  }): Promise<RunResult> {
+    return this.execWithProgress(
+      opts.python,
+      ["-m", "phinitelab_pdf_pipeline.semantic_chunk", opts.input],
+      opts.root,
+      "Semantic Chunking",
+    );
+  }
+
+  // ── Progress-wrapped execution ───────────────────────────────────────
+
+  private async execWithProgress(
+    python: string,
+    args: string[],
+    cwd: string,
+    label: string,
+  ): Promise<RunResult> {
+    return await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Notification,
+        title: label,
+        cancellable: true,
+      },
+      (progress, token) => {
+        let lineCount = 0;
+        const onLine = (line: string) => {
+          lineCount++;
+          // Check for pipeline-style progress markers
+          const pctMatch = line.match(/(\d+)%/);
+          if (pctMatch) {
+            progress.report({ increment: 0, message: `${pctMatch[1]}%` });
+          } else {
+            // Show the last line as status
+            const short = line.length > 60 ? line.substring(0, 57) + "..." : line;
+            progress.report({ message: short });
+          }
+        };
+
+        token.onCancellationRequested(() => {
+          if (this.proc) {
+            this.proc.kill("SIGTERM");
+          }
+        });
+
+        return this.exec(python, args, cwd, label, onLine);
+      },
     );
   }
 
