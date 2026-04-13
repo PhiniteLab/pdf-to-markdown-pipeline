@@ -1,6 +1,6 @@
 {
-  "name": "pdf-pipeline-vscode",
-  "displayName": "PDF Markdown Pipeline",
+  "name": "phinitelab-pdf-pipeline-vscode",
+  "displayName": "PhiniteLab PDF Pipeline",
   "description": "Convert PDFs to structured Markdown with sessions, auto-processing, and a chat panel.",
   "version": "0.2.0",
   "publisher": "phinitelab",
@@ -15,7 +15,7 @@
       "activitybar": [
         {
           "id": "pdfPipeline",
-          "title": "PDF Pipeline",
+          "title": "PhiniteLab PDF Pipeline",
           "icon": "media/pipeline.svg"
         }
       ]
@@ -66,12 +66,12 @@
       ]
     },
     "configuration": {
-      "title": "PDF Pipeline",
+      "title": "PhiniteLab PDF Pipeline",
       "properties": {
         "pdfPipeline.pythonPath": {
           "type": "string",
           "default": "python",
-          "description": "Python executable used to run pipeline commands."
+          "description": "Python executable used to run PhiniteLab PDF Pipeline commands."
         },
         "pdfPipeline.configPath": {
           "type": "string",

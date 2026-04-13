@@ -17,7 +17,7 @@ WORKDIR /app
 FROM base AS deps
 
 COPY pyproject.toml requirements.txt ./
-COPY scripts/__init__.py scripts/py.typed scripts/
+COPY phinitelab_pdf_pipeline/__init__.py phinitelab_pdf_pipeline/py.typed phinitelab_pdf_pipeline/
 RUN pip install --no-cache-dir -r requirements.txt
 
 # ── Stage 3: application ────────────────────────────────────────────────────
@@ -27,4 +27,4 @@ COPY . .
 RUN pip install --no-cache-dir --no-deps .
 
 # Default command: run the full pipeline
-ENTRYPOINT ["pdf-pipeline"]
+ENTRYPOINT ["phinitelab-pdf-pipeline"]

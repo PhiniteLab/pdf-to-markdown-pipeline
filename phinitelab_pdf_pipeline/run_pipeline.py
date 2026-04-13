@@ -6,11 +6,11 @@ import argparse
 import time
 from pathlib import Path
 
-from scripts.common import Manifest, load_config, resolve_path, setup_logging
+from phinitelab_pdf_pipeline.common import Manifest, load_config, resolve_path, setup_logging
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Run the full pdf-to-markdown pipeline.")
+    parser = argparse.ArgumentParser(description="Run the full PhiniteLab PDF Pipeline.")
     parser.add_argument("--config", type=Path, help="Path to pipeline.yaml")
     parser.add_argument(
         "--stages",
@@ -48,7 +48,7 @@ def main() -> int:
 
     try:
         if "convert" in stages:
-            from scripts.convert import convert_tree
+            from phinitelab_pdf_pipeline.convert import convert_tree
 
             log.info("── stage: convert [engine=%s] ──", engine)
             input_root = (data_raw / course_id).resolve()
@@ -56,7 +56,7 @@ def main() -> int:
             log.info("converted %d file(s)", len(written))
 
         if "clean" in stages:
-            from scripts.clean import clean_tree
+            from phinitelab_pdf_pipeline.clean import clean_tree
 
             log.info("── stage: clean ──")
             input_root = (raw_md / course_id).resolve()
@@ -64,7 +64,7 @@ def main() -> int:
             log.info("cleaned %d file(s)", len(written))
 
         if "chunk" in stages:
-            from scripts.chunk import DEFAULT_SPLIT_LEVELS, chunk_tree
+            from phinitelab_pdf_pipeline.chunk import DEFAULT_SPLIT_LEVELS, chunk_tree
 
             log.info("── stage: chunk ──")
             chunk_cfg = cfg.get("chunk", {})
@@ -74,7 +74,7 @@ def main() -> int:
             log.info("wrote %d chunk(s)", len(written))
 
         if "render" in stages:
-            from scripts.render_templates import (
+            from phinitelab_pdf_pipeline.render_templates import (
                 parse_week_entries,
                 read_text,
                 render_meta_templates,

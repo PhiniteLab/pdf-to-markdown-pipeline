@@ -18,7 +18,7 @@ from typing import Any
 
 import yaml
 
-from scripts.common import load_config, resolve_path, setup_logging
+from phinitelab_pdf_pipeline.common import load_config, resolve_path, setup_logging
 
 # ── Markdown → HTML (lightweight, no external dependency) ────────────────────
 

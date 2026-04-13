@@ -1,4 +1,4 @@
-"""Shared utilities for the pdf-to-markdown pipeline."""
+"""Shared utilities for the PhiniteLab PDF Pipeline."""
 
 from __future__ import annotations
 

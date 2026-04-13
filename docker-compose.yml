@@ -7,13 +7,13 @@ services:
       - ./configs:/app/configs
     environment:
       - PYTHONPATH=/app
-    entrypoint: ["python", "-m", "scripts.run_pipeline"]
+    entrypoint: ["python", "-m", "phinitelab_pdf_pipeline.run_pipeline"]
 
   test:
     build: .
     volumes:
       - ./tests:/app/tests
-      - ./scripts:/app/scripts
+      - ./phinitelab_pdf_pipeline:/app/phinitelab_pdf_pipeline
       - ./configs:/app/configs
     environment:
       - PYTHONPATH=/app
@@ -24,10 +24,10 @@ services:
   lint:
     build: .
     volumes:
-      - ./scripts:/app/scripts
+      - ./phinitelab_pdf_pipeline:/app/phinitelab_pdf_pipeline
       - ./tests:/app/tests
     environment:
       - PYTHONPATH=/app
-    entrypoint: ["python", "-m", "ruff", "check", "scripts/", "tests/"]
+    entrypoint: ["python", "-m", "ruff", "check", "phinitelab_pdf_pipeline/", "tests/"]
     profiles:
       - lint

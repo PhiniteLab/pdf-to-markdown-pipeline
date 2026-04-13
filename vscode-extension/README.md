@@ -1,14 +1,14 @@
-# PDF Markdown Pipeline VS Code Extension (MVP)
+# PhiniteLab PDF Pipeline VS Code Extension (MVP)
 
 This extension runs the existing Python pipeline commands from VS Code.
 
 ## Commands
 
-- `PDF Pipeline: Run Full Pipeline`
-- `PDF Pipeline: Convert Only`
-- `PDF Pipeline: Generate QA Report`
-- `PDF Pipeline: Compare Two Output Folders`
-- `PDF Pipeline: Open Pipeline Config`
+- `PhiniteLab PDF Pipeline: Run Full Pipeline`
+- `PhiniteLab PDF Pipeline: Convert Only`
+- `PhiniteLab PDF Pipeline: Generate QA Report`
+- `PhiniteLab PDF Pipeline: Compare Two Output Folders`
+- `PhiniteLab PDF Pipeline: Open Pipeline Config`
 
 ## Settings
 

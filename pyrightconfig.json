@@ -1,7 +1,7 @@
 {
   "venvPath": ".",
   "venv": ".venv",
-  "include": ["scripts"],
+  "include": ["phinitelab_pdf_pipeline"],
   "typeCheckingMode": "standard",
   "reportMissingTypeStubs": false,
   "reportMissingParameterType": "warning",

@@ -5,7 +5,7 @@ import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from scripts.common import (
+from phinitelab_pdf_pipeline.common import (
     Manifest,
     load_config,
     mirror_directory_tree,

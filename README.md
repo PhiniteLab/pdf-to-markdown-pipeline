@@ -1,6 +1,6 @@
-# PDF to Markdown Pipeline
+# PhiniteLab PDF Pipeline
 
-[![CI](https://github.com/PhiniteLab/pdf-to-markdown-pipeline/actions/workflows/ci.yml/badge.svg)](https://github.com/PhiniteLab/pdf-to-markdown-pipeline/actions/workflows/ci.yml)
+[![CI](https://github.com/PhiniteLab/phinitelab-pdf-pipeline/actions/workflows/ci.yml/badge.svg)](https://github.com/PhiniteLab/phinitelab-pdf-pipeline/actions/workflows/ci.yml)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
@@ -36,14 +36,14 @@ The default mode, `dual`, uses Docling output as the structural backbone and fil
 ### Install with pip
 
 ```bash
-pip install git+https://github.com/PhiniteLab/pdf-to-markdown-pipeline.git
+pip install git+https://github.com/PhiniteLab/phinitelab-pdf-pipeline.git
 ```
 
 ### Developer installation
 
 ```bash
-git clone https://github.com/PhiniteLab/pdf-to-markdown-pipeline.git
-cd pdf-to-markdown-pipeline
+git clone https://github.com/PhiniteLab/phinitelab-pdf-pipeline.git
+cd phinitelab-pdf-pipeline
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
@@ -62,25 +62,25 @@ docker compose --profile test up  # Run the test profile
 
 ### CLI command
 
-After installation, you can use the `pdf-pipeline` command:
+After installation, you can use the `phinitelab-pdf-pipeline` command:
 
 ```bash
 # Run all stages in order
-pdf-pipeline
+phinitelab-pdf-pipeline
 
 # Run only selected stages
-pdf-pipeline --stages convert clean
+phinitelab-pdf-pipeline --stages convert clean
 
 # Use a different config file
-pdf-pipeline --config configs/pipeline.yaml
+phinitelab-pdf-pipeline --config configs/pipeline.yaml
 
 # Select a conversion engine
-pdf-pipeline --engine docling      # Docling only
-pdf-pipeline --engine markitdown   # markitdown only
-pdf-pipeline --engine dual         # combined mode (default)
+phinitelab-pdf-pipeline --engine docling      # Docling only
+phinitelab-pdf-pipeline --engine markitdown   # markitdown only
+phinitelab-pdf-pipeline --engine dual         # combined mode (default)
 ```
 
-Run `pdf-pipeline --help` to view all available arguments.
+Run `phinitelab-pdf-pipeline --help` to view all available arguments.
 
 ### Makefile shortcuts
 
@@ -101,10 +101,10 @@ make format       # Apply automatic formatting fixes
 Each module can also be executed independently:
 
 ```bash
-python -m scripts.convert --config configs/pipeline.yaml
-python -m scripts.clean --config configs/pipeline.yaml
-python -m scripts.chunk --config configs/pipeline.yaml
-python -m scripts.qa_pipeline --input outputs/cleaned_md --output reports/qa.md
+python -m phinitelab_pdf_pipeline.convert --config configs/pipeline.yaml
+python -m phinitelab_pdf_pipeline.clean --config configs/pipeline.yaml
+python -m phinitelab_pdf_pipeline.chunk --config configs/pipeline.yaml
+python -m phinitelab_pdf_pipeline.qa_pipeline --input outputs/cleaned_md --output reports/qa.md
 ```
 
 ## Pipeline Stages
@@ -159,8 +159,8 @@ Any script can receive an alternative config file through `--config <path>`.
 ## Project Structure
 
 ```text
-pdf-to-markdown-pipeline/
-├── scripts/                   # Python package containing the pipeline modules
+phinitelab-pdf-pipeline/
+├── phinitelab_pdf_pipeline/                   # Python package containing the pipeline modules
 │   ├── run_pipeline.py        #   Orchestrator and CLI entry point
 │   ├── convert.py             #   PDF → Markdown conversion
 │   ├── clean.py               #   Markdown cleanup
@@ -202,8 +202,8 @@ pdf-to-markdown-pipeline/
 
 | Problem | Resolution |
 |---------|------------|
-| `ModuleNotFoundError: No module named 'scripts'` | Make sure the project was installed with `pip install -e .`. Prefer `python -m scripts.convert` over `python scripts/convert.py`. |
-| `FileNotFoundError: Config file not found` | Pass a valid config path with `--config`, for example `pdf-pipeline --config configs/pipeline.yaml`. |
+| `ModuleNotFoundError: No module named 'phinitelab_pdf_pipeline'` | Make sure the project was installed with `pip install -e .`. Prefer `python -m phinitelab_pdf_pipeline.convert` over `python phinitelab_pdf_pipeline/convert.py`. |
+| `FileNotFoundError: Config file not found` | Pass a valid config path with `--config`, for example `phinitelab-pdf-pipeline --config configs/pipeline.yaml`. |
 | Docling installation fails | Docling may require system libraries and a compiler toolchain. On Debian/Ubuntu, install `build-essential` and `poppler-utils`, or use Docker instead. |
 | Memory issues on large PDFs | Verify `num_threads: 1` and `device: cpu` in `configs/pipeline.yaml`. If needed, constrain Docker resources explicitly. |
 | Formulas look corrupted | `engine: dual` usually gives the best output. Compare with `--engine docling` and `--engine markitdown` when debugging. |
@@ -227,13 +227,13 @@ make format                        # Apply automatic fixes
 ### Type checking
 
 ```bash
-pyright scripts/                   # standard mode, currently 0 errors
+pyright phinitelab_pdf_pipeline/                   # standard mode, currently 0 errors
 ```
 
 ### Coverage
 
 ```bash
-python -m pytest tests/ --cov=scripts --cov-report=term-missing
+python -m pytest tests/ --cov=phinitelab_pdf_pipeline --cov-report=term-missing
 ```
 
 ### Pre-commit hooks

@@ -13,7 +13,7 @@ export class PipelineRunner implements vscode.Disposable {
   private proc: cp.ChildProcess | null = null;
 
   constructor() {
-    this.output = vscode.window.createOutputChannel("PDF Pipeline");
+    this.output = vscode.window.createOutputChannel("PhiniteLab PDF Pipeline");
   }
 
   get busy(): boolean {
@@ -90,7 +90,7 @@ export class PipelineRunner implements vscode.Disposable {
     onLine?: (line: string) => void,
   ): Promise<RunResult> {
     const args = [
-      "-m", "scripts.run_pipeline",
+      "-m", "phinitelab_pdf_pipeline.run_pipeline",
       "--config", path.resolve(opts.root, opts.config),
       "--engine", opts.engine,
     ];
@@ -106,7 +106,7 @@ export class PipelineRunner implements vscode.Disposable {
     return this.exec(
       opts.python,
       [
-        "-m", "scripts.qa_pipeline",
+        "-m", "phinitelab_pdf_pipeline.qa_pipeline",
         "--config", path.resolve(opts.root, opts.config),
         "--input", opts.input,
         "--output", opts.output,
@@ -123,7 +123,7 @@ export class PipelineRunner implements vscode.Disposable {
     return this.exec(
       opts.python,
       [
-        "-m", "scripts.diff",
+        "-m", "phinitelab_pdf_pipeline.diff",
         "--config", path.resolve(opts.root, opts.config),
         "--old", opts.oldDir,
         "--new", opts.newDir,

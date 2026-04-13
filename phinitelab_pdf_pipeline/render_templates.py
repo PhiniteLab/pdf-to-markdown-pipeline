@@ -5,7 +5,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from scripts.common import load_config, resolve_path, setup_logging
+from phinitelab_pdf_pipeline.common import load_config, resolve_path, setup_logging
 
 WEEK_HEADING_RE = re.compile(r"^##\s+Week\s+(\d+)\s*:\s*(.+?)\s*$", re.IGNORECASE)
 LINE_VALUE_RE_TEMPLATE = r"(?m)^(?:##\s+)?{label}:\s*(.+?)\s*$"

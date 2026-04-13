@@ -6,7 +6,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
-from scripts.common import (
+from phinitelab_pdf_pipeline.common import (
     Manifest,
     load_config,
     mirror_directory_tree,

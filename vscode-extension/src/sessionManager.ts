@@ -15,7 +15,7 @@ export class SessionManager implements vscode.Disposable {
   readonly onDidChange = this._onDidChange.event;
 
   constructor(private readonly root: string) {
-    const dir = path.join(root, ".pdf-pipeline");
+    const dir = path.join(root, ".phinitelab-pdf-pipeline");
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }

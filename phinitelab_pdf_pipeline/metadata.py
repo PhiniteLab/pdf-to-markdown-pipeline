@@ -16,7 +16,7 @@ import re
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-from scripts.common import load_config, resolve_path, setup_logging
+from phinitelab_pdf_pipeline.common import load_config, resolve_path, setup_logging
 
 # ── Extraction patterns ──────────────────────────────────────────────────────
 

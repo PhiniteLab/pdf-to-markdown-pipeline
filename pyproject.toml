@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "pdf-to-markdown-pipeline"
+name = "phinitelab-pdf-pipeline"
 version = "0.1.0"
 description = "Convert PDF documents to structured Markdown with a multi-stage pipeline."
 readme = "README.md"
@@ -38,19 +38,19 @@ dev = [
 ]
 
 [project.scripts]
-pdf-pipeline = "scripts.run_pipeline:main"
+phinitelab-pdf-pipeline = "phinitelab_pdf_pipeline.run_pipeline:main"
 
 [project.urls]
-Homepage = "https://github.com/PhiniteLab/pdf-to-markdown-pipeline"
-Repository = "https://github.com/PhiniteLab/pdf-to-markdown-pipeline"
-Issues = "https://github.com/PhiniteLab/pdf-to-markdown-pipeline/issues"
+Homepage = "https://github.com/PhiniteLab/phinitelab-pdf-pipeline"
+Repository = "https://github.com/PhiniteLab/phinitelab-pdf-pipeline"
+Issues = "https://github.com/PhiniteLab/phinitelab-pdf-pipeline/issues"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["scripts*"]
+include = ["phinitelab_pdf_pipeline*"]
 
 [tool.setuptools.package-data]
-scripts = ["py.typed"]
+phinitelab_pdf_pipeline = ["py.typed"]
 
 [tool.ruff]
 target-version = "py311"
@@ -61,8 +61,8 @@ select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]
 ignore = ["E501", "RUF001"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["scripts"]
+known-first-party = ["phinitelab_pdf_pipeline"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "--cov=scripts --cov-report=term-missing --cov-fail-under=70"
+addopts = "--cov=phinitelab_pdf_pipeline --cov-report=term-missing --cov-fail-under=70"

@@ -20,10 +20,10 @@ Process any folder through the pipeline:
 
 ```bash
 # Process a specific document type
-python -m scripts.convert --input data/raw/manuscripts --output-dir outputs/raw_md --no-manifest
+python -m phinitelab_pdf_pipeline.convert --input data/raw/manuscripts --output-dir outputs/raw_md --no-manifest
 
 # Or process a single file
-python -m scripts.convert --input data/raw/books/my_book.pdf --output outputs/raw_md/books/my_book.md
+python -m phinitelab_pdf_pipeline.convert --input data/raw/books/my_book.pdf --output outputs/raw_md/books/my_book.md
 ```
 
 ## Output Mapping

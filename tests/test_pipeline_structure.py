@@ -1,4 +1,4 @@
-"""Comprehensive tests for the pdf-to-markdown pipeline."""
+"""Comprehensive tests for the PhiniteLab PDF Pipeline."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from scripts.chunk import (
+from phinitelab_pdf_pipeline.chunk import (
     Chunk,
     build_heading_re,
     chunk_file,
@@ -17,7 +17,7 @@ from scripts.chunk import (
     parse_chunks,
     slugify,
 )
-from scripts.citations import (
+from phinitelab_pdf_pipeline.citations import (
     Citation,
     CitationEdge,
     CitationGraph,
@@ -30,7 +30,7 @@ from scripts.citations import (
     write_citation_report,
     write_dot_graph,
 )
-from scripts.clean import (
+from phinitelab_pdf_pipeline.clean import (
     clean_markdown,
     clean_tree,
     fix_wrapped_lines,
@@ -40,7 +40,7 @@ from scripts.clean import (
     remove_page_numbers,
     remove_repeated_headers_footers,
 )
-from scripts.common import (
+from phinitelab_pdf_pipeline.common import (
     Manifest,
     file_hash,
     load_config,
@@ -48,7 +48,7 @@ from scripts.common import (
     reset_config_cache,
     setup_logging,
 )
-from scripts.convert import (
+from phinitelab_pdf_pipeline.convert import (
     derive_output_path,
     format_algorithm_block,
     format_formula_block,
@@ -60,7 +60,7 @@ from scripts.convert import (
     recover_formula_placeholders,
     reformat_algorithm_sections,
 )
-from scripts.diff import (
+from phinitelab_pdf_pipeline.diff import (
     FileDiff,
     TreeDiff,
     diff_files,
@@ -69,7 +69,7 @@ from scripts.diff import (
     write_diff_report,
     write_unified_diff,
 )
-from scripts.doc_type import (
+from phinitelab_pdf_pipeline.doc_type import (
     ALL_TYPES,
     GENERIC,
     PAPER,
@@ -86,7 +86,7 @@ from scripts.doc_type import (
     render_template_scaffold,
     write_detection_report,
 )
-from scripts.figures import (
+from phinitelab_pdf_pipeline.figures import (
     FigureEntry,
     FigureReport,
     build_figure_report,
@@ -96,7 +96,7 @@ from scripts.figures import (
     write_figure_manifest,
     write_gallery_page,
 )
-from scripts.formula_score import (
+from phinitelab_pdf_pipeline.formula_score import (
     FileReport,
     build_file_report,
     score_file,
@@ -105,7 +105,7 @@ from scripts.formula_score import (
     validate_formula_text,
     write_report,
 )
-from scripts.ghpages import (
+from phinitelab_pdf_pipeline.ghpages import (
     PageEntry,
     build_document_page,
     build_index_page,
@@ -114,7 +114,7 @@ from scripts.ghpages import (
     generate_site,
     write_site_manifest,
 )
-from scripts.metadata import (
+from phinitelab_pdf_pipeline.metadata import (
     ScholarlyMetadata,
     extract_abstract,
     extract_authors,
@@ -130,7 +130,7 @@ from scripts.metadata import (
     to_yaml_frontmatter,
     write_metadata_report,
 )
-from scripts.multi_format import (
+from phinitelab_pdf_pipeline.multi_format import (
     FORMAT_EXTENSIONS,
     convert_file,
     convert_tree,
@@ -138,7 +138,7 @@ from scripts.multi_format import (
     md_to_text,
     md_to_yaml,
 )
-from scripts.ocr_quality import (
+from phinitelab_pdf_pipeline.ocr_quality import (
     OCRFileReport,
     OCRQualityMetrics,
     assess_file,
@@ -152,21 +152,21 @@ from scripts.ocr_quality import (
     count_symbol_soup,
     write_ocr_report,
 )
-from scripts.parallel import (
+from phinitelab_pdf_pipeline.parallel import (
     ParallelConfig,
     TaskResult,
     collect_md_files,
     parallel_map,
     parallel_tree,
 )
-from scripts.plugin import (
+from phinitelab_pdf_pipeline.plugin import (
     VALID_HOOKS,
     PluginBase,
     PluginInfo,
     PluginRegistry,
     write_plugin_report,
 )
-from scripts.qa_pipeline import (
+from phinitelab_pdf_pipeline.qa_pipeline import (
     BADGE_FAIL,
     BADGE_GOLD,
     BADGE_SILVER,
@@ -185,10 +185,10 @@ from scripts.qa_pipeline import (
     qa_tree,
     write_markdown_report,
 )
-from scripts.qa_pipeline import (
+from phinitelab_pdf_pipeline.qa_pipeline import (
     write_report as write_qa_report,
 )
-from scripts.rag_export import (
+from phinitelab_pdf_pipeline.rag_export import (
     RAGRecord,
     estimate_tokens,
     export_file,
@@ -199,10 +199,10 @@ from scripts.rag_export import (
     write_json_array,
     write_jsonl,
 )
-from scripts.rag_export import (
+from phinitelab_pdf_pipeline.rag_export import (
     build_summary as rag_build_summary,
 )
-from scripts.render_templates import (
+from phinitelab_pdf_pipeline.render_templates import (
     build_assignment_text,
     build_course_profile_text,
     build_global_rules_text,
@@ -214,8 +214,8 @@ from scripts.render_templates import (
     parse_week_entries,
     summarize_text,
 )
-from scripts.run_pipeline import build_parser
-from scripts.topics import (
+from phinitelab_pdf_pipeline.run_pipeline import build_parser
+from phinitelab_pdf_pipeline.topics import (
     TOPIC_KEYWORDS,
     DocumentTopics,
     TopicScore,
@@ -1037,7 +1037,7 @@ class TestCleanCLI:
             [
                 sys.executable,
                 "-m",
-                "scripts.clean",
+                "phinitelab_pdf_pipeline.clean",
                 "--input",
                 str(inp),
                 "--output-dir",
@@ -1074,7 +1074,7 @@ class TestChunkCLI:
             [
                 sys.executable,
                 "-m",
-                "scripts.chunk",
+                "phinitelab_pdf_pipeline.chunk",
                 "--input",
                 str(inp),
                 "--output-dir",
@@ -1109,7 +1109,7 @@ class TestChunkCLI:
             [
                 sys.executable,
                 "-m",
-                "scripts.chunk",
+                "phinitelab_pdf_pipeline.chunk",
                 "--input",
                 str(inp),
                 "--output-dir",
@@ -1143,7 +1143,7 @@ class TestFormulaScoreCLI:
             [
                 sys.executable,
                 "-m",
-                "scripts.formula_score",
+                "phinitelab_pdf_pipeline.formula_score",
                 "--input",
                 str(inp),
                 "--output",
@@ -1583,7 +1583,7 @@ class TestComputeBadge:
         assert compute_badge(report) == BADGE_GOLD
 
     def test_fail_on_error(self) -> None:
-        from scripts.qa_pipeline import QAIssue
+        from phinitelab_pdf_pipeline.qa_pipeline import QAIssue
 
         report = FileQAReport(
             file="test.md",
@@ -1592,7 +1592,7 @@ class TestComputeBadge:
         assert compute_badge(report) == BADGE_FAIL
 
     def test_silver_on_warning(self) -> None:
-        from scripts.qa_pipeline import QAIssue
+        from phinitelab_pdf_pipeline.qa_pipeline import QAIssue
 
         report = FileQAReport(
             file="test.md",
@@ -1673,7 +1673,7 @@ class TestWriteQAReports:
         assert data["summary"]["files_scanned"] == 1
 
     def test_writes_markdown(self, tmp_path: Path) -> None:
-        from scripts.qa_pipeline import QAIssue
+        from phinitelab_pdf_pipeline.qa_pipeline import QAIssue
 
         issue = QAIssue(check="enc", severity="error", message="bad char", line=5)
         r = FileQAReport(file="a.md", badge="fail", issues=[issue])
@@ -1696,7 +1696,7 @@ class TestMetadataCLI:
         md.write_text("# Research Paper\n\nJohn Doe, Jane Smith\n\nAbstract: A study.\n", encoding="utf-8")
         out = tmp_path / "meta.json"
         result = subprocess.run(
-            [sys.executable, "-m", "scripts.metadata", "--input", str(md), "--output", str(out)],
+            [sys.executable, "-m", "phinitelab_pdf_pipeline.metadata", "--input", str(md), "--output", str(out)],
             capture_output=True,
             text=True,
         )
@@ -1711,7 +1711,7 @@ class TestRAGExportCLI:
         md.write_text("# Ch\n## Sec\n\nBody.\n", encoding="utf-8")
         out = tmp_path / "out.jsonl"
         result = subprocess.run(
-            [sys.executable, "-m", "scripts.rag_export", "--input", str(md), "--output", str(out)],
+            [sys.executable, "-m", "phinitelab_pdf_pipeline.rag_export", "--input", str(md), "--output", str(out)],
             capture_output=True,
             text=True,
         )
@@ -1726,7 +1726,17 @@ class TestQACLI:
         md.write_text("# Title\n\nGood body text for quality checks.\n", encoding="utf-8")
         out = tmp_path / "qa.json"
         result = subprocess.run(
-            [sys.executable, "-m", "scripts.qa_pipeline", "--input", str(md), "--output", str(out), "--format", "json"],
+            [
+                sys.executable,
+                "-m",
+                "phinitelab_pdf_pipeline.qa_pipeline",
+                "--input",
+                str(md),
+                "--output",
+                str(out),
+                "--format",
+                "json",
+            ],
             capture_output=True,
             text=True,
         )
@@ -2194,7 +2204,7 @@ class TestMultiFormatCLI:
             [
                 sys.executable,
                 "-m",
-                "scripts.multi_format",
+                "phinitelab_pdf_pipeline.multi_format",
                 "--input",
                 str(md),
                 "--output-dir",
@@ -2216,7 +2226,7 @@ class TestMultiFormatCLI:
             [
                 sys.executable,
                 "-m",
-                "scripts.multi_format",
+                "phinitelab_pdf_pipeline.multi_format",
                 "--input",
                 str(md),
                 "--output-dir",
@@ -2241,7 +2251,7 @@ class TestGHPagesCLI:
             [
                 sys.executable,
                 "-m",
-                "scripts.ghpages",
+                "phinitelab_pdf_pipeline.ghpages",
                 "--input",
                 str(src),
                 "--output-dir",
@@ -2262,7 +2272,7 @@ class TestDocTypeCLI:
         md.write_text("# Paper\n\nAbstract: Results.\n\n## References\n", encoding="utf-8")
         out = tmp_path / "report.json"
         result = subprocess.run(
-            [sys.executable, "-m", "scripts.doc_type", "--input", str(md), "--output", str(out)],
+            [sys.executable, "-m", "phinitelab_pdf_pipeline.doc_type", "--input", str(md), "--output", str(out)],
             capture_output=True,
             text=True,
         )
@@ -2273,7 +2283,7 @@ class TestDocTypeCLI:
     def test_scaffold_cli(self, tmp_path: Path) -> None:
         out = tmp_path / "scaffold.md"
         result = subprocess.run(
-            [sys.executable, "-m", "scripts.doc_type", "--scaffold", "paper", "--output", str(out)],
+            [sys.executable, "-m", "phinitelab_pdf_pipeline.doc_type", "--scaffold", "paper", "--output", str(out)],
             capture_output=True,
             text=True,
         )
@@ -2426,7 +2436,7 @@ class TestOCRQualityCLI:
         md.write_text("# Title\n\nNormal document content.\n", encoding="utf-8")
         out = tmp_path / "report.json"
         result = subprocess.run(
-            [sys.executable, "-m", "scripts.ocr_quality", "--input", str(md), "--output", str(out)],
+            [sys.executable, "-m", "phinitelab_pdf_pipeline.ocr_quality", "--input", str(md), "--output", str(out)],
             capture_output=True,
             text=True,
         )
@@ -2440,7 +2450,7 @@ class TestOCRQualityCLI:
         (d / "a.md").write_text("Document one with normal text.\n", encoding="utf-8")
         out = tmp_path / "report.json"
         result = subprocess.run(
-            [sys.executable, "-m", "scripts.ocr_quality", "--input", str(d), "--output", str(out)],
+            [sys.executable, "-m", "phinitelab_pdf_pipeline.ocr_quality", "--input", str(d), "--output", str(out)],
             capture_output=True,
             text=True,
         )
@@ -2600,7 +2610,7 @@ class TestFigureCLI:
         md.write_text("![Fig](fig.png)\n", encoding="utf-8")
         out = tmp_path / "manifest.json"
         result = subprocess.run(
-            [sys.executable, "-m", "scripts.figures", "--input", str(md), "--output", str(out)],
+            [sys.executable, "-m", "phinitelab_pdf_pipeline.figures", "--input", str(md), "--output", str(out)],
             capture_output=True,
             text=True,
         )
@@ -2617,7 +2627,7 @@ class TestFigureCLI:
             [
                 sys.executable,
                 "-m",
-                "scripts.figures",
+                "phinitelab_pdf_pipeline.figures",
                 "--input",
                 str(md),
                 "--output",
@@ -2792,7 +2802,7 @@ class TestParallelCLI:
             [
                 sys.executable,
                 "-m",
-                "scripts.parallel",
+                "phinitelab_pdf_pipeline.parallel",
                 "--input",
                 str(d),
                 "--operation",
@@ -2963,7 +2973,7 @@ class TestPluginRegistry:
         d.mkdir()
         plugin_py = d / "my_plugin.py"
         plugin_py.write_text(
-            "from scripts.plugin import PluginBase\n\n"
+            "from phinitelab_pdf_pipeline.plugin import PluginBase\n\n"
             "class MyPlugin(PluginBase):\n"
             "    name = 'discovered'\n"
             "    description = 'Auto-discovered'\n",
@@ -3013,7 +3023,7 @@ class TestPluginCLI:
             [
                 sys.executable,
                 "-m",
-                "scripts.plugin",
+                "phinitelab_pdf_pipeline.plugin",
                 "--plugin-dir",
                 str(d),
                 "--list",
@@ -3185,7 +3195,7 @@ class TestCitationCLI:
         md.write_text("(Smith, 2020) here.\n", encoding="utf-8")
         out = tmp_path / "report.json"
         result = subprocess.run(
-            [sys.executable, "-m", "scripts.citations", "--input", str(md), "--output", str(out)],
+            [sys.executable, "-m", "phinitelab_pdf_pipeline.citations", "--input", str(md), "--output", str(out)],
             capture_output=True,
             text=True,
         )
@@ -3347,7 +3357,7 @@ class TestTopicCLI:
         md.write_text("Reinforcement learning and policy gradient.\n", encoding="utf-8")
         out = tmp_path / "report.json"
         result = subprocess.run(
-            [sys.executable, "-m", "scripts.topics", "--input", str(md), "--output", str(out)],
+            [sys.executable, "-m", "phinitelab_pdf_pipeline.topics", "--input", str(md), "--output", str(out)],
             capture_output=True,
             text=True,
         )
@@ -3533,7 +3543,7 @@ class TestDiffCLI:
             [
                 sys.executable,
                 "-m",
-                "scripts.diff",
+                "phinitelab_pdf_pipeline.diff",
                 "--old",
                 str(old),
                 "--new",
@@ -3643,16 +3653,16 @@ class TestRunPipelineCLI:
 
     def test_cli_help(self) -> None:
         result = subprocess.run(
-            [sys.executable, "-m", "scripts.run_pipeline", "--help"],
+            [sys.executable, "-m", "phinitelab_pdf_pipeline.run_pipeline", "--help"],
             capture_output=True,
             text=True,
         )
         assert result.returncode == 0
-        assert "pdf-to-markdown pipeline" in result.stdout.lower()
+        assert "phinitelab pdf pipeline" in result.stdout.lower()
 
     def test_cli_unknown_arg(self) -> None:
         result = subprocess.run(
-            [sys.executable, "-m", "scripts.run_pipeline", "--unknown-flag"],
+            [sys.executable, "-m", "phinitelab_pdf_pipeline.run_pipeline", "--unknown-flag"],
             capture_output=True,
             text=True,
         )
@@ -3661,7 +3671,7 @@ class TestRunPipelineCLI:
     def test_cli_missing_config(self, tmp_path: Path) -> None:
         bad_cfg = tmp_path / "nonexistent.yaml"
         result = subprocess.run(
-            [sys.executable, "-m", "scripts.run_pipeline", "--config", str(bad_cfg)],
+            [sys.executable, "-m", "phinitelab_pdf_pipeline.run_pipeline", "--config", str(bad_cfg)],
             capture_output=True,
             text=True,
         )
@@ -3675,7 +3685,7 @@ class TestRunPipelineCLI:
             [
                 sys.executable,
                 "-m",
-                "scripts.run_pipeline",
+                "phinitelab_pdf_pipeline.run_pipeline",
                 "--config",
                 str(cfg),
                 "--stages",
@@ -3695,7 +3705,7 @@ class TestRunPipelineCLI:
             [
                 sys.executable,
                 "-m",
-                "scripts.run_pipeline",
+                "phinitelab_pdf_pipeline.run_pipeline",
                 "--config",
                 str(cfg),
                 "--stages",
@@ -3717,7 +3727,7 @@ class TestRunPipelineCLI:
             [
                 sys.executable,
                 "-m",
-                "scripts.diff",
+                "phinitelab_pdf_pipeline.diff",
                 "--old",
                 str(old),
                 "--new",
@@ -3738,8 +3748,8 @@ class TestRunPipelineCLI:
 
 class TestPyTyped:
     def test_py_typed_exists(self) -> None:
-        marker = Path(__file__).resolve().parent.parent / "scripts" / "py.typed"
-        assert marker.exists(), "py.typed marker should exist in scripts/"
+        marker = Path(__file__).resolve().parent.parent / "phinitelab_pdf_pipeline" / "py.typed"
+        assert marker.exists(), "py.typed marker should exist in phinitelab_pdf_pipeline/"
 
     def test_pyrightconfig_exists(self) -> None:
         cfg = Path(__file__).resolve().parent.parent / "pyrightconfig.json"

@@ -5,7 +5,7 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from scripts.common import (
+from phinitelab_pdf_pipeline.common import (
     Manifest,
     load_config,
     mirror_directory_tree,
