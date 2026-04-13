@@ -43,7 +43,7 @@ dev = [
     "pre-commit>=4.0",
 ]
 docs = [
-    "mkdocs-material>=9.5",
+    "mkdocs-material>=9.7.6",
     "mkdocstrings[python]>=0.27",
 ]
 
