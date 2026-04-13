@@ -86,7 +86,7 @@ export class PipelineRunner implements vscode.Disposable {
   // ── High-level commands ──────────────────────────────────────────────
 
   runPipeline(
-    opts: { python: string; root: string; config: string; engine: string; stages?: string[] },
+    opts: { python: string; root: string; config: string; engine: string; stages?: string[]; input?: string; sessionName?: string },
     onLine?: (line: string) => void,
   ): Promise<RunResult> {
     const args = [
@@ -94,6 +94,12 @@ export class PipelineRunner implements vscode.Disposable {
       "--config", path.resolve(opts.root, opts.config),
       "--engine", opts.engine,
     ];
+    if (opts.input) {
+      args.push("--input", opts.input);
+    }
+    if (opts.sessionName) {
+      args.push("--session-name", opts.sessionName);
+    }
     if (opts.stages?.length) {
       args.push("--stages", ...opts.stages);
     }

@@ -23,13 +23,19 @@ classifiers = [
     "Topic :: Text Processing :: Markup :: Markdown",
 ]
 dependencies = [
-    "docling>=2.86.0",
     "markitdown[pdf]>=0.1.5",
     "PyYAML>=6.0.3",
 ]
 
 [project.optional-dependencies]
+docling = [
+    "docling>=2.86.0",
+]
+gpu = [
+    "docling>=2.86.0",
+]
 dev = [
+    "docling>=2.86.0",
     "pytest>=9.0",
     "pytest-cov>=6.0",
     "ruff>=0.11",

@@ -1,6 +1,6 @@
+import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
-import { ChatViewProvider } from "./chatView";
 import { PipelineRunner } from "./pipelineRunner";
 import { SessionManager } from "./sessionManager";
 import { PipelineItem, SessionTreeProvider } from "./sessionTree";
@@ -24,6 +24,38 @@ function need(r: string | undefined): r is string {
   return !!r;
 }
 
+/** Derive the input directory from the active session's files. */
+function sessionInputDir(mgr: SessionManager, wsRoot: string): string | undefined {
+  const session = mgr.active();
+  if (!session || session.files.length === 0) return undefined;
+  const first = session.files[0];
+  const abs = path.resolve(wsRoot, first.relativePath);
+  return path.dirname(abs);
+}
+
+/** Resolve the Python executable: check venv first, then user setting. */
+function resolvePython(wsRoot: string): string {
+  const userPython = cfg<string>("pythonPath");
+  // If user explicitly set an absolute path, honour it.
+  if (userPython && path.isAbsolute(userPython)) {
+    return userPython;
+  }
+  // Auto-detect workspace venv
+  const candidates = [
+    path.join(wsRoot, ".venv", "bin", "python"),
+    path.join(wsRoot, ".venv", "bin", "python3"),
+    path.join(wsRoot, "venv", "bin", "python"),
+    path.join(wsRoot, "venv", "bin", "python3"),
+  ];
+  for (const c of candidates) {
+    if (fs.existsSync(c)) {
+      return c;
+    }
+  }
+  // Fallback to user setting or python3
+  return userPython || "python3";
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Activation
 // ═══════════════════════════════════════════════════════════════════════════
@@ -37,11 +69,8 @@ export function activate(context: vscode.ExtensionContext): void {
   const runner = new PipelineRunner();
 
   // ── Tree view ──────────────────────────────────────────────────────────
-  const tree = new SessionTreeProvider(sessions);
+  const tree = new SessionTreeProvider(sessions, wsRoot);
   sessions.onDidChange(() => tree.refresh());
-
-  // ── Chat webview ───────────────────────────────────────────────────────
-  const chat = new ChatViewProvider(context.extensionUri, sessions, runner);
 
   // ── File watcher — auto-detect PDFs ────────────────────────────────────
   const watcher = vscode.workspace.createFileSystemWatcher(
@@ -55,18 +84,23 @@ export function activate(context: vscode.ExtensionContext): void {
     const added = sessions.addFile(active.id, name, relPath);
     if (!added) return;
 
-    chat.postMessage("system", `\uD83D\uDCE5 **${name}** detected \u2192 added to "${active.name}".`);
-
     if (cfg<boolean>("autoProcess")) {
-      void processActiveSession(sessions, runner, chat, wsRoot);
+      void processActiveSession(sessions, runner, wsRoot);
     }
   });
+
+  // ── Output watcher — auto-refresh tree on output changes ─────────────
+  const outWatcher = vscode.workspace.createFileSystemWatcher(
+    new vscode.RelativePattern(wsRoot, "outputs/**"),
+  );
+  outWatcher.onDidCreate(() => tree.refresh());
+  outWatcher.onDidDelete(() => tree.refresh());
 
   // ── Register everything ────────────────────────────────────────────────
   context.subscriptions.push(
     vscode.window.registerTreeDataProvider("pdfPipelinePanel", tree),
-    vscode.window.registerWebviewViewProvider(ChatViewProvider.viewId, chat),
     watcher,
+    outWatcher,
     sessions,
     runner,
 
@@ -74,24 +108,28 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("pdfPipeline.refresh", () => tree.refresh()),
     vscode.commands.registerCommand("pdfPipeline.newSession", () => cmdNewSession(sessions)),
     vscode.commands.registerCommand("pdfPipeline.deleteSession", (item?: PipelineItem) =>
-      cmdDeleteSession(sessions, item),
+      cmdDeleteSession(sessions, wsRoot, item),
     ),
     vscode.commands.registerCommand("pdfPipeline.setActiveSession", (item?: PipelineItem) =>
       cmdSetActive(sessions, item),
     ),
     vscode.commands.registerCommand("pdfPipeline.processSession", () =>
-      processActiveSession(sessions, runner, chat, wsRoot),
+      processActiveSession(sessions, runner, wsRoot),
     ),
     vscode.commands.registerCommand("pdfPipeline.addPdf", () => cmdAddPdf(sessions, wsRoot)),
+    vscode.commands.registerCommand("pdfPipeline.addFolder", () => cmdAddFolder(sessions, wsRoot)),
 
     // Pipeline commands (use spawn runner)
-    vscode.commands.registerCommand("pdfPipeline.runFull", () => cmdRunFull(runner, chat, wsRoot)),
-    vscode.commands.registerCommand("pdfPipeline.runConvert", () => cmdRunConvert(runner, wsRoot)),
+    vscode.commands.registerCommand("pdfPipeline.runFull", () => cmdRunFull(runner, wsRoot, sessions)),
+    vscode.commands.registerCommand("pdfPipeline.runConvert", () => cmdRunConvert(runner, wsRoot, sessions)),
     vscode.commands.registerCommand("pdfPipeline.runQA", () => cmdRunQA(runner, wsRoot)),
     vscode.commands.registerCommand("pdfPipeline.runDiff", () => cmdRunDiff(runner, wsRoot)),
     vscode.commands.registerCommand("pdfPipeline.openConfig", () => cmdOpenConfig(wsRoot)),
     vscode.commands.registerCommand("pdfPipeline.openOutput", (arg?: string | PipelineItem) =>
       cmdOpenOutput(wsRoot, arg),
+    ),
+    vscode.commands.registerCommand("pdfPipeline.deleteOutput", (item?: PipelineItem) =>
+      cmdDeleteOutput(item, tree),
     ),
   );
 }
@@ -115,18 +153,38 @@ async function cmdNewSession(mgr: SessionManager): Promise<void> {
   void vscode.window.showInformationMessage(`Session "${s.name}" created and set as active.`);
 }
 
-async function cmdDeleteSession(mgr: SessionManager, item?: PipelineItem): Promise<void> {
+async function cmdDeleteSession(mgr: SessionManager, wsRoot: string, item?: PipelineItem): Promise<void> {
   const id = item?.sessionId;
   if (!id) return;
   const session = mgr.get(id);
   if (!session) return;
   const answer = await vscode.window.showWarningMessage(
-    `Delete session "${session.name}"?`,
+    `Delete session "${session.name}" and its outputs?`,
     { modal: true },
     "Delete",
   );
   if (answer === "Delete") {
+    cleanSessionOutputs(session, wsRoot);
     mgr.delete(id);
+  }
+}
+
+/** Remove output files generated from the session's PDFs. */
+function cleanSessionOutputs(session: { name: string; files: { relativePath: string }[] }, wsRoot: string): void {
+  const outputDirs = ["outputs/raw_md", "outputs/cleaned_md", "outputs/chunks"];
+
+  // Remove session-scoped output directories
+  for (const outDir of outputDirs) {
+    const sessionDir = path.join(wsRoot, outDir, session.name);
+    if (fs.existsSync(sessionDir)) {
+      fs.rmSync(sessionDir, { recursive: true, force: true });
+    }
+  }
+
+  // Remove session-specific manifest
+  const sessionManifest = path.join(wsRoot, "outputs", `.manifest-${session.name}.json`);
+  if (fs.existsSync(sessionManifest)) {
+    fs.rmSync(sessionManifest, { force: true });
   }
 }
 
@@ -145,22 +203,56 @@ async function cmdAddPdf(mgr: SessionManager, wsRoot: string): Promise<void> {
   }
   const uris = await vscode.window.showOpenDialog({
     canSelectMany: true,
+    canSelectFiles: true,
+    canSelectFolders: false,
     filters: { "PDF Files": ["pdf"] },
     defaultUri: vscode.Uri.file(path.join(wsRoot, "data", "raw")),
-    title: "Select PDFs to add",
+    title: "Select PDF files to add",
   });
   if (!uris?.length) return;
+  const count = addPdfUris(mgr, active.id, uris, wsRoot);
+  if (count > 0) {
+    void vscode.window.showInformationMessage(`Added ${count} PDF(s) to "${active.name}".`);
+  }
+}
+
+async function cmdAddFolder(mgr: SessionManager, wsRoot: string): Promise<void> {
+  const active = mgr.active();
+  if (!active) {
+    void vscode.window.showWarningMessage("Create a session first.");
+    return;
+  }
+  const uris = await vscode.window.showOpenDialog({
+    canSelectMany: false,
+    canSelectFiles: false,
+    canSelectFolders: true,
+    defaultUri: vscode.Uri.file(path.join(wsRoot, "data", "raw")),
+    title: "Select a folder containing PDFs",
+  });
+  if (!uris?.length) return;
+  const folderUri = uris[0];
+  const pattern = new vscode.RelativePattern(folderUri, "**/*.pdf");
+  const pdfUris = await vscode.workspace.findFiles(pattern);
+  if (pdfUris.length === 0) {
+    void vscode.window.showWarningMessage("No PDF files found in the selected folder.");
+    return;
+  }
+  const count = addPdfUris(mgr, active.id, pdfUris, wsRoot);
+  if (count > 0) {
+    void vscode.window.showInformationMessage(`Added ${count} PDF(s) from folder to "${active.name}".`);
+  }
+}
+
+function addPdfUris(mgr: SessionManager, sessionId: string, uris: readonly vscode.Uri[], wsRoot: string): number {
   let count = 0;
   for (const uri of uris) {
     const rel = path.relative(wsRoot, uri.fsPath);
     const name = path.basename(uri.fsPath);
-    if (mgr.addFile(active.id, name, rel)) {
+    if (mgr.addFile(sessionId, name, rel)) {
       count++;
     }
   }
-  if (count > 0) {
-    void vscode.window.showInformationMessage(`Added ${count} PDF(s) to "${active.name}".`);
-  }
+  return count;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -170,7 +262,6 @@ async function cmdAddPdf(mgr: SessionManager, wsRoot: string): Promise<void> {
 async function processActiveSession(
   mgr: SessionManager,
   runner: PipelineRunner,
-  chat: ChatViewProvider,
   wsRoot: string,
 ): Promise<void> {
   if (!need(wsRoot)) return;
@@ -186,30 +277,24 @@ async function processActiveSession(
 
   // Mark queued files as processing
   mgr.bulkUpdate(session.id, "queued", "processing");
-  chat.postMessage("system", `\u23F3 Processing session "${session.name}"...`);
 
+  const inputDir = sessionInputDir(mgr, wsRoot);
   const result = await runner.runPipeline(
     {
-      python: cfg<string>("pythonPath"),
+      python: resolvePython(wsRoot),
       root: wsRoot,
       config: cfg<string>("configPath"),
       engine: cfg<string>("defaultEngine"),
-    },
-    (line) => {
-      // Forward progress lines to chat
-      if (line.includes("Stage") || line.includes("stage") || line.includes("done") || line.includes("error")) {
-        chat.postMessage("system", line);
-      }
+      input: inputDir,
+      sessionName: session.name,
     },
   );
 
   if (result.exitCode === 0) {
     mgr.bulkUpdate(session.id, "processing", "done");
-    chat.postMessage("system", `\u2705 Session "${session.name}" processed successfully.`);
     void vscode.window.showInformationMessage(`Pipeline complete for "${session.name}".`);
   } else {
     mgr.bulkUpdate(session.id, "processing", "error");
-    chat.postMessage("system", `\u274C Pipeline failed (exit ${result.exitCode}).`);
     void vscode.window.showErrorMessage(`Pipeline failed. Check Output channel for details.`);
   }
 }
@@ -218,34 +303,37 @@ async function processActiveSession(
 // Pipeline action commands (spawn-based)
 // ═══════════════════════════════════════════════════════════════════════════
 
-async function cmdRunFull(runner: PipelineRunner, chat: ChatViewProvider, wsRoot: string): Promise<void> {
+async function cmdRunFull(runner: PipelineRunner, wsRoot: string, mgr: SessionManager): Promise<void> {
   if (!need(wsRoot) || runner.busy) return;
-  chat.postMessage("system", "\uD83D\uDE80 Running full pipeline...");
-  const result = await runner.runPipeline({
-    python: cfg<string>("pythonPath"),
+  const session = mgr.active();
+  await runner.runPipeline({
+    python: resolvePython(wsRoot),
     root: wsRoot,
     config: cfg<string>("configPath"),
     engine: cfg<string>("defaultEngine"),
+    input: sessionInputDir(mgr, wsRoot),
+    sessionName: session?.name,
   });
-  const msg = result.exitCode === 0 ? "\u2705 Full pipeline done." : `\u274C Pipeline failed (exit ${result.exitCode}).`;
-  chat.postMessage("system", msg);
 }
 
-async function cmdRunConvert(runner: PipelineRunner, wsRoot: string): Promise<void> {
+async function cmdRunConvert(runner: PipelineRunner, wsRoot: string, mgr: SessionManager): Promise<void> {
   if (!need(wsRoot) || runner.busy) return;
+  const session = mgr.active();
   await runner.runPipeline({
-    python: cfg<string>("pythonPath"),
+    python: resolvePython(wsRoot),
     root: wsRoot,
     config: cfg<string>("configPath"),
     engine: cfg<string>("defaultEngine"),
     stages: ["convert"],
+    input: sessionInputDir(mgr, wsRoot),
+    sessionName: session?.name,
   });
 }
 
 async function cmdRunQA(runner: PipelineRunner, wsRoot: string): Promise<void> {
   if (!need(wsRoot) || runner.busy) return;
   await runner.runQA({
-    python: cfg<string>("pythonPath"),
+    python: resolvePython(wsRoot),
     root: wsRoot,
     config: cfg<string>("configPath"),
     input: path.resolve(wsRoot, "outputs/cleaned_md"),
@@ -270,7 +358,7 @@ async function cmdRunDiff(runner: PipelineRunner, wsRoot: string): Promise<void>
   if (!newDir) return;
 
   await runner.runDiff({
-    python: cfg<string>("pythonPath"),
+    python: resolvePython(wsRoot),
     root: wsRoot,
     config: cfg<string>("configPath"),
     oldDir,
@@ -296,6 +384,20 @@ async function cmdOpenOutput(wsRoot: string, arg?: string | PipelineItem): Promi
   }
   if (!rel) return;
   await vscode.commands.executeCommand("revealInExplorer", vscode.Uri.file(path.resolve(wsRoot, rel)));
+}
+
+async function cmdDeleteOutput(item: PipelineItem | undefined, tree: SessionTreeProvider): Promise<void> {
+  if (!item?.fsPath) return;
+  const name = path.basename(item.fsPath);
+  const isDir = fs.existsSync(item.fsPath) && fs.statSync(item.fsPath).isDirectory();
+  const answer = await vscode.window.showWarningMessage(
+    `Delete ${isDir ? "folder" : "file"} "${name}"?`,
+    { modal: true },
+    "Delete",
+  );
+  if (answer !== "Delete") return;
+  fs.rmSync(item.fsPath, { recursive: true, force: true });
+  tree.refresh();
 }
 
 

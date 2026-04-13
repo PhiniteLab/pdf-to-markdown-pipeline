@@ -14,6 +14,17 @@ import yaml
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_CONFIG_PATH = PROJECT_ROOT / "configs" / "pipeline.yaml"
 
+
+def detect_device() -> str:
+    """Return 'cuda' if a CUDA-capable GPU is available, otherwise 'cpu'."""
+    try:
+        import torch
+
+        return "cuda" if torch.cuda.is_available() else "cpu"
+    except ImportError:
+        return "cpu"
+
+
 _config_cache: dict[str, Any] | None = None
 
 

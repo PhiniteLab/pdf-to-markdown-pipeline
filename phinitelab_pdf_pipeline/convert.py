@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 from phinitelab_pdf_pipeline.common import (
     Manifest,
+    detect_device,
     load_config,
     mirror_directory_tree,
     resolve_path,
@@ -35,10 +36,17 @@ ALGORITHM_HINTS = (
 
 
 def build_converter(cfg: dict[str, Any] | None = None) -> DocumentConverter:
-    from docling.datamodel.accelerator_options import AcceleratorOptions
-    from docling.datamodel.base_models import InputFormat
-    from docling.datamodel.pipeline_options import PdfPipelineOptions
-    from docling.document_converter import DocumentConverter, PdfFormatOption
+    try:
+        from docling.datamodel.accelerator_options import AcceleratorOptions
+        from docling.datamodel.base_models import InputFormat
+        from docling.datamodel.pipeline_options import PdfPipelineOptions
+        from docling.document_converter import DocumentConverter, PdfFormatOption
+    except ImportError:
+        raise ImportError(
+            "The 'docling' package is required for the docling/dual conversion engine.\n"
+            'Install it with:  pip install "phinitelab-pdf-pipeline[docling]"\n'
+            'Or for GPU support: pip install "phinitelab-pdf-pipeline[gpu]"'
+        ) from None
 
     dc = (cfg or {}).get("convert", {}).get("docling", {})
 
@@ -52,9 +60,12 @@ def build_converter(cfg: dict[str, Any] | None = None) -> DocumentConverter:
         table_mode = TableFormerMode.ACCURATE if table_mode_name == "accurate" else TableFormerMode.FAST
         table_kwargs["table_structure_options"] = TableStructureOptions(mode=table_mode)
 
+    raw_device = dc.get("device", "auto")
+    device = detect_device() if raw_device == "auto" else raw_device
+
     pipeline_options = PdfPipelineOptions(
         accelerator_options=AcceleratorOptions(
-            device=dc.get("device", "cpu"),
+            device=device,
             num_threads=dc.get("num_threads", 1),
         ),
         enable_remote_services=False,
@@ -251,7 +262,13 @@ def convert_pdf(
         result = active_converter.convert(str(input_path))
         document = result.document
         docling_md = document.export_to_markdown()
-        from docling_core.types.doc.document import FormulaItem
+        try:
+            from docling_core.types.doc.document import FormulaItem
+        except ImportError:
+            raise ImportError(
+                "The 'docling' package is required for formula recovery.\n"
+                'Install it with:  pip install "phinitelab-pdf-pipeline[docling]"'
+            ) from None
 
         undecoded_formulas = [
             item

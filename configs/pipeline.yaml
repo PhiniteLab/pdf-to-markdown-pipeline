@@ -15,7 +15,8 @@ convert:
   # dual = run both and merge (docling structure + markitdown gap-fill)
   engine: dual
   docling:
-    device: cpu
+    # auto = use GPU (cuda) if available, otherwise CPU
+    device: auto
     num_threads: 1
     do_ocr: false
     do_table_structure: true

@@ -33,11 +33,60 @@ The default mode, `dual`, uses Docling output as the structural backbone and fil
 - Python 3.11 or newer
 - Optional: Poppler and Tesseract for OCR and advanced PDF handling
 
-### Install with pip
+### Install with pip (lightweight, CPU-only)
+
+The default installation is lightweight and does **not** include Docling, PyTorch,
+or any GPU/CUDA packages. It provides the `markitdown` conversion engine:
 
 ```bash
 pip install git+https://github.com/PhiniteLab/phinitelab-pdf-pipeline.git
 ```
+
+This is sufficient for running the pipeline with `--engine markitdown`.
+
+### Install with Docling engine (CPU)
+
+To use the `docling` or `dual` conversion engine on **CPU**, first install
+CPU-only PyTorch, then install the package with the `[docling]` extra:
+
+```bash
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+pip install "phinitelab-pdf-pipeline[docling] @ git+https://github.com/PhiniteLab/phinitelab-pdf-pipeline.git"
+```
+
+> **Note:** Pre-installing CPU-only PyTorch prevents pip from downloading the
+> much larger GPU-enabled build (~2 GB+) from PyPI.
+
+### Install with GPU support
+
+If you have an NVIDIA GPU with CUDA, you can install with GPU support directly:
+
+```bash
+pip install "phinitelab-pdf-pipeline[gpu] @ git+https://github.com/PhiniteLab/phinitelab-pdf-pipeline.git"
+```
+
+This pulls the default PyTorch from PyPI, which includes CUDA support on Linux.
+To target a specific CUDA version (e.g. CUDA 12.8):
+
+```bash
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
+pip install "phinitelab-pdf-pipeline[gpu] @ git+https://github.com/PhiniteLab/phinitelab-pdf-pipeline.git"
+```
+
+### Which installation should I choose?
+
+| Scenario | Command |
+|----------|---------|
+| Lightweight / markitdown only | `pip install phinitelab-pdf-pipeline` |
+| Docling engine on CPU | Pre-install CPU torch, then `pip install "phinitelab-pdf-pipeline[docling]"` |
+| Docling engine with NVIDIA GPU | `pip install "phinitelab-pdf-pipeline[gpu]"` |
+
+### WSL / Linux notes
+
+- On WSL2 with GPU passthrough, the `[gpu]` extra works if NVIDIA drivers are
+  properly configured on the Windows host.
+- On headless Linux servers without a GPU, always use the CPU installation path
+  to avoid pulling unnecessary CUDA libraries.
 
 ### Developer installation
 
@@ -46,10 +95,11 @@ git clone https://github.com/PhiniteLab/phinitelab-pdf-pipeline.git
 cd phinitelab-pdf-pipeline
 python3 -m venv .venv
 source .venv/bin/activate
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
 pip install -e ".[dev]"
 ```
 
-This installs the runtime dependencies together with the development toolchain, including pytest, pytest-cov, Ruff, Pyright, and pre-commit.
+This installs the runtime dependencies together with Docling and the development toolchain, including pytest, pytest-cov, Ruff, Pyright, and pre-commit.
 
 ### Install with Docker
 
@@ -202,6 +252,7 @@ phinitelab-pdf-pipeline/
 
 | Problem | Resolution |
 |---------|------------|
+| `ImportError: The 'docling' package is required` | Docling is not included in the default installation. Install it with `pip install "phinitelab-pdf-pipeline[docling]"` or `pip install "phinitelab-pdf-pipeline[gpu]"`. |
 | `ModuleNotFoundError: No module named 'phinitelab_pdf_pipeline'` | Make sure the project was installed with `pip install -e .`. Prefer `python -m phinitelab_pdf_pipeline.convert` over `python phinitelab_pdf_pipeline/convert.py`. |
 | `FileNotFoundError: Config file not found` | Pass a valid config path with `--config`, for example `phinitelab-pdf-pipeline --config configs/pipeline.yaml`. |
 | Docling installation fails | Docling may require system libraries and a compiler toolchain. On Debian/Ubuntu, install `build-essential` and `poppler-utils`, or use Docker instead. |

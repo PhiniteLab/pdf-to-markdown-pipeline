@@ -1,3 +1,5 @@
+import * as fs from "fs";
+import * as path from "path";
 import * as vscode from "vscode";
 import type { SessionManager } from "./sessionManager";
 import type { FileStatus } from "./types";
@@ -7,6 +9,7 @@ import type { FileStatus } from "./types";
 export class PipelineItem extends vscode.TreeItem {
   readonly sessionId?: string;
   readonly fileId?: string;
+  readonly fsPath?: string;
 
   constructor(
     label: string,
@@ -19,6 +22,7 @@ export class PipelineItem extends vscode.TreeItem {
       sessionId?: string;
       fileId?: string;
       tooltip?: string;
+      fsPath?: string;
     },
   ) {
     super(label, state);
@@ -29,6 +33,7 @@ export class PipelineItem extends vscode.TreeItem {
     if (opts?.tooltip) this.tooltip = opts.tooltip;
     this.sessionId = opts?.sessionId;
     this.fileId = opts?.fileId;
+    this.fsPath = opts?.fsPath;
   }
 }
 
@@ -64,7 +69,7 @@ export class SessionTreeProvider implements vscode.TreeDataProvider<PipelineItem
   private _onChange = new vscode.EventEmitter<PipelineItem | undefined | void>();
   readonly onDidChangeTreeData = this._onChange.event;
 
-  constructor(private readonly mgr: SessionManager) {}
+  constructor(private readonly mgr: SessionManager, private readonly wsRoot: string) {}
 
   refresh(): void {
     this._onChange.fire();
@@ -134,11 +139,13 @@ export class SessionTreeProvider implements vscode.TreeDataProvider<PipelineItem
       }
       return session.files.map((f) => {
         const si = STATUS_ICON[f.status];
+        const absPath = path.resolve(this.wsRoot, f.relativePath);
         return new PipelineItem(f.name, vscode.TreeItemCollapsibleState.None, `sessionFile.${f.status}`, {
           icon: new vscode.ThemeIcon(si.id, new vscode.ThemeColor(si.color)),
           desc: f.status,
           sessionId: session.id,
           fileId: f.id,
+          cmd: { title: "Open File", command: "vscode.open", arguments: [vscode.Uri.file(absPath)] },
         });
       });
     }
@@ -159,12 +166,50 @@ export class SessionTreeProvider implements vscode.TreeDataProvider<PipelineItem
     if (el.contextValue === "group.outputs") {
       return OUTPUTS.map(
         (o) =>
-          new PipelineItem(o.label, vscode.TreeItemCollapsibleState.None, "output.folder", {
+          new PipelineItem(o.label, vscode.TreeItemCollapsibleState.Collapsed, "output.folder", {
             icon: new vscode.ThemeIcon("folder-opened"),
             desc: o.desc,
-            cmd: { title: "Reveal", command: "pdfPipeline.openOutput", arguments: [o.rel] },
+            fsPath: path.resolve(this.wsRoot, o.rel),
           }),
       );
+    }
+
+    // ── Output directory contents ────────────────────────────────────────
+    if (el.contextValue === "output.folder" || el.contextValue === "output.dir") {
+      const dir = el.fsPath;
+      if (!dir || !fs.existsSync(dir)) {
+        return [
+          new PipelineItem("(empty)", vscode.TreeItemCollapsibleState.None, "hint", {
+            icon: new vscode.ThemeIcon("info"),
+          }),
+        ];
+      }
+      const entries = fs.readdirSync(dir, { withFileTypes: true }).sort((a, b) => {
+        if (a.isDirectory() !== b.isDirectory()) return a.isDirectory() ? -1 : 1;
+        return a.name.localeCompare(b.name);
+      });
+      if (entries.length === 0) {
+        return [
+          new PipelineItem("(empty)", vscode.TreeItemCollapsibleState.None, "hint", {
+            icon: new vscode.ThemeIcon("info"),
+          }),
+        ];
+      }
+      return entries.map((entry) => {
+        const fullPath = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          return new PipelineItem(entry.name, vscode.TreeItemCollapsibleState.Collapsed, "output.dir", {
+            icon: new vscode.ThemeIcon("folder"),
+            fsPath: fullPath,
+          });
+        }
+        const item = new PipelineItem(entry.name, vscode.TreeItemCollapsibleState.None, "output.file", {
+          cmd: { title: "Open File", command: "vscode.open", arguments: [vscode.Uri.file(fullPath)] },
+          fsPath: fullPath,
+        });
+        item.resourceUri = vscode.Uri.file(fullPath);
+        return item;
+      });
     }
 
     return [];

@@ -24,12 +24,7 @@
       "pdfPipeline": [
         {
           "id": "pdfPipelinePanel",
-          "name": "Pipeline"
-        },
-        {
-          "id": "pdfPipelineChat",
-          "name": "Chat",
-          "type": "webview"
+          "name": "PhiniteLab PDF Pipeline"
         }
       ]
     },
@@ -40,18 +35,21 @@
       { "command": "pdfPipeline.setActiveSession",  "title": "Set as Active",          "icon": "$(star-empty)" },
       { "command": "pdfPipeline.processSession",    "title": "Process Active Session", "icon": "$(run-all)" },
       { "command": "pdfPipeline.addPdf",            "title": "Add PDFs...",            "icon": "$(file-add)" },
+      { "command": "pdfPipeline.addFolder",          "title": "Add PDF Folder...",      "icon": "$(folder-add)" },
       { "command": "pdfPipeline.runFull",           "title": "Run Full Pipeline",      "icon": "$(play-circle)" },
       { "command": "pdfPipeline.runConvert",        "title": "Convert Only",           "icon": "$(play)" },
       { "command": "pdfPipeline.runQA",             "title": "Generate QA Report",     "icon": "$(graph)" },
       { "command": "pdfPipeline.runDiff",           "title": "Compare Two Folders",    "icon": "$(diff)" },
       { "command": "pdfPipeline.openConfig",        "title": "Open Config",            "icon": "$(gear)" },
-      { "command": "pdfPipeline.openOutput",        "title": "Reveal in Explorer",     "icon": "$(folder-opened)" }
+      { "command": "pdfPipeline.openOutput",        "title": "Reveal in Explorer",     "icon": "$(folder-opened)" },
+      { "command": "pdfPipeline.deleteOutput",      "title": "Delete",                "icon": "$(trash)" }
     ],
     "menus": {
       "view/title": [
         { "command": "pdfPipeline.refresh",       "when": "view == pdfPipelinePanel", "group": "navigation" },
         { "command": "pdfPipeline.newSession",    "when": "view == pdfPipelinePanel", "group": "navigation" },
-        { "command": "pdfPipeline.addPdf",        "when": "view == pdfPipelinePanel", "group": "navigation" }
+        { "command": "pdfPipeline.addPdf",        "when": "view == pdfPipelinePanel", "group": "navigation" },
+        { "command": "pdfPipeline.addFolder",     "when": "view == pdfPipelinePanel", "group": "navigation" }
       ],
       "view/item/context": [
         { "command": "pdfPipeline.processSession",   "when": "view == pdfPipelinePanel && viewItem == session.active", "group": "inline" },
@@ -62,7 +60,9 @@
         { "command": "pdfPipeline.runQA",             "when": "view == pdfPipelinePanel && viewItem == action.runQA",      "group": "inline" },
         { "command": "pdfPipeline.runDiff",           "when": "view == pdfPipelinePanel && viewItem == action.runDiff",    "group": "inline" },
         { "command": "pdfPipeline.openConfig",        "when": "view == pdfPipelinePanel && viewItem == action.openConfig", "group": "inline" },
-        { "command": "pdfPipeline.openOutput",        "when": "view == pdfPipelinePanel && viewItem == output.folder",     "group": "inline" }
+        { "command": "pdfPipeline.openOutput",        "when": "view == pdfPipelinePanel && viewItem == output.folder",     "group": "inline" },
+        { "command": "pdfPipeline.deleteOutput",       "when": "view == pdfPipelinePanel && viewItem == output.dir",        "group": "inline" },
+        { "command": "pdfPipeline.deleteOutput",       "when": "view == pdfPipelinePanel && viewItem == output.file",       "group": "inline" }
       ]
     },
     "configuration": {
@@ -70,8 +70,8 @@
       "properties": {
         "pdfPipeline.pythonPath": {
           "type": "string",
-          "default": "python",
-          "description": "Python executable used to run PhiniteLab PDF Pipeline commands."
+          "default": "python3",
+          "description": "Python executable used to run PhiniteLab PDF Pipeline commands. Leave empty or set to 'python3' for auto-detection of workspace .venv."
         },
         "pdfPipeline.configPath": {
           "type": "string",
