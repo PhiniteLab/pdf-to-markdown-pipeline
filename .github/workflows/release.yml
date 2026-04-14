@@ -80,24 +80,6 @@ jobs:
             vscode-extension/*.vsix
           generate_release_notes: true
 
-      - name: Publish extension to VS Code Marketplace
-        if: ${{ secrets.VSCE_PAT != '' }}
-        working-directory: vscode-extension
-        env:
-          VSCE_PAT: ${{ secrets.VSCE_PAT }}
-        run: |
-          VSIX_PATH=$(ls *.vsix | head -n 1)
-          npx @vscode/vsce publish --packagePath "$VSIX_PATH"
-
-      - name: Publish extension to Open VSX
-        if: ${{ secrets.OPENVSX_TOKEN != '' }}
-        working-directory: vscode-extension
-        env:
-          OPENVSX_TOKEN: ${{ secrets.OPENVSX_TOKEN }}
-        run: |
-          VSIX_PATH=$(ls *.vsix | head -n 1)
-          npx ovsx publish "$VSIX_PATH" -p "$OPENVSX_TOKEN"
-
   publish-pypi:
     name: Publish to PyPI (Trusted)
     needs: build
