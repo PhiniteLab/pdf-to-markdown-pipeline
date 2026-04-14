@@ -2,8 +2,8 @@
   "name": "cortexmark-vscode",
   "displayName": "CortexMark",
   "description": "Convert PDFs to structured Markdown with sessions, auto-processing, preview panel, dashboard, and a chat panel.",
-  "version": "0.3.0",
-  "publisher": "cortexmark",
+  "version": "0.3.2",
+  "publisher": "PhiniteLab",
   "license": "MIT",
   "repository": {
     "type": "git",
