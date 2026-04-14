@@ -5,6 +5,18 @@ The project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html
 
 ## [Unreleased]
 
+### Breaking Changes
+- Rebranded the public package, module, CLI, and VS Code extension surfaces from **PhiniteLab PDF Pipeline** to **CortexMark**.
+- Python package rename: `phinitelab-pdf-pipeline` → `cortexmark`
+- Python module rename: `phinitelab_pdf_pipeline` → `cortexmark`
+- CLI rename: `phinitelab-pdf-pipeline` → `cortexmark`
+- VS Code extension rename: `phinitelab-pdf-pipeline-vscode` / publisher `phinitelab` → `cortexmark-vscode` / publisher `cortexmark`
+- Workspace session metadata now lives in `.cortexmark/`, with read/copy migration from `.phinitelab-pdf-pipeline/`
+
+### Migration Notes
+- Update automation, scripts, imports, and shell aliases to the new `cortexmark` names.
+- Existing VS Code users should install the new extension identity manually if automatic Marketplace migration is not available.
+
 ### Added
 
 #### Advanced Tooling (Phase 5)
@@ -52,7 +64,7 @@ The project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html
 - **Preview command**: `previewFile` command opens any Markdown output file in a side-by-side WebView with rendered content, toolbar stats, and QA badge if available
 - **Enhanced tree view**: New "Analysis" group with beaker icon in the sidebar tree, containing all 5 analysis actions (Cross References, Algorithm Extraction, Notation Glossary, Semantic Chunking, Run All)
 - **Enhanced chat**: 7 new chat commands — `/crossref`, `/algorithm`, `/notation`, `/chunk`, `/analyze`, `/preview`, plus Turkish aliases (`çapraz referans`, `algoritma`, `notasyon`, `bölümleme`, `analiz`, `önizleme`)
-- **Dashboard & Chat views registered**: `pdfPipelineDashboard` and `pdfPipelineChat` registered as webview sidebar panels in `package.json`
+- **Dashboard & Chat views registered**: `cortexmarkDashboard` and `cortexmarkChat` registered as webview sidebar panels in `package.json`
 - 71 new tests covering VS Code extension file structure, package.json validation (views, commands, menus, configuration), TypeScript source patterns (imports, class names, method signatures), and cross-file consistency checks
 
 ### Changed
@@ -94,7 +106,7 @@ The project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html
 - Plugin directory convention note in CONTRIBUTING.md
 
 ### Changed
-- Corrected all GitHub URLs from `phinitelab-pdf-pipeline` to `pdf-to-markdown-pipeline` (repo name) across pyproject.toml, README.md, and CONTRIBUTING.md
+- Corrected all GitHub URLs from `cortexmark` to `pdf-to-markdown-pipeline` (repo name) across pyproject.toml, README.md, and CONTRIBUTING.md
 - Expanded pipeline flow diagram with box-style visualization
 - Updated configuration example to reflect complete `pipeline.yaml` (device: auto, markitdown.enabled, max_repeated_header_length, render_templates options, logging format/date_format)
 - Developer installation in CONTRIBUTING.md now includes CPU torch pre-install step

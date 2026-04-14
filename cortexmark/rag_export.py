@@ -19,8 +19,8 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
-from phinitelab_pdf_pipeline.common import load_config, resolve_path, setup_logging
-from phinitelab_pdf_pipeline.semantic_chunk import (
+from cortexmark.common import load_config, resolve_path, setup_logging
+from cortexmark.semantic_chunk import (
     ENTITY_NARRATIVE,
     extract_cross_refs,
     extract_formulas,

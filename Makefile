@@ -8,42 +8,42 @@ help: ## Show this help
 		awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
 
 all: ## Run the full pipeline (convert → clean → chunk → render)
-	$(PYTHON) -m phinitelab_pdf_pipeline.run_pipeline --config $(CONFIG)
+	$(PYTHON) -m cortexmark.run_pipeline --config $(CONFIG)
 
 convert: ## PDF → Markdown (docling + markitdown)
-	$(PYTHON) -m phinitelab_pdf_pipeline.convert --config $(CONFIG)
+	$(PYTHON) -m cortexmark.convert --config $(CONFIG)
 
 clean: ## Clean raw Markdown
-	$(PYTHON) -m phinitelab_pdf_pipeline.clean --config $(CONFIG)
+	$(PYTHON) -m cortexmark.clean --config $(CONFIG)
 
 chunk: ## Split cleaned Markdown into chunks
-	$(PYTHON) -m phinitelab_pdf_pipeline.chunk --config $(CONFIG)
+	$(PYTHON) -m cortexmark.chunk --config $(CONFIG)
 
-render: ## Populate course templates
-	$(PYTHON) -m phinitelab_pdf_pipeline.render_templates --config $(CONFIG)
+render: ## Populate source templates
+	$(PYTHON) -m cortexmark.render_templates --config $(CONFIG)
 
 analyze: ## Run analysis modules (semantic chunk, cross-ref, algorithm, notation)
-	$(PYTHON) -m phinitelab_pdf_pipeline.run_pipeline --config $(CONFIG) --stages analyze
+	$(PYTHON) -m cortexmark.run_pipeline --config $(CONFIG) --stages analyze
 
 validate: ## Run validation modules (formula, scientific QA, citation context)
-	$(PYTHON) -m phinitelab_pdf_pipeline.run_pipeline --config $(CONFIG) --stages validate
+	$(PYTHON) -m cortexmark.run_pipeline --config $(CONFIG) --stages validate
 
 lint: ## Run ruff linter + formatter check
-	$(PYTHON) -m ruff check phinitelab_pdf_pipeline/ tests/
-	$(PYTHON) -m ruff format --check phinitelab_pdf_pipeline/ tests/
+	$(PYTHON) -m ruff check cortexmark/ tests/
+	$(PYTHON) -m ruff format --check cortexmark/ tests/
 
 format: ## Auto-format code with ruff
-	$(PYTHON) -m ruff format phinitelab_pdf_pipeline/ tests/
-	$(PYTHON) -m ruff check --fix phinitelab_pdf_pipeline/ tests/
+	$(PYTHON) -m ruff format cortexmark/ tests/
+	$(PYTHON) -m ruff check --fix cortexmark/ tests/
 
 typecheck: ## Run pyright type checker
-	$(PYTHON) -m pyright phinitelab_pdf_pipeline/
+	$(PYTHON) -m pyright cortexmark/
 
 test: ## Run tests with pytest + coverage
 	$(PYTHON) -m pytest tests/ -v
 
 docker-build: ## Build Docker image
-	docker build -t phinitelab-pdf-pipeline .
+	docker build -t cortexmark .
 
 clean-outputs: ## Remove all generated outputs (use with caution)
 	rm -rf outputs/raw_md outputs/cleaned_md outputs/chunks outputs/quality outputs/.manifest.json

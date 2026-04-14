@@ -20,7 +20,12 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
-from phinitelab_pdf_pipeline.common import load_config, resolve_path, setup_logging
+from cortexmark.common import (
+    load_config,
+    resolve_configured_path,
+    resolve_quality_report_path,
+    setup_logging,
+)
 
 # ── Reference categories ─────────────────────────────────────────────────────
 
@@ -379,8 +384,8 @@ def main() -> int:
     cfg = load_config(args.config)
     log = setup_logging("cross_ref", cfg)
 
-    input_path = (args.input or resolve_path(cfg["paths"]["output_raw_md"])).resolve()
-    output_path = (args.output or resolve_path("outputs/quality/cross_refs.json")).resolve()
+    input_path = (args.input or resolve_configured_path(cfg, "output_cleaned_md", "outputs/cleaned_md")).resolve()
+    output_path = (args.output or resolve_quality_report_path(cfg, "crossref_report.json")).resolve()
 
     try:
         report = analyze_tree(input_path) if input_path.is_dir() else analyze_file(input_path)

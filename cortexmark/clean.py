@@ -6,10 +6,12 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
-from phinitelab_pdf_pipeline.common import (
+from cortexmark.common import (
     Manifest,
+    get_source_id,
     load_config,
     mirror_directory_tree,
+    resolve_configured_path,
     resolve_path,
     setup_logging,
 )
@@ -281,9 +283,9 @@ def main() -> int:
     cfg = load_config(args.config)
     log = setup_logging("clean", cfg)
 
-    course_id = cfg.get("course_id", "mkt4822-RL")
-    input_path = (args.input or resolve_path(cfg["paths"]["output_raw_md"]) / course_id).resolve()
-    output_dir = (args.output_dir or resolve_path(cfg["paths"]["output_cleaned_md"])).resolve()
+    source_id = get_source_id(cfg)
+    input_path = (args.input or resolve_configured_path(cfg, "output_raw_md", "outputs/raw_md") / source_id).resolve()
+    output_dir = (args.output_dir or resolve_configured_path(cfg, "output_cleaned_md", "outputs/cleaned_md")).resolve()
 
     manifest = None
     idem_cfg = cfg.get("idempotency", {})

@@ -7,6 +7,7 @@ import { PipelineRunner } from "./pipelineRunner";
 import { PreviewPanel } from "./previewPanel";
 import { SessionManager } from "./sessionManager";
 import { PipelineItem, SessionTreeProvider } from "./sessionTree";
+import type { Session } from "./types";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Helpers
@@ -17,7 +18,7 @@ function root(): string | undefined {
 }
 
 function cfg<T>(key: string): T {
-  return vscode.workspace.getConfiguration("pdfPipeline").get<T>(key) as T;
+  return vscode.workspace.getConfiguration("cortexmark").get<T>(key) as T;
 }
 
 function need(r: string | undefined): r is string {
@@ -49,6 +50,8 @@ function resolvePython(wsRoot: string): string {
     path.join(wsRoot, ".venv", "bin", "python3"),
     path.join(wsRoot, "venv", "bin", "python"),
     path.join(wsRoot, "venv", "bin", "python3"),
+    path.join(wsRoot, ".venv", "Scripts", "python.exe"),
+    path.join(wsRoot, "venv", "Scripts", "python.exe"),
   ];
   for (const c of candidates) {
     if (fs.existsSync(c)) {
@@ -57,6 +60,15 @@ function resolvePython(wsRoot: string): string {
   }
   // Fallback to user setting or python3
   return userPython || "python3";
+}
+
+function requireActiveSession(mgr: SessionManager): Session | undefined {
+  const session = mgr.active();
+  if (!session) {
+    void vscode.window.showWarningMessage("Create or select an active session first.");
+    return undefined;
+  }
+  return session;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -71,12 +83,15 @@ export function activate(context: vscode.ExtensionContext): void {
   const sessions = new SessionManager(wsRoot);
   const runner = new PipelineRunner();
   const preview = new PreviewPanel(context.extensionUri);
-  const dashboard = new DashboardPanel(context.extensionUri, wsRoot);
+  const dashboard = new DashboardPanel(context.extensionUri, wsRoot, sessions);
   const chat = new ChatViewProvider(context.extensionUri);
 
   // ── Tree view ──────────────────────────────────────────────────────────
   const tree = new SessionTreeProvider(sessions, wsRoot);
-  sessions.onDidChange(() => tree.refresh());
+  sessions.onDidChange(() => {
+    tree.refresh();
+    dashboard.refresh();
+  });
 
   // ── File watcher — auto-detect PDFs ────────────────────────────────────
   const watcher = vscode.workspace.createFileSystemWatcher(
@@ -104,7 +119,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   // ── Register everything ────────────────────────────────────────────────
   context.subscriptions.push(
-    vscode.window.registerTreeDataProvider("pdfPipelinePanel", tree),
+    vscode.window.registerTreeDataProvider("cortexmarkPanel", tree),
     vscode.window.registerWebviewViewProvider(DashboardPanel.viewId, dashboard),
     vscode.window.registerWebviewViewProvider(ChatViewProvider.viewType, chat),
     watcher,
@@ -114,59 +129,59 @@ export function activate(context: vscode.ExtensionContext): void {
     preview,
 
     // Session commands
-    vscode.commands.registerCommand("pdfPipeline.refresh", () => {
+    vscode.commands.registerCommand("cortexmark.refresh", () => {
       tree.refresh();
       dashboard.refresh();
     }),
-    vscode.commands.registerCommand("pdfPipeline.newSession", () => cmdNewSession(sessions)),
-    vscode.commands.registerCommand("pdfPipeline.deleteSession", (item?: PipelineItem) =>
+    vscode.commands.registerCommand("cortexmark.newSession", () => cmdNewSession(sessions)),
+    vscode.commands.registerCommand("cortexmark.deleteSession", (item?: PipelineItem) =>
       cmdDeleteSession(sessions, wsRoot, item),
     ),
-    vscode.commands.registerCommand("pdfPipeline.setActiveSession", (item?: PipelineItem) =>
+    vscode.commands.registerCommand("cortexmark.setActiveSession", (item?: PipelineItem) =>
       cmdSetActive(sessions, item),
     ),
-    vscode.commands.registerCommand("pdfPipeline.processSession", () =>
+    vscode.commands.registerCommand("cortexmark.processSession", () =>
       processActiveSession(sessions, runner, wsRoot),
     ),
-    vscode.commands.registerCommand("pdfPipeline.addPdf", () => cmdAddPdf(sessions, wsRoot)),
-    vscode.commands.registerCommand("pdfPipeline.addFolder", () => cmdAddFolder(sessions, wsRoot)),
+    vscode.commands.registerCommand("cortexmark.addPdf", () => cmdAddPdf(sessions, wsRoot)),
+    vscode.commands.registerCommand("cortexmark.addFolder", () => cmdAddFolder(sessions, wsRoot)),
 
     // Pipeline commands (use spawn runner)
-    vscode.commands.registerCommand("pdfPipeline.runFull", () => cmdRunFull(runner, wsRoot, sessions)),
-    vscode.commands.registerCommand("pdfPipeline.runConvert", () => cmdRunConvert(runner, wsRoot, sessions)),
-    vscode.commands.registerCommand("pdfPipeline.runQA", () => cmdRunQA(runner, wsRoot, dashboard)),
-    vscode.commands.registerCommand("pdfPipeline.runDiff", () => cmdRunDiff(runner, wsRoot)),
-    vscode.commands.registerCommand("pdfPipeline.openConfig", () => cmdOpenConfig(wsRoot)),
-    vscode.commands.registerCommand("pdfPipeline.openOutput", (arg?: string | PipelineItem) =>
+    vscode.commands.registerCommand("cortexmark.runFull", () => cmdRunFull(runner, wsRoot, sessions)),
+    vscode.commands.registerCommand("cortexmark.runConvert", () => cmdRunConvert(runner, wsRoot, sessions)),
+    vscode.commands.registerCommand("cortexmark.runQA", () => cmdRunQA(runner, wsRoot, sessions, dashboard)),
+    vscode.commands.registerCommand("cortexmark.runDiff", () => cmdRunDiff(runner, wsRoot, sessions)),
+    vscode.commands.registerCommand("cortexmark.openConfig", () => cmdOpenConfig(wsRoot)),
+    vscode.commands.registerCommand("cortexmark.openOutput", (arg?: string | PipelineItem) =>
       cmdOpenOutput(wsRoot, arg),
     ),
-    vscode.commands.registerCommand("pdfPipeline.deleteOutput", (item?: PipelineItem) =>
+    vscode.commands.registerCommand("cortexmark.deleteOutput", (item?: PipelineItem) =>
       cmdDeleteOutput(item, tree),
     ),
 
     // Analysis commands
-    vscode.commands.registerCommand("pdfPipeline.runCrossRef", () =>
-      cmdRunAnalysis(runner, wsRoot, "crossRef", dashboard),
+    vscode.commands.registerCommand("cortexmark.runCrossRef", () =>
+      cmdRunAnalysis(runner, wsRoot, sessions, "crossRef", dashboard),
     ),
-    vscode.commands.registerCommand("pdfPipeline.runAlgorithm", () =>
-      cmdRunAnalysis(runner, wsRoot, "algorithm", dashboard),
+    vscode.commands.registerCommand("cortexmark.runAlgorithm", () =>
+      cmdRunAnalysis(runner, wsRoot, sessions, "algorithm", dashboard),
     ),
-    vscode.commands.registerCommand("pdfPipeline.runNotation", () =>
-      cmdRunAnalysis(runner, wsRoot, "notation", dashboard),
+    vscode.commands.registerCommand("cortexmark.runNotation", () =>
+      cmdRunAnalysis(runner, wsRoot, sessions, "notation", dashboard),
     ),
-    vscode.commands.registerCommand("pdfPipeline.runSemanticChunk", () =>
-      cmdRunAnalysis(runner, wsRoot, "semanticChunk", dashboard),
+    vscode.commands.registerCommand("cortexmark.runSemanticChunk", () =>
+      cmdRunAnalysis(runner, wsRoot, sessions, "semanticChunk", dashboard),
     ),
-    vscode.commands.registerCommand("pdfPipeline.runAllAnalysis", () =>
-      cmdRunAllAnalysis(runner, wsRoot, dashboard),
+    vscode.commands.registerCommand("cortexmark.runAllAnalysis", () =>
+      cmdRunAllAnalysis(runner, wsRoot, sessions, dashboard),
     ),
 
     // Preview commands
-    vscode.commands.registerCommand("pdfPipeline.previewFile", (arg?: string | PipelineItem) =>
+    vscode.commands.registerCommand("cortexmark.previewFile", (arg?: string | PipelineItem) =>
       cmdPreview(preview, wsRoot, arg),
     ),
-    vscode.commands.registerCommand("pdfPipeline.refreshPreview", () => preview.refresh()),
-    vscode.commands.registerCommand("pdfPipeline.refreshDashboard", () => dashboard.refresh()),
+    vscode.commands.registerCommand("cortexmark.refreshPreview", () => preview.refresh()),
+    vscode.commands.registerCommand("cortexmark.refreshDashboard", () => dashboard.refresh()),
   );
 }
 
@@ -182,7 +197,7 @@ async function cmdNewSession(mgr: SessionManager): Promise<void> {
   const name = await vscode.window.showInputBox({
     title: "New Session",
     prompt: "Enter a name for the session",
-    placeHolder: "e.g. RL Papers",
+    placeHolder: "e.g. Research Batch",
   });
   if (!name) return;
   const s = mgr.create(name);
@@ -207,7 +222,13 @@ async function cmdDeleteSession(mgr: SessionManager, wsRoot: string, item?: Pipe
 
 /** Remove output files generated from the session's PDFs. */
 function cleanSessionOutputs(session: { name: string; files: { relativePath: string }[] }, wsRoot: string): void {
-  const outputDirs = ["outputs/raw_md", "outputs/cleaned_md", "outputs/chunks"];
+  const outputDirs = [
+    "outputs/raw_md",
+    "outputs/cleaned_md",
+    "outputs/chunks",
+    "outputs/quality",
+    "outputs/semantic_chunks",
+  ];
 
   // Remove session-scoped output directories
   for (const outDir of outputDirs) {
@@ -341,7 +362,8 @@ async function processActiveSession(
 
 async function cmdRunFull(runner: PipelineRunner, wsRoot: string, mgr: SessionManager): Promise<void> {
   if (!need(wsRoot) || runner.busy) return;
-  const session = mgr.active();
+  const session = requireActiveSession(mgr);
+  if (!session) return;
   await runner.runPipeline({
     python: resolvePython(wsRoot),
     root: wsRoot,
@@ -354,7 +376,8 @@ async function cmdRunFull(runner: PipelineRunner, wsRoot: string, mgr: SessionMa
 
 async function cmdRunConvert(runner: PipelineRunner, wsRoot: string, mgr: SessionManager): Promise<void> {
   if (!need(wsRoot) || runner.busy) return;
-  const session = mgr.active();
+  const session = requireActiveSession(mgr);
+  if (!session) return;
   await runner.runPipeline({
     python: resolvePython(wsRoot),
     root: wsRoot,
@@ -366,19 +389,31 @@ async function cmdRunConvert(runner: PipelineRunner, wsRoot: string, mgr: Sessio
   });
 }
 
-async function cmdRunQA(runner: PipelineRunner, wsRoot: string, dashboard: DashboardPanel): Promise<void> {
+async function cmdRunQA(
+  runner: PipelineRunner,
+  wsRoot: string,
+  mgr: SessionManager,
+  dashboard: DashboardPanel,
+): Promise<void> {
   if (!need(wsRoot) || runner.busy) return;
+  const session = requireActiveSession(mgr);
+  if (!session) return;
+  const sessionPaths = mgr.pathsFor(session);
+  if (!fs.existsSync(sessionPaths.cleanedDir)) {
+    void vscode.window.showWarningMessage("No cleaned Markdown output found for the active session. Run the pipeline first.");
+    return;
+  }
   await runner.runQA({
     python: resolvePython(wsRoot),
     root: wsRoot,
     config: cfg<string>("configPath"),
-    input: path.resolve(wsRoot, "outputs/cleaned_md"),
-    output: path.resolve(wsRoot, "outputs/quality/qa_report.json"),
+    input: sessionPaths.cleanedDir,
+    output: mgr.reportPath(session, "qa_report.json"),
   });
   dashboard.refresh();
 }
 
-async function cmdRunDiff(runner: PipelineRunner, wsRoot: string): Promise<void> {
+async function cmdRunDiff(runner: PipelineRunner, wsRoot: string, mgr: SessionManager): Promise<void> {
   if (!need(wsRoot) || runner.busy) return;
 
   const oldDir = await vscode.window.showInputBox({
@@ -394,13 +429,18 @@ async function cmdRunDiff(runner: PipelineRunner, wsRoot: string): Promise<void>
   });
   if (!newDir) return;
 
+  const session = mgr.active();
+  const diffOutput = session
+    ? mgr.reportPath(session, "diff_report.json")
+    : path.resolve(wsRoot, "outputs/quality/diff_report.json");
+
   await runner.runDiff({
     python: resolvePython(wsRoot),
     root: wsRoot,
     config: cfg<string>("configPath"),
     oldDir,
     newDir,
-    output: path.resolve(wsRoot, "outputs/quality/diff_report.json"),
+    output: diffOutput,
   });
 }
 
@@ -446,33 +486,56 @@ type AnalysisKind = "crossRef" | "algorithm" | "notation" | "semanticChunk";
 async function cmdRunAnalysis(
   runner: PipelineRunner,
   wsRoot: string,
+  mgr: SessionManager,
   kind: AnalysisKind,
   dashboard: DashboardPanel,
 ): Promise<void> {
   if (!need(wsRoot) || runner.busy) return;
+  const session = requireActiveSession(mgr);
+  if (!session) return;
+  const sessionPaths = mgr.pathsFor(session);
 
-  const inputDir = path.resolve(wsRoot, "outputs/cleaned_md");
+  const inputDir = sessionPaths.cleanedDir;
   if (!fs.existsSync(inputDir)) {
-    void vscode.window.showWarningMessage("No cleaned Markdown output found. Run the pipeline first.");
+    void vscode.window.showWarningMessage("No cleaned Markdown output found for the active session. Run the pipeline first.");
     return;
   }
 
   const python = resolvePython(wsRoot);
-  const opts = { python, root: wsRoot, input: inputDir };
 
   let result;
   switch (kind) {
     case "crossRef":
-      result = await runner.runCrossRef(opts);
+      result = await runner.runCrossRef({
+        python,
+        root: wsRoot,
+        input: inputDir,
+        output: mgr.reportPath(session, "crossref_report.json"),
+      });
       break;
     case "algorithm":
-      result = await runner.runAlgorithmExtract(opts);
+      result = await runner.runAlgorithmExtract({
+        python,
+        root: wsRoot,
+        input: inputDir,
+        output: mgr.reportPath(session, "algorithm_report.json"),
+      });
       break;
     case "notation":
-      result = await runner.runNotationGlossary(opts);
+      result = await runner.runNotationGlossary({
+        python,
+        root: wsRoot,
+        input: inputDir,
+        output: mgr.reportPath(session, "notation_report.json"),
+      });
       break;
     case "semanticChunk":
-      result = await runner.runSemanticChunk(opts);
+      result = await runner.runSemanticChunk({
+        python,
+        root: wsRoot,
+        input: inputDir,
+        outputDir: sessionPaths.semanticDir,
+      });
       break;
   }
 
@@ -488,24 +551,59 @@ async function cmdRunAnalysis(
 async function cmdRunAllAnalysis(
   runner: PipelineRunner,
   wsRoot: string,
+  mgr: SessionManager,
   dashboard: DashboardPanel,
 ): Promise<void> {
   if (!need(wsRoot) || runner.busy) return;
+  const session = requireActiveSession(mgr);
+  if (!session) return;
+  const sessionPaths = mgr.pathsFor(session);
 
-  const inputDir = path.resolve(wsRoot, "outputs/cleaned_md");
+  const inputDir = sessionPaths.cleanedDir;
   if (!fs.existsSync(inputDir)) {
-    void vscode.window.showWarningMessage("No cleaned Markdown output found. Run the pipeline first.");
+    void vscode.window.showWarningMessage("No cleaned Markdown output found for the active session. Run the pipeline first.");
     return;
   }
 
   const python = resolvePython(wsRoot);
-  const opts = { python, root: wsRoot, input: inputDir };
 
   const analyses: [string, () => Promise<import("./pipelineRunner").RunResult>][] = [
-    ["Cross References", () => runner.runCrossRef(opts)],
-    ["Algorithm Extraction", () => runner.runAlgorithmExtract(opts)],
-    ["Notation Glossary", () => runner.runNotationGlossary(opts)],
-    ["Semantic Chunking", () => runner.runSemanticChunk(opts)],
+    [
+      "Cross References",
+      () => runner.runCrossRef({
+        python,
+        root: wsRoot,
+        input: inputDir,
+        output: mgr.reportPath(session, "crossref_report.json"),
+      }),
+    ],
+    [
+      "Algorithm Extraction",
+      () => runner.runAlgorithmExtract({
+        python,
+        root: wsRoot,
+        input: inputDir,
+        output: mgr.reportPath(session, "algorithm_report.json"),
+      }),
+    ],
+    [
+      "Notation Glossary",
+      () => runner.runNotationGlossary({
+        python,
+        root: wsRoot,
+        input: inputDir,
+        output: mgr.reportPath(session, "notation_report.json"),
+      }),
+    ],
+    [
+      "Semantic Chunking",
+      () => runner.runSemanticChunk({
+        python,
+        root: wsRoot,
+        input: inputDir,
+        outputDir: sessionPaths.semanticDir,
+      }),
+    ],
   ];
 
   let failed = 0;
@@ -556,5 +654,3 @@ function cmdPreview(preview: PreviewPanel, wsRoot: string, arg?: string | Pipeli
 
   preview.show(filePath);
 }
-
-

@@ -1,15 +1,18 @@
 from __future__ import annotations
 
 import argparse
+import os
 import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from phinitelab_pdf_pipeline.common import (
+from cortexmark.common import (
     Manifest,
     detect_device,
+    get_source_id,
     load_config,
     mirror_directory_tree,
+    resolve_configured_path,
     resolve_path,
     setup_logging,
 )
@@ -44,8 +47,8 @@ def build_converter(cfg: dict[str, Any] | None = None) -> DocumentConverter:
     except ImportError:
         raise ImportError(
             "The 'docling' package is required for the docling/dual conversion engine.\n"
-            'Install it with:  pip install "phinitelab-pdf-pipeline[docling]"\n'
-            'Or for GPU support: pip install "phinitelab-pdf-pipeline[gpu]"'
+            'Install it with:  pip install "cortexmark[docling]"\n'
+            'Or for GPU support: pip install "cortexmark[gpu]"'
         ) from None
 
     dc = (cfg or {}).get("convert", {}).get("docling", {})
@@ -263,7 +266,7 @@ def convert_pdf(
         except ImportError:
             raise ImportError(
                 "The 'docling' package is required for formula recovery.\n"
-                'Install it with:  pip install "phinitelab-pdf-pipeline[docling]"'
+                'Install it with:  pip install "cortexmark[docling]"'
             ) from None
 
         undecoded_formulas = [
@@ -330,7 +333,7 @@ def convert_tree(
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Convert PDF files to Markdown (docling + markitdown).")
-    parser.add_argument("--input", type=Path, help="Source PDF file or course directory")
+    parser.add_argument("--input", type=Path, help="Source PDF file or source directory")
     parser.add_argument("--output", type=Path, help="Target Markdown path for single-file conversion")
     parser.add_argument("--output-dir", type=Path, help="Output root directory for directory mode")
     parser.add_argument("--engine", choices=["docling", "markitdown", "dual"], help="Conversion engine override")
@@ -346,10 +349,10 @@ def main() -> int:
     cfg = load_config(args.config)
     log = setup_logging("convert", cfg)
 
-    course_id = cfg.get("course_id", "mkt4822-RL")
-    input_path = (args.input or resolve_path(cfg["paths"]["data_raw"]) / course_id).resolve()
-    output_dir = (args.output_dir or resolve_path(cfg["paths"]["output_raw_md"])).resolve()
-    engine = args.engine or cfg.get("convert", {}).get("engine", "dual")
+    source_id = get_source_id(cfg)
+    input_path = (args.input or resolve_configured_path(cfg, "data_raw", "data/raw") / source_id).resolve()
+    output_dir = (args.output_dir or resolve_configured_path(cfg, "output_raw_md", "outputs/raw_md")).resolve()
+    engine = args.engine or os.getenv("PIPELINE_ENGINE") or cfg.get("convert", {}).get("engine", "dual")
 
     manifest = None
     idem_cfg = cfg.get("idempotency", {})

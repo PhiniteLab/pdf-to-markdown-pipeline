@@ -49,19 +49,19 @@ const STATUS_ICON: Record<FileStatus, { id: string; color: string }> = {
 // ── Static data ──────────────────────────────────────────────────────────
 
 const ACTIONS: Array<{ label: string; desc: string; ctx: string; icon: string; cmd: string }> = [
-  { label: "Run Full Pipeline",  desc: "convert \u2192 clean \u2192 chunk \u2192 render", ctx: "action.runFull",    icon: "play-circle", cmd: "pdfPipeline.runFull" },
-  { label: "Convert Only",       desc: "PDF \u2192 Markdown",                              ctx: "action.runConvert", icon: "play",        cmd: "pdfPipeline.runConvert" },
-  { label: "Generate QA Report", desc: "quality metrics",                                  ctx: "action.runQA",      icon: "graph",       cmd: "pdfPipeline.runQA" },
-  { label: "Compare Folders",    desc: "diff two output dirs",                             ctx: "action.runDiff",    icon: "diff",        cmd: "pdfPipeline.runDiff" },
-  { label: "Open Config",        desc: "pipeline.yaml",                                    ctx: "action.openConfig", icon: "gear",        cmd: "pdfPipeline.openConfig" },
+  { label: "Run Full Pipeline",  desc: "convert \u2192 clean \u2192 chunk \u2192 render", ctx: "action.runFull",    icon: "play-circle", cmd: "cortexmark.runFull" },
+  { label: "Convert Only",       desc: "PDF \u2192 Markdown",                              ctx: "action.runConvert", icon: "play",        cmd: "cortexmark.runConvert" },
+  { label: "Generate QA Report", desc: "quality metrics",                                  ctx: "action.runQA",      icon: "graph",       cmd: "cortexmark.runQA" },
+  { label: "Compare Folders",    desc: "diff two output dirs",                             ctx: "action.runDiff",    icon: "diff",        cmd: "cortexmark.runDiff" },
+  { label: "Open Config",        desc: "pipeline.yaml",                                    ctx: "action.openConfig", icon: "gear",        cmd: "cortexmark.openConfig" },
 ];
 
 const ANALYSIS_ACTIONS: Array<{ label: string; desc: string; ctx: string; icon: string; cmd: string }> = [
-  { label: "Cross References",      desc: "resolve \u0026 link refs",     ctx: "analysis.crossRef",      icon: "references",    cmd: "pdfPipeline.runCrossRef" },
-  { label: "Algorithm Extraction",  desc: "find pseudocode",              ctx: "analysis.algorithm",     icon: "code",          cmd: "pdfPipeline.runAlgorithm" },
-  { label: "Notation Glossary",     desc: "build symbol table",           ctx: "analysis.notation",      icon: "symbol-variable", cmd: "pdfPipeline.runNotation" },
-  { label: "Semantic Chunking",     desc: "theorem-aware splitting",      ctx: "analysis.semanticChunk", icon: "split-horizontal", cmd: "pdfPipeline.runSemanticChunk" },
-  { label: "Run All Analyses",      desc: "cross-ref + algo + notation + chunk", ctx: "analysis.runAll", icon: "run-all",       cmd: "pdfPipeline.runAllAnalysis" },
+  { label: "Cross References",      desc: "resolve \u0026 link refs",     ctx: "analysis.crossRef",      icon: "references",    cmd: "cortexmark.runCrossRef" },
+  { label: "Algorithm Extraction",  desc: "find pseudocode",              ctx: "analysis.algorithm",     icon: "code",          cmd: "cortexmark.runAlgorithm" },
+  { label: "Notation Glossary",     desc: "build symbol table",           ctx: "analysis.notation",      icon: "symbol-variable", cmd: "cortexmark.runNotation" },
+  { label: "Semantic Chunking",     desc: "theorem-aware splitting",      ctx: "analysis.semanticChunk", icon: "split-horizontal", cmd: "cortexmark.runSemanticChunk" },
+  { label: "Run All Analyses",      desc: "cross-ref + algo + notation + chunk", ctx: "analysis.runAll", icon: "run-all",       cmd: "cortexmark.runAllAnalysis" },
 ];
 
 const OUTPUTS: Array<{ label: string; desc: string; rel: string }> = [
@@ -132,7 +132,7 @@ export class SessionTreeProvider implements vscode.TreeDataProvider<PipelineItem
       items.push(
         new PipelineItem("New Session", vscode.TreeItemCollapsibleState.None, "newSession", {
           icon: new vscode.ThemeIcon("add"),
-          cmd: { title: "New Session", command: "pdfPipeline.newSession" },
+          cmd: { title: "New Session", command: "cortexmark.newSession" },
         }),
       );
       return items;
@@ -187,13 +187,28 @@ export class SessionTreeProvider implements vscode.TreeDataProvider<PipelineItem
 
     // ── Outputs group ──────────────────────────────────────────────────
     if (el.contextValue === "group.outputs") {
+      const activeSession = this.mgr.active();
+      const sessionPaths = activeSession ? this.mgr.pathsFor(activeSession) : undefined;
       return OUTPUTS.map(
-        (o) =>
+        (o) => {
+          const fsPath = sessionPaths
+            ? (
+                {
+                  "outputs/raw_md": sessionPaths.rawDir,
+                  "outputs/cleaned_md": sessionPaths.cleanedDir,
+                  "outputs/chunks": sessionPaths.chunksDir,
+                  "outputs/quality": sessionPaths.qualityDir,
+                } as Record<string, string>
+              )[o.rel]
+            : path.resolve(this.wsRoot, o.rel);
+          return (
           new PipelineItem(o.label, vscode.TreeItemCollapsibleState.Collapsed, "output.folder", {
             icon: new vscode.ThemeIcon("folder-opened"),
             desc: o.desc,
-            fsPath: path.resolve(this.wsRoot, o.rel),
-          }),
+            fsPath,
+          })
+          );
+        },
       );
     }
 

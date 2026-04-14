@@ -5,10 +5,12 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from phinitelab_pdf_pipeline.common import (
+from cortexmark.common import (
     Manifest,
+    get_source_id,
     load_config,
     mirror_directory_tree,
+    resolve_configured_path,
     resolve_path,
     setup_logging,
 )
@@ -153,9 +155,11 @@ def main() -> int:
     chunk_cfg = cfg.get("chunk", {})
     split_levels = chunk_cfg.get("split_levels", DEFAULT_SPLIT_LEVELS)
 
-    course_id = cfg.get("course_id", "mkt4822-RL")
-    input_path = (args.input or resolve_path(cfg["paths"]["output_cleaned_md"]) / course_id).resolve()
-    output_dir = (args.output_dir or resolve_path(cfg["paths"]["output_chunks"])).resolve()
+    source_id = get_source_id(cfg)
+    input_path = (
+        args.input or resolve_configured_path(cfg, "output_cleaned_md", "outputs/cleaned_md") / source_id
+    ).resolve()
+    output_dir = (args.output_dir or resolve_configured_path(cfg, "output_chunks", "outputs/chunks")).resolve()
 
     manifest = None
     idem_cfg = cfg.get("idempotency", {})

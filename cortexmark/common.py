@@ -1,10 +1,11 @@
-"""Shared utilities for the PhiniteLab PDF Pipeline."""
+"""Shared utilities for the CortexMark."""
 
 from __future__ import annotations
 
 import hashlib
 import json
 import logging
+import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -13,6 +14,7 @@ import yaml
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_CONFIG_PATH = PROJECT_ROOT / "configs" / "pipeline.yaml"
+DEFAULT_SOURCE_ID = "default"
 
 
 def detect_device() -> str:
@@ -36,7 +38,10 @@ def load_config(path: Path | None = None) -> dict[str, Any]:
     global _config_cache
     if _config_cache is not None and path is None:
         return _config_cache
-    config_path = path or DEFAULT_CONFIG_PATH
+    env_path = os.getenv("PIPELINE_CONFIG")
+    config_path = path or (Path(env_path) if env_path else DEFAULT_CONFIG_PATH)
+    if config_path == DEFAULT_CONFIG_PATH or (env_path and not config_path.is_absolute()):
+        config_path = resolve_path(str(config_path))
     if not config_path.exists():
         raise FileNotFoundError(f"Config file not found: {config_path}")
     with config_path.open(encoding="utf-8") as fh:
@@ -60,6 +65,39 @@ def resolve_path(raw: str) -> Path:
     if p.is_absolute():
         return p
     return PROJECT_ROOT / p
+
+
+def get_source_id(cfg: dict[str, Any], *, default: str = DEFAULT_SOURCE_ID) -> str:
+    """Return the generic source identifier used for default input/output scoping."""
+    source_id = cfg.get("source_id")
+    if source_id:
+        return str(source_id)
+    return default
+
+
+def resolve_configured_path(cfg: dict[str, Any], key: str, fallback: str) -> Path:
+    """Resolve a named entry from the ``paths`` config mapping with a stable fallback."""
+    paths = cfg.get("paths", {})
+    raw = paths.get(key, fallback)
+    return resolve_path(str(raw))
+
+
+def resolve_quality_dir(cfg: dict[str, Any], *, session_name: str | None = None) -> Path:
+    """Return output quality directory, optionally scoped by session."""
+    quality_dir = resolve_configured_path(cfg, "output_quality", "outputs/quality")
+    if session_name:
+        quality_dir = quality_dir / session_name
+    return quality_dir.resolve()
+
+
+def resolve_quality_report_path(
+    cfg: dict[str, Any],
+    filename: str,
+    *,
+    session_name: str | None = None,
+) -> Path:
+    """Return a quality report output path with optional session scoping."""
+    return (resolve_quality_dir(cfg, session_name=session_name) / filename).resolve()
 
 
 # ── Logging ──────────────────────────────────────────────────────────────────

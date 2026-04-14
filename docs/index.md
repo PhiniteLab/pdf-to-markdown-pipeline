@@ -1,4 +1,4 @@
-# PhiniteLab PDF Pipeline
+# CortexMark
 
 A multi-stage pipeline that converts PDF documents into structured Markdown,
 cleans the output, and splits it into logical chunks for downstream NLP tasks.

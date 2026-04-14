@@ -3,6 +3,15 @@ import * as path from "path";
 import * as vscode from "vscode";
 import type { FileStatus, PdfFile, Session, SessionStore } from "./types";
 
+export interface SessionPaths {
+  rawDir: string;
+  cleanedDir: string;
+  chunksDir: string;
+  qualityDir: string;
+  semanticDir: string;
+  manifestPath: string;
+}
+
 function genId(): string {
   return Date.now().toString(36) + Math.random().toString(36).substring(2, 8);
 }
@@ -15,11 +24,15 @@ export class SessionManager implements vscode.Disposable {
   readonly onDidChange = this._onDidChange.event;
 
   constructor(private readonly root: string) {
-    const dir = path.join(root, ".phinitelab-pdf-pipeline");
+    const dir = path.join(root, ".cortexmark");
+    const legacyStorePath = path.join(root, ".phinitelab-pdf-pipeline", "sessions.json");
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
     this.storePath = path.join(dir, "sessions.json");
+    if (!fs.existsSync(this.storePath) && fs.existsSync(legacyStorePath)) {
+      fs.copyFileSync(legacyStorePath, this.storePath);
+    }
     this.load();
   }
 
@@ -52,6 +65,22 @@ export class SessionManager implements vscode.Disposable {
 
   get(id: string): Session | undefined {
     return this.store.sessions.find((s) => s.id === id);
+  }
+
+  pathsFor(sessionOrName: Session | string): SessionPaths {
+    const sessionName = typeof sessionOrName === "string" ? sessionOrName : sessionOrName.name;
+    return {
+      rawDir: path.join(this.root, "outputs", "raw_md", sessionName),
+      cleanedDir: path.join(this.root, "outputs", "cleaned_md", sessionName),
+      chunksDir: path.join(this.root, "outputs", "chunks", sessionName),
+      qualityDir: path.join(this.root, "outputs", "quality", sessionName),
+      semanticDir: path.join(this.root, "outputs", "semantic_chunks", sessionName),
+      manifestPath: path.join(this.root, "outputs", `.manifest-${sessionName}.json`),
+    };
+  }
+
+  reportPath(sessionOrName: Session | string, fileName: string): string {
+    return path.join(this.pathsFor(sessionOrName).qualityDir, fileName);
   }
 
   // ── Mutations ────────────────────────────────────────────────────────

@@ -7,7 +7,7 @@ import * as vscode from "vscode";
  * with QA badges, entity highlights, and formula rendering.
  */
 export class PreviewPanel implements vscode.Disposable {
-  static readonly viewType = "pdfPipeline.preview";
+  static readonly viewType = "cortexmark.preview";
 
   private panel: vscode.WebviewPanel | undefined;
   private currentFile: string | undefined;
@@ -98,7 +98,8 @@ interface QAInfo {
 // ── Load QA report data ────────────────────────────────────────────────────
 
 function loadQAInfo(filePath: string, wsRoot: string): QAInfo | undefined {
-  const qaPath = path.join(wsRoot, "outputs", "quality", "qa_report.json");
+  const sessionQualityPath = deriveSessionQualityPath(filePath, wsRoot);
+  const qaPath = sessionQualityPath ?? path.join(wsRoot, "outputs", "quality", "qa_report.json");
   if (!fs.existsSync(qaPath)) return undefined;
 
   try {
@@ -126,6 +127,40 @@ function loadQAInfo(filePath: string, wsRoot: string): QAInfo | undefined {
   } catch {
     return undefined;
   }
+}
+
+function deriveSessionQualityPath(filePath: string, wsRoot: string): string | undefined {
+  const relative = path.relative(wsRoot, filePath);
+  const parts = relative.split(path.sep);
+  const cleanedIndex = parts.indexOf("cleaned_md");
+  if (cleanedIndex >= 0 && parts.length > cleanedIndex + 1) {
+    const sessionName = parts[cleanedIndex + 1];
+    if (isKnownSession(wsRoot, sessionName)) {
+      return path.join(wsRoot, "outputs", "quality", sessionName, "qa_report.json");
+    }
+  }
+  return undefined;
+}
+
+function isKnownSession(wsRoot: string, sessionName: string): boolean {
+  const storePaths = [
+    path.join(wsRoot, ".cortexmark", "sessions.json"),
+    path.join(wsRoot, ".phinitelab-pdf-pipeline", "sessions.json"),
+  ];
+  for (const storePath of storePaths) {
+    if (!fs.existsSync(storePath)) continue;
+    try {
+      const store = JSON.parse(fs.readFileSync(storePath, "utf-8")) as {
+        sessions?: Array<{ name?: string }>;
+      };
+      if (store.sessions?.some((session) => session.name === sessionName)) {
+        return true;
+      }
+    } catch {
+      // Try the next store path.
+    }
+  }
+  return false;
 }
 
 // ── Build HTML ─────────────────────────────────────────────────────────────

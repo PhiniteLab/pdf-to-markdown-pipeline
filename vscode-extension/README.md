@@ -1,6 +1,17 @@
-# PhiniteLab PDF Pipeline — VS Code Extension
+# CortexMark — VS Code Extension
 
-A VS Code extension that provides session-based batch processing for the PhiniteLab PDF Pipeline with a Markdown preview panel, quality dashboard, real-time progress tracking, analysis module integration, and a chat panel.
+A VS Code extension that provides session-based batch processing for the CortexMark with a Markdown preview panel, quality dashboard, real-time progress tracking, analysis module integration, and a chat panel.
+
+## Migration Notes
+
+This extension was renamed from **PhiniteLab PDF Pipeline** to **CortexMark**.
+
+- Old extension ID: `phinitelab-pdf-pipeline-vscode`
+- New extension ID: `cortexmark-vscode`
+- Old publisher: `phinitelab`
+- New publisher: `cortexmark`
+
+Because the Marketplace identity changed, existing installs may need a **manual install/upgrade** to the new `cortexmark-vscode` package. Session metadata is migrated from `.phinitelab-pdf-pipeline/sessions.json` to `.cortexmark/sessions.json` automatically when present.
 
 ## Features
 
@@ -20,7 +31,7 @@ A VS Code extension that provides session-based batch processing for the Phinite
 ## Sidebar Tree Structure
 
 ```
-PhiniteLab PDF Pipeline
+CortexMark
 ├── Sessions
 │   └── ★ experiment1 (active)
 │       ├── ○ paper.pdf         (queued)
@@ -101,17 +112,17 @@ PhiniteLab PDF Pipeline
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `pdfPipeline.pythonPath` | `python3` | Python executable. Leave empty for workspace `.venv` auto-detection. |
-| `pdfPipeline.configPath` | `configs/pipeline.yaml` | Pipeline config file path relative to workspace root. |
-| `pdfPipeline.defaultEngine` | `dual` | Default conversion engine (`docling`, `markitdown`, or `dual`). |
-| `pdfPipeline.autoProcess` | `false` | Automatically run the pipeline when new PDFs are detected. |
+| `cortexmark.pythonPath` | `python3` | Python executable. Leave empty for workspace `.venv` auto-detection. |
+| `cortexmark.configPath` | `configs/pipeline.yaml` | Pipeline config file path relative to workspace root. |
+| `cortexmark.defaultEngine` | `dual` | Default conversion engine (`docling`, `markitdown`, or `dual`). |
+| `cortexmark.autoProcess` | `false` | Automatically run the pipeline when new PDFs are detected. |
 
 ## Architecture
 
 | File | Purpose |
 |------|---------|
 | `src/extension.ts` | Activation, command registration (22 commands), file watchers, panel integration |
-| `src/sessionManager.ts` | Session persistence (`.phinitelab-pdf-pipeline/sessions.json`), event emitter |
+| `src/sessionManager.ts` | Session persistence (`.cortexmark/sessions.json`), event emitter |
 | `src/sessionTree.ts` | Tree data provider (Sessions, Actions, Analysis, Outputs groups) |
 | `src/pipelineRunner.ts` | Python subprocess spawning with progress bar, cancellation, and analysis module support |
 | `src/previewPanel.ts` | Markdown preview WebView with QA badges, math rendering, and content statistics |

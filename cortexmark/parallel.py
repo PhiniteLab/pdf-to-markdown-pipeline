@@ -24,7 +24,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, TypeVar
 
-from phinitelab_pdf_pipeline.common import load_config, resolve_path, setup_logging
+from cortexmark.common import load_config, resolve_path, setup_logging
 
 T = TypeVar("T")
 
@@ -230,15 +230,15 @@ def main() -> int:
 
     # Select operation
     if args.operation == "ocr_quality":
-        from phinitelab_pdf_pipeline.ocr_quality import assess_file
+        from cortexmark.ocr_quality import assess_file
 
         func: Callable[[Path], Any] = assess_file
     elif args.operation == "figures":
-        from phinitelab_pdf_pipeline.figures import extract_from_file
+        from cortexmark.figures import extract_from_file
 
         func = extract_from_file
     elif args.operation == "qa":
-        from phinitelab_pdf_pipeline.qa_pipeline import qa_file
+        from cortexmark.qa_pipeline import qa_file
 
         func = qa_file
     else:

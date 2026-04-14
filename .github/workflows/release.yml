@@ -7,10 +7,11 @@ on:
 
 permissions:
   contents: write
+  id-token: write
 
 jobs:
   build:
-    name: Build & Publish Release
+    name: Build Release Artifacts
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -22,10 +23,25 @@ jobs:
           python-version: "3.12"
 
       - name: Install build tools
-        run: pip install build
+        run: pip install build twine
 
       - name: Build sdist & wheel
         run: python -m build
+
+      - name: Validate package metadata
+        run: twine check dist/*
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: vscode-extension/package-lock.json
+
+      - name: Build VSIX package
+        working-directory: vscode-extension
+        run: |
+          npm ci
+          npx @vscode/vsce package
 
       - name: Generate changelog for this tag
         id: changelog
@@ -47,5 +63,32 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           body: ${{ steps.changelog.outputs.body }}
-          files: dist/*
+          files: |
+            dist/*
+            vscode-extension/*.vsix
           generate_release_notes: true
+
+      - name: Publish package to PyPI
+        if: ${{ secrets.PYPI_API_TOKEN != '' }}
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: python -m twine upload dist/*
+
+      - name: Publish extension to VS Code Marketplace
+        if: ${{ secrets.VSCE_PAT != '' }}
+        working-directory: vscode-extension
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: |
+          VSIX_PATH=$(ls *.vsix | head -n 1)
+          npx @vscode/vsce publish --packagePath "$VSIX_PATH"
+
+      - name: Publish extension to Open VSX
+        if: ${{ secrets.OPENVSX_TOKEN != '' }}
+        working-directory: vscode-extension
+        env:
+          OPENVSX_TOKEN: ${{ secrets.OPENVSX_TOKEN }}
+        run: |
+          VSIX_PATH=$(ls *.vsix | head -n 1)
+          npx ovsx publish "$VSIX_PATH" -p "$OPENVSX_TOKEN"

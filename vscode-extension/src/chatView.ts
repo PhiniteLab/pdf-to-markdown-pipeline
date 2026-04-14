@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 
 export class ChatViewProvider implements vscode.WebviewViewProvider {
-  static readonly viewType = "pdfPipelineChat";
+  static readonly viewType = "cortexmarkChat";
 
   private view?: vscode.WebviewView;
   private pending: Array<{ role: string; text: string }> = [];
@@ -57,7 +57,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
     // /status or durum
     if (lower === "status" || lower === "durum") {
-      await vscode.commands.executeCommand("pdfPipeline.refresh");
+      await vscode.commands.executeCommand("cortexmark.refresh");
       this.postMessage("system", "\u{1F504} Status refreshed. Check the sidebar for details.");
       return;
     }
@@ -65,7 +65,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     // /process or run or çalıştır
     if (lower === "process" || lower === "run" || lower.startsWith("çalıştır") || lower.startsWith("calistir")) {
       this.postMessage("system", "\uD83D\uDE80 Starting pipeline...");
-      await vscode.commands.executeCommand("pdfPipeline.processSession");
+      await vscode.commands.executeCommand("cortexmark.processSession");
       this.postMessage("system", "\u{2705} Pipeline finished.");
       return;
     }
@@ -73,7 +73,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     // /qa
     if (lower === "qa" || lower === "kalite") {
       this.postMessage("system", "\uD83D\uDCCA Running QA report...");
-      await vscode.commands.executeCommand("pdfPipeline.runQA");
+      await vscode.commands.executeCommand("cortexmark.runQA");
       this.postMessage("system", "\u{2705} QA report complete. Check the dashboard.");
       return;
     }
@@ -81,7 +81,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     // /crossref
     if (lower === "crossref" || lower === "cross-ref" || lower === "çapraz referans") {
       this.postMessage("system", "\u{1F517} Running cross-reference analysis...");
-      await vscode.commands.executeCommand("pdfPipeline.runCrossRef");
+      await vscode.commands.executeCommand("cortexmark.runCrossRef");
       this.postMessage("system", "\u{2705} Cross-reference analysis complete.");
       return;
     }
@@ -89,7 +89,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     // /algorithm
     if (lower === "algorithm" || lower === "algo" || lower === "algoritma") {
       this.postMessage("system", "\u{1F4BB} Running algorithm extraction...");
-      await vscode.commands.executeCommand("pdfPipeline.runAlgorithm");
+      await vscode.commands.executeCommand("cortexmark.runAlgorithm");
       this.postMessage("system", "\u{2705} Algorithm extraction complete.");
       return;
     }
@@ -97,7 +97,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     // /notation
     if (lower === "notation" || lower === "notasyon" || lower === "glossary") {
       this.postMessage("system", "\u{1D70B} Running notation glossary...");
-      await vscode.commands.executeCommand("pdfPipeline.runNotation");
+      await vscode.commands.executeCommand("cortexmark.runNotation");
       this.postMessage("system", "\u{2705} Notation glossary complete.");
       return;
     }
@@ -105,7 +105,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     // /chunk
     if (lower === "chunk" || lower === "semantic" || lower === "bölümleme") {
       this.postMessage("system", "\u{1F9E9} Running semantic chunking...");
-      await vscode.commands.executeCommand("pdfPipeline.runSemanticChunk");
+      await vscode.commands.executeCommand("cortexmark.runSemanticChunk");
       this.postMessage("system", "\u{2705} Semantic chunking complete.");
       return;
     }
@@ -113,14 +113,14 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     // /analyze-all
     if (lower === "analyze" || lower === "analyse" || lower === "analiz" || lower === "all") {
       this.postMessage("system", "\u{1F50D} Running all analyses...");
-      await vscode.commands.executeCommand("pdfPipeline.runAllAnalysis");
+      await vscode.commands.executeCommand("cortexmark.runAllAnalysis");
       this.postMessage("system", "\u{2705} All analyses complete.");
       return;
     }
 
     // /preview
     if (lower === "preview" || lower === "önizleme" || lower === "onizleme") {
-      await vscode.commands.executeCommand("pdfPipeline.previewFile");
+      await vscode.commands.executeCommand("cortexmark.previewFile");
       return;
     }
 

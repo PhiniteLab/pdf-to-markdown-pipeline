@@ -25,7 +25,7 @@ Checks to run before committing:
 ```bash
 make lint          # Lint and formatting checks
 make test          # 429 tests
-pyright phinitelab_pdf_pipeline/   # Type checking (0 errors, 0 warnings)
+pyright cortexmark/   # Type checking (0 errors, 0 warnings)
 pre-commit run --all-files
 ```
 
@@ -33,7 +33,7 @@ pre-commit run --all-files
 
 1. Create a branch from `main`, for example `git checkout -b feature/short-description`.
 2. Implement your changes and add or update tests.
-3. Make sure all checks pass: `make lint && make test && pyright phinitelab_pdf_pipeline/`.
+3. Make sure all checks pass: `make lint && make test && pyright cortexmark/`.
 4. Write a clear commit message.
 5. Open a pull request and describe what changed and why.
 
@@ -51,19 +51,19 @@ python -m pytest tests/ -k "test_name" -v
 
 ## Project Structure Rules
 
-- All pipeline modules live under the `phinitelab_pdf_pipeline/` package.
+- All pipeline modules live under the `cortexmark/` package.
 - Each module should remain executable through its own `main()` function and CLI arguments where appropriate.
-- Shared helpers belong in `phinitelab_pdf_pipeline/common.py`.
+- Shared helpers belong in `cortexmark/common.py`.
 - Configuration is loaded from `configs/pipeline.yaml` through `load_config()`.
 - Plugin extensions are placed in a `plugins/` directory and auto-discovered by the `PluginRegistry`.
 
 ## Adding a New Module
 
-1. Create the module file in `phinitelab_pdf_pipeline/`.
+1. Create the module file in `cortexmark/`.
 2. Include a `main()` function with `argparse` for standalone execution.
 3. Add corresponding tests in `tests/test_pipeline_structure.py`.
 4. Update `configs/pipeline.yaml` if the module needs configuration.
-5. Run `make lint && make test && pyright phinitelab_pdf_pipeline/` to verify.
+5. Run `make lint && make test && pyright cortexmark/` to verify.
 
 ## Reporting Issues
 

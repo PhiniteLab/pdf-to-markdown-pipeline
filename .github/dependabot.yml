@@ -1,7 +1,7 @@
 version: 2
 
 updates:
-  # Python (pip) — phinitelab_pdf_pipeline dependencies
+  # Python (pip) — cortexmark dependencies
   - package-ecosystem: pip
     directory: /
     schedule:

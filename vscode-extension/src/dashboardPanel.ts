@@ -1,19 +1,21 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
+import type { SessionManager } from "./sessionManager";
 
 /**
  * Dashboard panel that displays pipeline metrics, quality badges,
  * entity statistics, and analysis summaries in a WebView sidebar.
  */
 export class DashboardPanel implements vscode.WebviewViewProvider {
-  static readonly viewId = "pdfPipelineDashboard";
+  static readonly viewId = "cortexmarkDashboard";
 
   private view?: vscode.WebviewView;
 
   constructor(
     private readonly extensionUri: vscode.Uri,
     private readonly wsRoot: string,
+    private readonly sessions: SessionManager,
   ) {}
 
   resolveWebviewView(
@@ -38,7 +40,10 @@ export class DashboardPanel implements vscode.WebviewViewProvider {
   // ── Metrics gathering ──────────────────────────────────────────────────
 
   private gatherMetrics(): DashboardMetrics {
+    const activeSession = this.sessions.active();
+    const sessionPaths = activeSession ? this.sessions.pathsFor(activeSession) : undefined;
     const metrics: DashboardMetrics = {
+      sessionName: activeSession?.name,
       fileCount: 0,
       outputCount: 0,
       qa: undefined,
@@ -49,38 +54,50 @@ export class DashboardPanel implements vscode.WebviewViewProvider {
     };
 
     // Count input PDFs
-    const rawDir = path.join(this.wsRoot, "data", "raw");
-    if (fs.existsSync(rawDir)) {
-      metrics.fileCount = countFiles(rawDir, ".pdf");
+    if (activeSession) {
+      metrics.fileCount = activeSession.files.length;
+    } else {
+      const rawDir = path.join(this.wsRoot, "data", "raw");
+      if (fs.existsSync(rawDir)) {
+        metrics.fileCount = countFiles(rawDir, ".pdf");
+      }
     }
 
     // Count output MDs
-    const cleanedDir = path.join(this.wsRoot, "outputs", "cleaned_md");
+    const cleanedDir = sessionPaths?.cleanedDir ?? path.join(this.wsRoot, "outputs", "cleaned_md");
     if (fs.existsSync(cleanedDir)) {
       metrics.outputCount = countFiles(cleanedDir, ".md");
     }
 
     // Load QA report summary
     metrics.qa = loadReportSummary<QASummary>(
-      path.join(this.wsRoot, "outputs", "quality", "qa_report.json"),
+      sessionPaths?.qualityDir
+        ? path.join(sessionPaths.qualityDir, "qa_report.json")
+        : path.join(this.wsRoot, "outputs", "quality", "qa_report.json"),
       parseQASummary,
     );
 
     // Load cross-ref report
     metrics.crossRefStats = loadReportSummary<CrossRefStats>(
-      path.join(this.wsRoot, "outputs", "quality", "crossref_report.json"),
+      sessionPaths?.qualityDir
+        ? path.join(sessionPaths.qualityDir, "crossref_report.json")
+        : path.join(this.wsRoot, "outputs", "quality", "crossref_report.json"),
       parseCrossRefStats,
     );
 
     // Load algorithm report
     metrics.algorithmStats = loadReportSummary<AlgorithmStats>(
-      path.join(this.wsRoot, "outputs", "quality", "algorithm_report.json"),
+      sessionPaths?.qualityDir
+        ? path.join(sessionPaths.qualityDir, "algorithm_report.json")
+        : path.join(this.wsRoot, "outputs", "quality", "algorithm_report.json"),
       parseAlgorithmStats,
     );
 
     // Load notation report
     metrics.notationStats = loadReportSummary<NotationStats>(
-      path.join(this.wsRoot, "outputs", "quality", "notation_report.json"),
+      sessionPaths?.qualityDir
+        ? path.join(sessionPaths.qualityDir, "notation_report.json")
+        : path.join(this.wsRoot, "outputs", "quality", "notation_report.json"),
       parseNotationStats,
     );
 
@@ -91,6 +108,7 @@ export class DashboardPanel implements vscode.WebviewViewProvider {
 // ── Types ────────────────────────────────────────────────────────────────
 
 interface DashboardMetrics {
+  sessionName?: string;
   fileCount: number;
   outputCount: number;
   qa?: QASummary;
@@ -297,6 +315,11 @@ body {
 </style>
 </head>
 <body>
+
+<div class="section">
+  <div class="section-title">\u{1F4CC} Active Session</div>
+  <div class="row"><span class="label">Session</span><span class="value">${escapeHtml(m.sessionName ?? "none")}</span></div>
+</div>
 
 <div class="section">
   <div class="section-title">\u{1F4C4} Pipeline Overview</div>

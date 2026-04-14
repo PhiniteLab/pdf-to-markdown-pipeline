@@ -17,7 +17,7 @@ WORKDIR /app
 FROM base AS deps
 
 COPY pyproject.toml requirements.txt ./
-COPY phinitelab_pdf_pipeline/__init__.py phinitelab_pdf_pipeline/py.typed phinitelab_pdf_pipeline/
+COPY cortexmark/__init__.py cortexmark/py.typed cortexmark/
 RUN pip install --no-cache-dir -r requirements.txt
 
 # ── Stage 3: application ────────────────────────────────────────────────────
@@ -32,6 +32,6 @@ RUN pip install --no-cache-dir --no-deps .
 USER pipeline
 
 HEALTHCHECK --interval=30s --timeout=5s --retries=2 \
-    CMD ["python", "-c", "import phinitelab_pdf_pipeline; print('ok')"]
+    CMD ["python", "-c", "import cortexmark; print('ok')"]
 
-ENTRYPOINT ["phinitelab-pdf-pipeline"]
+ENTRYPOINT ["cortexmark"]

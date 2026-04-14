@@ -1,4 +1,4 @@
-"""Comprehensive tests for the PhiniteLab PDF Pipeline."""
+"""Comprehensive tests for the CortexMark."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from phinitelab_pdf_pipeline.algorithm_extract import (
+from cortexmark.algorithm_extract import (
     ALGO_HEADER_RE,
     Algorithm,
     extract_algorithms,
@@ -17,19 +17,19 @@ from phinitelab_pdf_pipeline.algorithm_extract import (
     parse_algorithm_body,
     parse_step,
 )
-from phinitelab_pdf_pipeline.algorithm_extract import (
+from cortexmark.algorithm_extract import (
     build_summary as algo_build_summary,
 )
-from phinitelab_pdf_pipeline.algorithm_extract import (
+from cortexmark.algorithm_extract import (
     extract_from_file as algo_extract_from_file,
 )
-from phinitelab_pdf_pipeline.algorithm_extract import (
+from cortexmark.algorithm_extract import (
     extract_from_tree as algo_extract_from_tree,
 )
-from phinitelab_pdf_pipeline.algorithm_extract import (
+from cortexmark.algorithm_extract import (
     write_report as write_algo_report,
 )
-from phinitelab_pdf_pipeline.chunk import (
+from cortexmark.chunk import (
     Chunk,
     build_heading_re,
     chunk_file,
@@ -37,7 +37,7 @@ from phinitelab_pdf_pipeline.chunk import (
     parse_chunks,
     slugify,
 )
-from phinitelab_pdf_pipeline.citations import (
+from cortexmark.citations import (
     Citation,
     CitationEdge,
     CitationGraph,
@@ -50,7 +50,7 @@ from phinitelab_pdf_pipeline.citations import (
     write_citation_report,
     write_dot_graph,
 )
-from phinitelab_pdf_pipeline.clean import (
+from cortexmark.clean import (
     clean_file,
     clean_markdown,
     clean_tree,
@@ -61,17 +61,20 @@ from phinitelab_pdf_pipeline.clean import (
     remove_page_numbers,
     remove_repeated_headers_footers,
 )
-from phinitelab_pdf_pipeline.common import (
+from cortexmark.common import (
     Manifest,
     detect_device,
     file_hash,
+    get_source_id,
     load_config,
     mirror_directory_tree,
     reset_config_cache,
     resolve_path,
+    resolve_quality_dir,
+    resolve_quality_report_path,
     setup_logging,
 )
-from phinitelab_pdf_pipeline.convert import (
+from cortexmark.convert import (
     derive_output_path,
     format_algorithm_block,
     format_formula_block,
@@ -84,7 +87,7 @@ from phinitelab_pdf_pipeline.convert import (
     reformat_algorithm_sections,
     render_formula_item,
 )
-from phinitelab_pdf_pipeline.cross_ref import (
+from cortexmark.cross_ref import (
     CATEGORY_EQUATION,
     CATEGORY_FIGURE,
     CATEGORY_TABLE,
@@ -97,16 +100,16 @@ from phinitelab_pdf_pipeline.cross_ref import (
     extract_mentions,
     resolve_references,
 )
-from phinitelab_pdf_pipeline.cross_ref import (
+from cortexmark.cross_ref import (
     analyze_file as crossref_analyze_file,
 )
-from phinitelab_pdf_pipeline.cross_ref import (
+from cortexmark.cross_ref import (
     analyze_tree as crossref_analyze_tree,
 )
-from phinitelab_pdf_pipeline.cross_ref import (
+from cortexmark.cross_ref import (
     write_report as write_crossref_report,
 )
-from phinitelab_pdf_pipeline.diff import (
+from cortexmark.diff import (
     FileDiff,
     TreeDiff,
     diff_files,
@@ -115,7 +118,7 @@ from phinitelab_pdf_pipeline.diff import (
     write_diff_report,
     write_unified_diff,
 )
-from phinitelab_pdf_pipeline.doc_type import (
+from cortexmark.doc_type import (
     ALL_TYPES,
     GENERIC,
     PAPER,
@@ -133,7 +136,7 @@ from phinitelab_pdf_pipeline.doc_type import (
     render_template_scaffold,
     write_detection_report,
 )
-from phinitelab_pdf_pipeline.figures import (
+from cortexmark.figures import (
     FigureEntry,
     FigureReport,
     build_figure_report,
@@ -143,7 +146,7 @@ from phinitelab_pdf_pipeline.figures import (
     write_figure_manifest,
     write_gallery_page,
 )
-from phinitelab_pdf_pipeline.formula_score import (
+from cortexmark.formula_score import (
     FileReport,
     build_file_report,
     score_file,
@@ -152,7 +155,7 @@ from phinitelab_pdf_pipeline.formula_score import (
     validate_formula_text,
     write_report,
 )
-from phinitelab_pdf_pipeline.ghpages import (
+from cortexmark.ghpages import (
     PageEntry,
     build_document_page,
     build_index_page,
@@ -161,7 +164,7 @@ from phinitelab_pdf_pipeline.ghpages import (
     generate_site,
     write_site_manifest,
 )
-from phinitelab_pdf_pipeline.metadata import (
+from cortexmark.metadata import (
     ScholarlyMetadata,
     extract_abstract,
     extract_authors,
@@ -181,7 +184,7 @@ from phinitelab_pdf_pipeline.metadata import (
     to_yaml_frontmatter,
     write_metadata_report,
 )
-from phinitelab_pdf_pipeline.multi_format import (
+from cortexmark.multi_format import (
     FORMAT_EXTENSIONS,
     convert_file,
     convert_tree,
@@ -189,7 +192,7 @@ from phinitelab_pdf_pipeline.multi_format import (
     md_to_text,
     md_to_yaml,
 )
-from phinitelab_pdf_pipeline.notation_glossary import (
+from cortexmark.notation_glossary import (
     NotationEntry,
     NotationGlossary,
     detect_common_notations,
@@ -198,22 +201,22 @@ from phinitelab_pdf_pipeline.notation_glossary import (
     extract_table_notations,
     write_markdown_glossary,
 )
-from phinitelab_pdf_pipeline.notation_glossary import (
+from cortexmark.notation_glossary import (
     build_summary as notation_build_summary,
 )
-from phinitelab_pdf_pipeline.notation_glossary import (
+from cortexmark.notation_glossary import (
     extract_all as notation_extract_all,
 )
-from phinitelab_pdf_pipeline.notation_glossary import (
+from cortexmark.notation_glossary import (
     extract_from_file as notation_extract_from_file,
 )
-from phinitelab_pdf_pipeline.notation_glossary import (
+from cortexmark.notation_glossary import (
     extract_from_tree as notation_extract_from_tree,
 )
-from phinitelab_pdf_pipeline.notation_glossary import (
+from cortexmark.notation_glossary import (
     write_report as write_notation_report,
 )
-from phinitelab_pdf_pipeline.ocr_quality import (
+from cortexmark.ocr_quality import (
     OCRFileReport,
     OCRQualityMetrics,
     assess_file,
@@ -227,7 +230,7 @@ from phinitelab_pdf_pipeline.ocr_quality import (
     count_symbol_soup,
     write_ocr_report,
 )
-from phinitelab_pdf_pipeline.parallel import (
+from cortexmark.parallel import (
     ParallelConfig,
     ParallelReport,
     TaskResult,
@@ -235,14 +238,14 @@ from phinitelab_pdf_pipeline.parallel import (
     parallel_map,
     parallel_tree,
 )
-from phinitelab_pdf_pipeline.plugin import (
+from cortexmark.plugin import (
     VALID_HOOKS,
     PluginBase,
     PluginInfo,
     PluginRegistry,
     write_plugin_report,
 )
-from phinitelab_pdf_pipeline.qa_pipeline import (
+from cortexmark.qa_pipeline import (
     BADGE_FAIL,
     BADGE_GOLD,
     BADGE_SILVER,
@@ -261,10 +264,10 @@ from phinitelab_pdf_pipeline.qa_pipeline import (
     qa_tree,
     write_markdown_report,
 )
-from phinitelab_pdf_pipeline.qa_pipeline import (
+from cortexmark.qa_pipeline import (
     write_report as write_qa_report,
 )
-from phinitelab_pdf_pipeline.rag_export import (
+from cortexmark.rag_export import (
     RAGRecord,
     estimate_tokens,
     export_file,
@@ -275,14 +278,14 @@ from phinitelab_pdf_pipeline.rag_export import (
     write_json_array,
     write_jsonl,
 )
-from phinitelab_pdf_pipeline.rag_export import (
+from cortexmark.rag_export import (
     build_summary as rag_build_summary,
 )
-from phinitelab_pdf_pipeline.render_templates import (
+from cortexmark.render_templates import (
     build_assignment_text,
-    build_course_profile_text,
     build_global_rules_text,
-    build_week_rules_text,
+    build_section_rules_text,
+    build_source_profile_text,
     bullet_lines_from_section,
     clean_inline,
     extract_line_value,
@@ -292,12 +295,13 @@ from phinitelab_pdf_pipeline.render_templates import (
     headings_from_markdown,
     humanize_topic,
     paragraphs_from_markdown,
-    parse_week_entries,
+    parse_section_entries,
     read_text,
+    resolve_outline_path,
     summarize_text,
 )
-from phinitelab_pdf_pipeline.run_pipeline import build_parser
-from phinitelab_pdf_pipeline.semantic_chunk import (
+from cortexmark.run_pipeline import build_parser
+from cortexmark.semantic_chunk import (
     BLOCK_OPENER_RE,
     ENTITY_ALGORITHM,
     ENTITY_DEFINITION,
@@ -316,13 +320,13 @@ from phinitelab_pdf_pipeline.semantic_chunk import (
     has_qed,
     parse_semantic_chunks,
 )
-from phinitelab_pdf_pipeline.semantic_chunk import (
+from cortexmark.semantic_chunk import (
     chunk_file as semantic_chunk_file,
 )
-from phinitelab_pdf_pipeline.semantic_chunk import (
+from cortexmark.semantic_chunk import (
     chunk_tree as semantic_chunk_tree,
 )
-from phinitelab_pdf_pipeline.topics import (
+from cortexmark.topics import (
     TOPIC_KEYWORDS,
     DocumentTopics,
     TopicScore,
@@ -359,9 +363,24 @@ def _fresh_config():
 class TestConfig:
     def test_load_config_from_file(self, tmp_path: Path) -> None:
         cfg_file = tmp_path / "test.yaml"
-        cfg_file.write_text("course_id: test-course\npaths:\n  data_raw: data/raw\n", encoding="utf-8")
+        cfg_file.write_text("source_id: test-source\npaths:\n  data_raw: data/raw\n", encoding="utf-8")
         cfg = load_config(cfg_file)
-        assert cfg["course_id"] == "test-course"
+        assert cfg["source_id"] == "test-source"
+
+    def test_get_source_id_prefers_source_id(self) -> None:
+        assert get_source_id({"source_id": "alpha"}) == "alpha"
+
+    def test_quality_path_helpers(self) -> None:
+        cfg = {"paths": {"output_quality": "outputs/quality"}}
+        assert resolve_quality_dir(cfg) == (resolve_path("outputs/quality")).resolve()
+        assert (
+            resolve_quality_report_path(cfg, "formula_validation.json")
+            == (resolve_path("outputs/quality/formula_validation.json")).resolve()
+        )
+        assert (
+            resolve_quality_report_path(cfg, "scientific_qa.json", session_name="s1")
+            == (resolve_path("outputs/quality/s1/scientific_qa.json")).resolve()
+        )
 
     def test_load_config_missing_raises(self, tmp_path: Path) -> None:
         with pytest.raises(FileNotFoundError):
@@ -631,15 +650,15 @@ class TestCleanMarkdown:
 
 class TestCleanTree:
     def test_mirrors_and_cleans(self, tmp_path: Path) -> None:
-        input_root = tmp_path / "raw_md" / "mkt4822-RL"
+        input_root = tmp_path / "raw_md" / "source-alpha"
         (input_root / "01_week" / "assignment").mkdir(parents=True)
         (input_root / "02_intro_rl").mkdir(parents=True)
         (input_root / "02_intro_rl" / "content.md").write_text("## CHAPTER 1 SECTION 1\nSample\n", encoding="utf-8")
         output_root = tmp_path / "cleaned_md"
         written = clean_tree(input_root, output_root)
         assert len(written) == 1
-        assert (output_root / "mkt4822-RL" / "01_week" / "assignment").is_dir()
-        assert (output_root / "mkt4822-RL" / "02_intro_rl" / "content.md").is_file()
+        assert (output_root / "source-alpha" / "01_week" / "assignment").is_dir()
+        assert (output_root / "source-alpha" / "02_intro_rl" / "content.md").is_file()
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -684,14 +703,14 @@ class TestChunkRender:
 
 class TestChunkTree:
     def test_mirrors_and_chunks(self, tmp_path: Path) -> None:
-        input_root = tmp_path / "cleaned_md" / "mkt4822-RL"
+        input_root = tmp_path / "cleaned_md" / "source-alpha"
         (input_root / "05_coding" / "assignment").mkdir(parents=True)
         (input_root / "02_intro_rl").mkdir(parents=True)
         (input_root / "02_intro_rl" / "content.md").write_text("# Intro\n\n## Basics\n\nBody text.\n", encoding="utf-8")
         output_root = tmp_path / "chunks"
         written = chunk_tree(input_root, output_root)
         assert len(written) == 1
-        assert (output_root / "mkt4822-RL" / "05_coding" / "assignment").is_dir()
+        assert (output_root / "source-alpha" / "05_coding" / "assignment").is_dir()
         assert written[0].name.startswith("chunk_001_")
 
     def test_chunk_file_not_found(self, tmp_path: Path) -> None:
@@ -710,36 +729,61 @@ class TestChunkTree:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-class TestParseWeekEntries:
+class TestParseSectionEntries:
     def test_deterministic(self) -> None:
-        syllabus = (
-            "## Week 2: Introduction to Reinforcement Learning\n"
-            "- RL as interaction\n"
-            "- Delayed reward\n"
-            "## Week 3: Multi-Armed Bandits\n"
-            "- Exploration vs exploitation\n"
+        outline = (
+            "## Section 2: Introduction to Structured Parsing\n"
+            "- Parsing as staged transformation\n"
+            "- Deterministic post-processing\n"
+            "## Section 3: Hierarchical Chunking\n"
+            "- Chunk boundaries and context\n"
         )
-        entries = parse_week_entries(syllabus)
-        assert entries[2]["title"] == "Introduction to Reinforcement Learning"
-        assert entries[2]["bullets"] == ["RL as interaction", "Delayed reward"]
-        assert entries[3]["title"] == "Multi-Armed Bandits"
+        entries = parse_section_entries(outline)
+        assert entries[2]["title"] == "Introduction to Structured Parsing"
+        assert entries[2]["bullets"] == ["Parsing as staged transformation", "Deterministic post-processing"]
+        assert entries[3]["title"] == "Hierarchical Chunking"
 
     def test_empty_input(self) -> None:
-        assert parse_week_entries("") == {}
+        assert parse_section_entries("") == {}
 
     def test_no_weeks(self) -> None:
-        assert parse_week_entries("## Some Other Heading\ncontent\n") == {}
+        assert parse_section_entries("## Some Other Heading\ncontent\n") == {}
+
+
+class TestResolveOutlinePath:
+    def test_prefers_configured_file(self, tmp_path: Path) -> None:
+        raw_root = tmp_path / "raw"
+        (raw_root / "00_meta").mkdir(parents=True)
+        configured = raw_root / "00_meta" / "my_outline.md"
+        configured.write_text("# Outline\n", encoding="utf-8")
+        found = resolve_outline_path(raw_root, cfg={"render_templates": {"outline_file": "00_meta/my_outline.md"}})
+        assert found == configured.resolve()
+
+    def test_falls_back_to_discovery(self, tmp_path: Path) -> None:
+        raw_root = tmp_path / "raw"
+        meta = raw_root / "00_meta"
+        meta.mkdir(parents=True)
+        discovered = meta / "source_outline_v2.md"
+        discovered.write_text("# Outline\n", encoding="utf-8")
+        found = resolve_outline_path(raw_root, cfg={})
+        assert found == discovered.resolve()
+
+    def test_override_missing_raises(self, tmp_path: Path) -> None:
+        raw_root = tmp_path / "raw"
+        raw_root.mkdir(parents=True)
+        with pytest.raises(FileNotFoundError):
+            resolve_outline_path(raw_root, cfg={}, override=Path("00_meta/missing.md"))
 
 
 class TestExtractHelpers:
     def test_extract_line_value(self) -> None:
-        text = "Course Title: Reinforcement Learning\nInstructor: Dr. X\n"
-        assert extract_line_value(text, "Course Title", "?") == "Reinforcement Learning"
+        text = "Source Name: Structured Source Processing\nMaintainer: Maintainer X\n"
+        assert extract_line_value(text, "Source Name", "?") == "Structured Source Processing"
         assert extract_line_value(text, "Missing", "default") == "default"
 
     def test_extract_section(self) -> None:
-        text = "## Required Programs\n- Python\n- Matlab\n## Next\nstuff\n"
-        section = extract_section(text, "Required Programs")
+        text = "## Recommended Tools\n- Python\n- Matlab\n## Next\nstuff\n"
+        section = extract_section(text, "Recommended Tools")
         assert "Python" in section
         assert "Matlab" in section
 
@@ -749,7 +793,7 @@ class TestExtractHelpers:
 
 class TestHumanizeTopic:
     def test_strips_number_prefix(self) -> None:
-        assert humanize_topic("03_bandits") == "Bandits"
+        assert humanize_topic("03_segments") == "Segments"
 
     def test_acronyms(self) -> None:
         assert humanize_topic("09_td") == "TD"
@@ -777,16 +821,16 @@ class TestSummarizeText:
 
 class TestBuildTemplates:
     def test_course_profile(self) -> None:
-        text = build_course_profile_text(
-            course_title="RL",
-            semester="Fall",
-            instructor="Dr. X",
-            main_topics=["RL", "MDP"],
+        text = build_source_profile_text(
+            source_name="Structured Source",
+            source_cycle="Cycle A",
+            maintainer="Maintainer X",
+            main_topics=["RL", "Segments"],
             programs=["Python"],
             notes=["Note 1"],
         )
-        assert "# Course Profile" in text
-        assert "- RL" in text
+        assert "# Source Profile" in text
+        assert "Structured Source" in text
         assert "- Python" in text
 
     def test_global_rules(self) -> None:
@@ -796,13 +840,13 @@ class TestBuildTemplates:
         assert "- R2" in text
 
     def test_week_rules(self) -> None:
-        text = build_week_rules_text(3, "Bandits", ["S1"], ["E1"], ["O1"])
-        assert "# Week 03 Rules" in text
+        text = build_section_rules_text(3, "Section Alpha", ["S1"], ["E1"], ["O1"])
+        assert "# Section 03 Rules" in text
         assert "## Scope" in text
 
     def test_assignment(self) -> None:
-        text = build_assignment_text(5, "Learn RL", ["Task1", "Task2"], ["Submit md"])
-        assert "# Week 05 Assignment" in text
+        text = build_assignment_text(5, "Learn the source structure", ["Task1", "Task2"], ["Submit md"])
+        assert "# Section 05 Tasks" in text
         assert "1. Task1" in text
         assert "2. Task2" in text
 
@@ -1132,7 +1176,7 @@ class TestCleanCLI:
     def test_clean_single_file(self, tmp_path: Path) -> None:
         cfg = tmp_path / "cfg.yaml"
         cfg.write_text(
-            "course_id: test\npaths:\n  output_raw_md: out\n  output_cleaned_md: out\n"
+            "source_id: test\npaths:\n  output_raw_md: out\n  output_cleaned_md: out\n"
             "clean:\n  min_repeated_header_count: 3\n  max_repeated_header_length: 80\n"
             "idempotency:\n  enabled: false\nlogging:\n  level: WARNING\n",
             encoding="utf-8",
@@ -1144,7 +1188,7 @@ class TestCleanCLI:
             [
                 sys.executable,
                 "-m",
-                "phinitelab_pdf_pipeline.clean",
+                "cortexmark.clean",
                 "--input",
                 str(inp),
                 "--output-dir",
@@ -1169,7 +1213,7 @@ class TestChunkCLI:
     def test_chunk_single_file(self, tmp_path: Path) -> None:
         cfg = tmp_path / "cfg.yaml"
         cfg.write_text(
-            "course_id: test\npaths:\n  output_cleaned_md: out\n  output_chunks: out\n"
+            "source_id: test\npaths:\n  output_cleaned_md: out\n  output_chunks: out\n"
             "chunk:\n  split_levels: [1, 2]\n"
             "idempotency:\n  enabled: false\nlogging:\n  level: WARNING\n",
             encoding="utf-8",
@@ -1181,7 +1225,7 @@ class TestChunkCLI:
             [
                 sys.executable,
                 "-m",
-                "phinitelab_pdf_pipeline.chunk",
+                "cortexmark.chunk",
                 "--input",
                 str(inp),
                 "--output-dir",
@@ -1201,7 +1245,7 @@ class TestChunkCLI:
     def test_chunk_with_three_levels(self, tmp_path: Path) -> None:
         cfg = tmp_path / "cfg.yaml"
         cfg.write_text(
-            "course_id: test\npaths:\n  output_cleaned_md: out\n  output_chunks: out\n"
+            "source_id: test\npaths:\n  output_cleaned_md: out\n  output_chunks: out\n"
             "chunk:\n  split_levels: [1, 2, 3]\n"
             "idempotency:\n  enabled: false\nlogging:\n  level: WARNING\n",
             encoding="utf-8",
@@ -1216,7 +1260,7 @@ class TestChunkCLI:
             [
                 sys.executable,
                 "-m",
-                "phinitelab_pdf_pipeline.chunk",
+                "cortexmark.chunk",
                 "--input",
                 str(inp),
                 "--output-dir",
@@ -1237,7 +1281,7 @@ class TestFormulaScoreCLI:
     def test_score_single_file(self, tmp_path: Path) -> None:
         cfg = tmp_path / "cfg.yaml"
         cfg.write_text(
-            "course_id: test\npaths:\n  output_cleaned_md: out\nlogging:\n  level: WARNING\n",
+            "source_id: test\npaths:\n  output_cleaned_md: out\nlogging:\n  level: WARNING\n",
             encoding="utf-8",
         )
         inp = tmp_path / "doc.md"
@@ -1250,7 +1294,7 @@ class TestFormulaScoreCLI:
             [
                 sys.executable,
                 "-m",
-                "phinitelab_pdf_pipeline.formula_score",
+                "cortexmark.formula_score",
                 "--input",
                 str(inp),
                 "--output",
@@ -1358,7 +1402,7 @@ class TestExtractAbstract:
 
 class TestExtractKeywords:
     def test_comma_separated(self) -> None:
-        text = "Keywords: reinforcement learning, policy gradient, MDP"
+        text = "Keywords: reinforcement learning, policy gradient, Segments"
         kws = extract_keywords(text)
         assert "reinforcement learning" in kws
         assert "policy gradient" in kws
@@ -1394,7 +1438,7 @@ class TestExtractYear:
 class TestExtractMetadata:
     def test_full_extraction(self) -> None:
         text = (
-            "# Deep Reinforcement Learning for Control\n\n"
+            "# Deep Structured Source Processing for Control\n\n"
             "Alice Wang, Bob Chen\n\n"
             "Abstract: We propose a new method for RL.\n\n"
             "Keywords: RL, deep learning, control\n\n"
@@ -1402,7 +1446,7 @@ class TestExtractMetadata:
             "This work was funded by NSF grant 12345.\n"
         )
         meta = extract_metadata(text, source_file="test.md")
-        assert meta.title == "Deep Reinforcement Learning for Control"
+        assert meta.title == "Deep Structured Source Processing for Control"
         assert len(meta.authors) >= 2
         assert "RL" in meta.keywords
         assert meta.doi == "10.1000/test.123"
@@ -1636,7 +1680,7 @@ class TestRAGSemanticEnrichment:
 
     def test_definition_detection_in_chunk(self, tmp_path: Path) -> None:
         f = tmp_path / "chunk.md"
-        f.write_text("**Definition 1 (MDP).** A Markov Decision Process.\n", encoding="utf-8")
+        f.write_text("**Definition 1 (Segments).** A Markov Decision Process.\n", encoding="utf-8")
         rec = parse_chunk_file(f)
         assert rec.metadata["entity_type"] == "definition"
 
@@ -1751,7 +1795,7 @@ class TestComputeBadge:
         assert compute_badge(report) == BADGE_GOLD
 
     def test_fail_on_error(self) -> None:
-        from phinitelab_pdf_pipeline.qa_pipeline import QAIssue
+        from cortexmark.qa_pipeline import QAIssue
 
         report = FileQAReport(
             file="test.md",
@@ -1760,7 +1804,7 @@ class TestComputeBadge:
         assert compute_badge(report) == BADGE_FAIL
 
     def test_silver_on_warning(self) -> None:
-        from phinitelab_pdf_pipeline.qa_pipeline import QAIssue
+        from cortexmark.qa_pipeline import QAIssue
 
         report = FileQAReport(
             file="test.md",
@@ -1841,7 +1885,7 @@ class TestWriteQAReports:
         assert data["summary"]["files_scanned"] == 1
 
     def test_writes_markdown(self, tmp_path: Path) -> None:
-        from phinitelab_pdf_pipeline.qa_pipeline import QAIssue
+        from cortexmark.qa_pipeline import QAIssue
 
         issue = QAIssue(check="enc", severity="error", message="bad char", line=5)
         r = FileQAReport(file="a.md", badge="fail", issues=[issue])
@@ -1864,7 +1908,7 @@ class TestMetadataCLI:
         md.write_text("# Research Paper\n\nJohn Doe, Jane Smith\n\nAbstract: A study.\n", encoding="utf-8")
         out = tmp_path / "meta.json"
         result = subprocess.run(
-            [sys.executable, "-m", "phinitelab_pdf_pipeline.metadata", "--input", str(md), "--output", str(out)],
+            [sys.executable, "-m", "cortexmark.metadata", "--input", str(md), "--output", str(out)],
             capture_output=True,
             text=True,
         )
@@ -1879,7 +1923,7 @@ class TestRAGExportCLI:
         md.write_text("# Ch\n## Sec\n\nBody.\n", encoding="utf-8")
         out = tmp_path / "out.jsonl"
         result = subprocess.run(
-            [sys.executable, "-m", "phinitelab_pdf_pipeline.rag_export", "--input", str(md), "--output", str(out)],
+            [sys.executable, "-m", "cortexmark.rag_export", "--input", str(md), "--output", str(out)],
             capture_output=True,
             text=True,
         )
@@ -1897,7 +1941,7 @@ class TestQACLI:
             [
                 sys.executable,
                 "-m",
-                "phinitelab_pdf_pipeline.qa_pipeline",
+                "cortexmark.qa_pipeline",
                 "--input",
                 str(md),
                 "--output",
@@ -2267,7 +2311,7 @@ class TestDocTypeDetection:
         assert score >= 0.3
 
     def test_detect_syllabus(self) -> None:
-        text = "# Course Syllabus\n\nInstructor: Prof. Smith\n\nWeek 1: Intro\nWeek 2: Basics\nWeek 3: Advanced\n\nGrading: 40% Midterm"
+        text = "# Source Outline\n\nMaintainer: Team Lead\n\nWeek 1: Intro\nWeek 2: Basics\nWeek 3: Advanced\n\nGrading: 40% Midterm"
         score, signals = detect_syllabus(text)
         assert score >= 0.5
         assert any("week" in s for s in signals)
@@ -2372,7 +2416,7 @@ class TestMultiFormatCLI:
             [
                 sys.executable,
                 "-m",
-                "phinitelab_pdf_pipeline.multi_format",
+                "cortexmark.multi_format",
                 "--input",
                 str(md),
                 "--output-dir",
@@ -2394,7 +2438,7 @@ class TestMultiFormatCLI:
             [
                 sys.executable,
                 "-m",
-                "phinitelab_pdf_pipeline.multi_format",
+                "cortexmark.multi_format",
                 "--input",
                 str(md),
                 "--output-dir",
@@ -2419,7 +2463,7 @@ class TestGHPagesCLI:
             [
                 sys.executable,
                 "-m",
-                "phinitelab_pdf_pipeline.ghpages",
+                "cortexmark.ghpages",
                 "--input",
                 str(src),
                 "--output-dir",
@@ -2440,7 +2484,7 @@ class TestDocTypeCLI:
         md.write_text("# Paper\n\nAbstract: Results.\n\n## References\n", encoding="utf-8")
         out = tmp_path / "report.json"
         result = subprocess.run(
-            [sys.executable, "-m", "phinitelab_pdf_pipeline.doc_type", "--input", str(md), "--output", str(out)],
+            [sys.executable, "-m", "cortexmark.doc_type", "--input", str(md), "--output", str(out)],
             capture_output=True,
             text=True,
         )
@@ -2451,7 +2495,7 @@ class TestDocTypeCLI:
     def test_scaffold_cli(self, tmp_path: Path) -> None:
         out = tmp_path / "scaffold.md"
         result = subprocess.run(
-            [sys.executable, "-m", "phinitelab_pdf_pipeline.doc_type", "--scaffold", "paper", "--output", str(out)],
+            [sys.executable, "-m", "cortexmark.doc_type", "--scaffold", "paper", "--output", str(out)],
             capture_output=True,
             text=True,
         )
@@ -2604,7 +2648,7 @@ class TestOCRQualityCLI:
         md.write_text("# Title\n\nNormal document content.\n", encoding="utf-8")
         out = tmp_path / "report.json"
         result = subprocess.run(
-            [sys.executable, "-m", "phinitelab_pdf_pipeline.ocr_quality", "--input", str(md), "--output", str(out)],
+            [sys.executable, "-m", "cortexmark.ocr_quality", "--input", str(md), "--output", str(out)],
             capture_output=True,
             text=True,
         )
@@ -2618,7 +2662,7 @@ class TestOCRQualityCLI:
         (d / "a.md").write_text("Document one with normal text.\n", encoding="utf-8")
         out = tmp_path / "report.json"
         result = subprocess.run(
-            [sys.executable, "-m", "phinitelab_pdf_pipeline.ocr_quality", "--input", str(d), "--output", str(out)],
+            [sys.executable, "-m", "cortexmark.ocr_quality", "--input", str(d), "--output", str(out)],
             capture_output=True,
             text=True,
         )
@@ -2778,7 +2822,7 @@ class TestFigureCLI:
         md.write_text("![Fig](fig.png)\n", encoding="utf-8")
         out = tmp_path / "manifest.json"
         result = subprocess.run(
-            [sys.executable, "-m", "phinitelab_pdf_pipeline.figures", "--input", str(md), "--output", str(out)],
+            [sys.executable, "-m", "cortexmark.figures", "--input", str(md), "--output", str(out)],
             capture_output=True,
             text=True,
         )
@@ -2795,7 +2839,7 @@ class TestFigureCLI:
             [
                 sys.executable,
                 "-m",
-                "phinitelab_pdf_pipeline.figures",
+                "cortexmark.figures",
                 "--input",
                 str(md),
                 "--output",
@@ -2970,7 +3014,7 @@ class TestParallelCLI:
             [
                 sys.executable,
                 "-m",
-                "phinitelab_pdf_pipeline.parallel",
+                "cortexmark.parallel",
                 "--input",
                 str(d),
                 "--operation",
@@ -3141,7 +3185,7 @@ class TestPluginRegistry:
         d.mkdir()
         plugin_py = d / "my_plugin.py"
         plugin_py.write_text(
-            "from phinitelab_pdf_pipeline.plugin import PluginBase\n\n"
+            "from cortexmark.plugin import PluginBase\n\n"
             "class MyPlugin(PluginBase):\n"
             "    name = 'discovered'\n"
             "    description = 'Auto-discovered'\n",
@@ -3191,7 +3235,7 @@ class TestPluginCLI:
             [
                 sys.executable,
                 "-m",
-                "phinitelab_pdf_pipeline.plugin",
+                "cortexmark.plugin",
                 "--plugin-dir",
                 str(d),
                 "--list",
@@ -3363,7 +3407,7 @@ class TestCitationCLI:
         md.write_text("(Smith, 2020) here.\n", encoding="utf-8")
         out = tmp_path / "report.json"
         result = subprocess.run(
-            [sys.executable, "-m", "phinitelab_pdf_pipeline.citations", "--input", str(md), "--output", str(out)],
+            [sys.executable, "-m", "cortexmark.citations", "--input", str(md), "--output", str(out)],
             capture_output=True,
             text=True,
         )
@@ -3418,7 +3462,7 @@ class TestTopicClassification:
         assert result.confidence == 0
 
     def test_scores_sorted(self) -> None:
-        text = "Reinforcement learning MDP policy gradient. Also mentions machine learning neural network."
+        text = "Reinforcement learning Segments policy gradient. Also mentions machine learning neural network."
         result = classify_text(text)
         if len(result.scores) >= 2:
             assert result.scores[0].score >= result.scores[1].score
@@ -3469,7 +3513,7 @@ class TestTopicKeywords:
 class TestTopicFileOps:
     def test_classify_file(self, tmp_path: Path) -> None:
         md = tmp_path / "doc.md"
-        md.write_text("Reinforcement learning with policy gradient and MDP.\n", encoding="utf-8")
+        md.write_text("Reinforcement learning with policy gradient and Segments.\n", encoding="utf-8")
         result = classify_file(md)
         assert result.primary_topic == "reinforcement_learning"
 
@@ -3525,7 +3569,7 @@ class TestTopicCLI:
         md.write_text("Reinforcement learning and policy gradient.\n", encoding="utf-8")
         out = tmp_path / "report.json"
         result = subprocess.run(
-            [sys.executable, "-m", "phinitelab_pdf_pipeline.topics", "--input", str(md), "--output", str(out)],
+            [sys.executable, "-m", "cortexmark.topics", "--input", str(md), "--output", str(out)],
             capture_output=True,
             text=True,
         )
@@ -3711,7 +3755,7 @@ class TestDiffCLI:
             [
                 sys.executable,
                 "-m",
-                "phinitelab_pdf_pipeline.diff",
+                "cortexmark.diff",
                 "--old",
                 str(old),
                 "--new",
@@ -3796,12 +3840,14 @@ class TestRunPipelineCLI:
     def _write_config(tmp_path: Path) -> Path:
         cfg = tmp_path / "cfg.yaml"
         cfg.write_text(
-            "course_id: test\n"
+            "source_id: test\n"
             "paths:\n"
             "  data_raw: {d}\n"
             "  output_raw_md: {r}\n"
             "  output_cleaned_md: {c}\n"
             "  output_chunks: {k}\n"
+            "  output_quality: {q}\n"
+            "  output_semantic_chunks: {s}\n"
             "convert:\n"
             "  engine: dual\n"
             "idempotency:\n"
@@ -3812,25 +3858,27 @@ class TestRunPipelineCLI:
                 r=tmp_path / "raw_md",
                 c=tmp_path / "cleaned_md",
                 k=tmp_path / "chunks",
+                q=tmp_path / "quality",
+                s=tmp_path / "semantic_chunks",
             ),
             encoding="utf-8",
         )
-        for d in ("data/test", "raw_md/test", "cleaned_md/test", "chunks/test"):
+        for d in ("data/test", "raw_md/test", "cleaned_md/test", "chunks/test", "quality", "semantic_chunks"):
             (tmp_path / d).mkdir(parents=True, exist_ok=True)
         return cfg
 
     def test_cli_help(self) -> None:
         result = subprocess.run(
-            [sys.executable, "-m", "phinitelab_pdf_pipeline.run_pipeline", "--help"],
+            [sys.executable, "-m", "cortexmark.run_pipeline", "--help"],
             capture_output=True,
             text=True,
         )
         assert result.returncode == 0
-        assert "phinitelab pdf pipeline" in result.stdout.lower()
+        assert "cortexmark" in result.stdout.lower()
 
     def test_cli_unknown_arg(self) -> None:
         result = subprocess.run(
-            [sys.executable, "-m", "phinitelab_pdf_pipeline.run_pipeline", "--unknown-flag"],
+            [sys.executable, "-m", "cortexmark.run_pipeline", "--unknown-flag"],
             capture_output=True,
             text=True,
         )
@@ -3839,7 +3887,7 @@ class TestRunPipelineCLI:
     def test_cli_missing_config(self, tmp_path: Path) -> None:
         bad_cfg = tmp_path / "nonexistent.yaml"
         result = subprocess.run(
-            [sys.executable, "-m", "phinitelab_pdf_pipeline.run_pipeline", "--config", str(bad_cfg)],
+            [sys.executable, "-m", "cortexmark.run_pipeline", "--config", str(bad_cfg)],
             capture_output=True,
             text=True,
         )
@@ -3853,7 +3901,7 @@ class TestRunPipelineCLI:
             [
                 sys.executable,
                 "-m",
-                "phinitelab_pdf_pipeline.run_pipeline",
+                "cortexmark.run_pipeline",
                 "--config",
                 str(cfg),
                 "--stages",
@@ -3873,7 +3921,7 @@ class TestRunPipelineCLI:
             [
                 sys.executable,
                 "-m",
-                "phinitelab_pdf_pipeline.run_pipeline",
+                "cortexmark.run_pipeline",
                 "--config",
                 str(cfg),
                 "--stages",
@@ -3885,6 +3933,57 @@ class TestRunPipelineCLI:
         )
         assert result.returncode == 0
 
+    def test_cli_validate_stage_writes_session_quality(self, tmp_path: Path) -> None:
+        cfg = self._write_config(tmp_path)
+        (tmp_path / "cleaned_md" / "test" / "doc.md").write_text("# Intro\n\nBody text.\n", encoding="utf-8")
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "cortexmark.run_pipeline",
+                "--config",
+                str(cfg),
+                "--stages",
+                "validate",
+                "--session-name",
+                "sess-1",
+                "--no-manifest",
+            ],
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0
+        assert (tmp_path / "quality" / "sess-1" / "formula_validation.json").exists()
+        assert (tmp_path / "quality" / "sess-1" / "scientific_qa.json").exists()
+        assert (tmp_path / "quality" / "sess-1" / "citation_context.json").exists()
+
+    def test_cli_analyze_stage_writes_session_quality(self, tmp_path: Path) -> None:
+        cfg = self._write_config(tmp_path)
+        (tmp_path / "cleaned_md" / "test" / "doc.md").write_text(
+            "# Intro\n\nAlgorithm 1: Demo\n\nInput: x\nOutput: y\n",
+            encoding="utf-8",
+        )
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "cortexmark.run_pipeline",
+                "--config",
+                str(cfg),
+                "--stages",
+                "analyze",
+                "--session-name",
+                "sess-2",
+                "--no-manifest",
+            ],
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0
+        assert (tmp_path / "quality" / "sess-2" / "crossref_report.json").exists()
+        assert (tmp_path / "quality" / "sess-2" / "algorithm_report.json").exists()
+        assert (tmp_path / "quality" / "sess-2" / "notation_report.json").exists()
+
     def test_cli_files(self, tmp_path: Path) -> None:
         old = tmp_path / "old.md"
         new = tmp_path / "new.md"
@@ -3895,7 +3994,7 @@ class TestRunPipelineCLI:
             [
                 sys.executable,
                 "-m",
-                "phinitelab_pdf_pipeline.diff",
+                "cortexmark.diff",
                 "--old",
                 str(old),
                 "--new",
@@ -4040,11 +4139,11 @@ class TestParseSemanticChunks:
         assert proof_chunks[0].parent_label == "Theorem 1"
 
     def test_definition_detection(self) -> None:
-        text = "# Ch\n\n**Definition 1 (MDP).** A Markov Decision Process is a tuple.\n"
+        text = "# Ch\n\n**Definition 1 (Segments).** A Markov Decision Process is a tuple.\n"
         chunks = parse_semantic_chunks(text)
         def_chunks = [c for c in chunks if c.entity_type == ENTITY_DEFINITION]
         assert len(def_chunks) == 1
-        assert def_chunks[0].entity_name == "MDP"
+        assert def_chunks[0].entity_name == "Segments"
         assert def_chunks[0].entity_label == "Definition 1"
 
     def test_algorithm_code_fence(self) -> None:
@@ -4739,8 +4838,8 @@ class TestNotationFileOps:
 
 class TestPyTyped:
     def test_py_typed_exists(self) -> None:
-        marker = Path(__file__).resolve().parent.parent / "phinitelab_pdf_pipeline" / "py.typed"
-        assert marker.exists(), "py.typed marker should exist in phinitelab_pdf_pipeline/"
+        marker = Path(__file__).resolve().parent.parent / "cortexmark" / "py.typed"
+        assert marker.exists(), "py.typed marker should exist in cortexmark/"
 
     def test_pyrightconfig_exists(self) -> None:
         cfg = Path(__file__).resolve().parent.parent / "pyrightconfig.json"
@@ -4805,62 +4904,62 @@ class TestPackageJsonStructure:
 
     def test_has_views_container(self) -> None:
         containers = self.pkg["contributes"]["viewsContainers"]["activitybar"]
-        assert any(c["id"] == "pdfPipeline" for c in containers)
+        assert any(c["id"] == "cortexmark" for c in containers)
 
     def test_has_tree_view(self) -> None:
-        views = self.pkg["contributes"]["views"]["pdfPipeline"]
+        views = self.pkg["contributes"]["views"]["cortexmark"]
         ids = {v["id"] for v in views}
-        assert "pdfPipelinePanel" in ids
+        assert "cortexmarkPanel" in ids
 
     def test_has_dashboard_view(self) -> None:
-        views = self.pkg["contributes"]["views"]["pdfPipeline"]
-        found = [v for v in views if v["id"] == "pdfPipelineDashboard"]
+        views = self.pkg["contributes"]["views"]["cortexmark"]
+        found = [v for v in views if v["id"] == "cortexmarkDashboard"]
         assert len(found) == 1
         assert found[0].get("type") == "webview"
 
     def test_has_chat_view(self) -> None:
-        views = self.pkg["contributes"]["views"]["pdfPipeline"]
-        found = [v for v in views if v["id"] == "pdfPipelineChat"]
+        views = self.pkg["contributes"]["views"]["cortexmark"]
+        found = [v for v in views if v["id"] == "cortexmarkChat"]
         assert len(found) == 1
         assert found[0].get("type") == "webview"
 
     def test_original_commands_present(self) -> None:
         cmds = {c["command"] for c in self.pkg["contributes"]["commands"]}
         required = {
-            "pdfPipeline.refresh",
-            "pdfPipeline.newSession",
-            "pdfPipeline.deleteSession",
-            "pdfPipeline.setActiveSession",
-            "pdfPipeline.processSession",
-            "pdfPipeline.addPdf",
-            "pdfPipeline.addFolder",
-            "pdfPipeline.runFull",
-            "pdfPipeline.runConvert",
-            "pdfPipeline.runQA",
-            "pdfPipeline.runDiff",
-            "pdfPipeline.openConfig",
-            "pdfPipeline.openOutput",
-            "pdfPipeline.deleteOutput",
+            "cortexmark.refresh",
+            "cortexmark.newSession",
+            "cortexmark.deleteSession",
+            "cortexmark.setActiveSession",
+            "cortexmark.processSession",
+            "cortexmark.addPdf",
+            "cortexmark.addFolder",
+            "cortexmark.runFull",
+            "cortexmark.runConvert",
+            "cortexmark.runQA",
+            "cortexmark.runDiff",
+            "cortexmark.openConfig",
+            "cortexmark.openOutput",
+            "cortexmark.deleteOutput",
         }
         assert required.issubset(cmds), f"Missing commands: {required - cmds}"
 
     def test_analysis_commands_present(self) -> None:
         cmds = {c["command"] for c in self.pkg["contributes"]["commands"]}
         analysis_cmds = {
-            "pdfPipeline.runCrossRef",
-            "pdfPipeline.runAlgorithm",
-            "pdfPipeline.runNotation",
-            "pdfPipeline.runSemanticChunk",
-            "pdfPipeline.runAllAnalysis",
+            "cortexmark.runCrossRef",
+            "cortexmark.runAlgorithm",
+            "cortexmark.runNotation",
+            "cortexmark.runSemanticChunk",
+            "cortexmark.runAllAnalysis",
         }
         assert analysis_cmds.issubset(cmds), f"Missing analysis commands: {analysis_cmds - cmds}"
 
     def test_preview_commands_present(self) -> None:
         cmds = {c["command"] for c in self.pkg["contributes"]["commands"]}
         preview_cmds = {
-            "pdfPipeline.previewFile",
-            "pdfPipeline.refreshPreview",
-            "pdfPipeline.refreshDashboard",
+            "cortexmark.previewFile",
+            "cortexmark.refreshPreview",
+            "cortexmark.refreshDashboard",
         }
         assert preview_cmds.issubset(cmds), f"Missing preview commands: {preview_cmds - cmds}"
 
@@ -4875,35 +4974,42 @@ class TestPackageJsonStructure:
     def test_configuration_properties(self) -> None:
         props = self.pkg["contributes"]["configuration"]["properties"]
         expected_keys = {
-            "pdfPipeline.pythonPath",
-            "pdfPipeline.configPath",
-            "pdfPipeline.defaultEngine",
-            "pdfPipeline.autoProcess",
+            "cortexmark.pythonPath",
+            "cortexmark.configPath",
+            "cortexmark.defaultEngine",
+            "cortexmark.autoProcess",
         }
         assert expected_keys == set(props.keys())
 
     def test_engine_enum_values(self) -> None:
         props = self.pkg["contributes"]["configuration"]["properties"]
-        engine = props["pdfPipeline.defaultEngine"]
+        engine = props["cortexmark.defaultEngine"]
         assert set(engine["enum"]) == {"docling", "markitdown", "dual"}
+
+    def test_has_publish_metadata(self) -> None:
+        assert self.pkg["license"] == "MIT"
+        assert "repository" in self.pkg
+        assert "homepage" in self.pkg
+        assert "bugs" in self.pkg
+        assert self.pkg["keywords"]
 
     def test_analysis_menu_items(self) -> None:
         items = self.pkg["contributes"]["menus"]["view/item/context"]
         cmds = {item["command"] for item in items}
-        assert "pdfPipeline.runCrossRef" in cmds
-        assert "pdfPipeline.runAlgorithm" in cmds
-        assert "pdfPipeline.runNotation" in cmds
-        assert "pdfPipeline.runSemanticChunk" in cmds
+        assert "cortexmark.runCrossRef" in cmds
+        assert "cortexmark.runAlgorithm" in cmds
+        assert "cortexmark.runNotation" in cmds
+        assert "cortexmark.runSemanticChunk" in cmds
 
     def test_preview_menu_item(self) -> None:
         items = self.pkg["contributes"]["menus"]["view/item/context"]
         cmds = {item["command"] for item in items}
-        assert "pdfPipeline.previewFile" in cmds
+        assert "cortexmark.previewFile" in cmds
 
     def test_dashboard_refresh_in_title_menu(self) -> None:
         items = self.pkg["contributes"]["menus"]["view/title"]
         cmds = {item["command"] for item in items}
-        assert "pdfPipeline.refreshDashboard" in cmds
+        assert "cortexmark.refreshDashboard" in cmds
 
 
 class TestExtensionSourcePatterns:
@@ -4928,15 +5034,15 @@ class TestExtensionSourcePatterns:
 
     def test_extension_registers_analysis_commands(self) -> None:
         src = self._read_ts("extension.ts")
-        assert "pdfPipeline.runCrossRef" in src
-        assert "pdfPipeline.runAlgorithm" in src
-        assert "pdfPipeline.runNotation" in src
-        assert "pdfPipeline.runSemanticChunk" in src
-        assert "pdfPipeline.runAllAnalysis" in src
+        assert "cortexmark.runCrossRef" in src
+        assert "cortexmark.runAlgorithm" in src
+        assert "cortexmark.runNotation" in src
+        assert "cortexmark.runSemanticChunk" in src
+        assert "cortexmark.runAllAnalysis" in src
 
     def test_extension_registers_preview_command(self) -> None:
         src = self._read_ts("extension.ts")
-        assert "pdfPipeline.previewFile" in src
+        assert "cortexmark.previewFile" in src
 
     def test_extension_registers_dashboard_view(self) -> None:
         src = self._read_ts("extension.ts")
@@ -4974,6 +5080,12 @@ class TestExtensionSourcePatterns:
         src = self._read_ts("pipelineRunner.ts")
         assert "onCancellationRequested" in src
 
+    def test_runner_analysis_uses_flagged_cli_args(self) -> None:
+        src = self._read_ts("pipelineRunner.ts")
+        assert "--input" in src
+        assert "--output" in src
+        assert "--output-dir" in src
+
     # ── previewPanel.ts ──────────────────────────────────────────────
 
     def test_preview_panel_class(self) -> None:
@@ -4982,7 +5094,7 @@ class TestExtensionSourcePatterns:
 
     def test_preview_panel_view_type(self) -> None:
         src = self._read_ts("previewPanel.ts")
-        assert "pdfPipeline.preview" in src
+        assert "cortexmark.preview" in src
 
     def test_preview_has_qa_badge(self) -> None:
         src = self._read_ts("previewPanel.ts")
@@ -5023,7 +5135,7 @@ class TestExtensionSourcePatterns:
 
     def test_dashboard_view_id(self) -> None:
         src = self._read_ts("dashboardPanel.ts")
-        assert "pdfPipelineDashboard" in src
+        assert "cortexmarkDashboard" in src
 
     def test_dashboard_has_qa_summary(self) -> None:
         src = self._read_ts("dashboardPanel.ts")
@@ -5063,7 +5175,7 @@ class TestExtensionSourcePatterns:
 
     def test_chat_view_type(self) -> None:
         src = self._read_ts("chatView.ts")
-        assert "pdfPipelineChat" in src
+        assert "cortexmarkChat" in src
 
     def test_chat_has_analysis_commands(self) -> None:
         src = self._read_ts("chatView.ts")
@@ -5119,23 +5231,23 @@ class TestVSCodeExtensionConsistency:
             assert cmd in self.ext_src, f"Command {cmd} in package.json but not in extension.ts"
 
     def test_view_ids_match_source(self) -> None:
-        views = self.pkg["contributes"]["views"]["pdfPipeline"]
+        views = self.pkg["contributes"]["views"]["cortexmark"]
         view_ids = {v["id"] for v in views}
         # tree view
-        assert "pdfPipelinePanel" in view_ids
+        assert "cortexmarkPanel" in view_ids
         tree_src = (EXT_SRC / "sessionTree.ts").read_text(encoding="utf-8")
-        assert "pdfPipelinePanel" in self.ext_src or "pdfPipelinePanel" in tree_src
+        assert "cortexmarkPanel" in self.ext_src or "cortexmarkPanel" in tree_src
         # dashboard
-        assert "pdfPipelineDashboard" in view_ids
+        assert "cortexmarkDashboard" in view_ids
         dash_src = (EXT_SRC / "dashboardPanel.ts").read_text(encoding="utf-8")
-        assert "pdfPipelineDashboard" in dash_src
+        assert "cortexmarkDashboard" in dash_src
         # chat
-        assert "pdfPipelineChat" in view_ids
+        assert "cortexmarkChat" in view_ids
         chat_src = (EXT_SRC / "chatView.ts").read_text(encoding="utf-8")
-        assert "pdfPipelineChat" in chat_src
+        assert "cortexmarkChat" in chat_src
 
     def test_three_views_registered(self) -> None:
-        views = self.pkg["contributes"]["views"]["pdfPipeline"]
+        views = self.pkg["contributes"]["views"]["cortexmark"]
         assert len(views) == 3
 
     def test_total_commands_count(self) -> None:
@@ -5154,14 +5266,14 @@ class TestVSCodeExtensionConsistency:
 
 class TestFormulaIssueDataclass:
     def test_creation(self) -> None:
-        from phinitelab_pdf_pipeline.formula_validate import FormulaIssue
+        from cortexmark.formula_validate import FormulaIssue
 
         issue = FormulaIssue(kind="error", message="unclosed brace")
         assert issue.kind == "error"
         assert "unclosed" in issue.message
 
     def test_warning_kind(self) -> None:
-        from phinitelab_pdf_pipeline.formula_validate import FormulaIssue
+        from cortexmark.formula_validate import FormulaIssue
 
         issue = FormulaIssue(kind="warning", message="unknown command")
         assert issue.kind == "warning"
@@ -5169,7 +5281,7 @@ class TestFormulaIssueDataclass:
 
 class TestFormulaDataclass:
     def test_basic_fields(self) -> None:
-        from phinitelab_pdf_pipeline.formula_validate import Formula
+        from cortexmark.formula_validate import Formula
 
         f = Formula(text="x^2", display="inline", valid=True)
         assert f.text == "x^2"
@@ -5177,7 +5289,7 @@ class TestFormulaDataclass:
         assert f.valid is True
 
     def test_error_warning_counts(self) -> None:
-        from phinitelab_pdf_pipeline.formula_validate import Formula, FormulaIssue
+        from cortexmark.formula_validate import Formula, FormulaIssue
 
         f = Formula(
             text="bad",
@@ -5192,7 +5304,7 @@ class TestFormulaDataclass:
         assert f.warning_count == 1
 
     def test_empty_issues(self) -> None:
-        from phinitelab_pdf_pipeline.formula_validate import Formula
+        from cortexmark.formula_validate import Formula
 
         f = Formula(text="x", display="inline")
         assert f.error_count == 0
@@ -5201,7 +5313,7 @@ class TestFormulaDataclass:
 
 class TestFileValidationDataclass:
     def test_creation(self) -> None:
-        from phinitelab_pdf_pipeline.formula_validate import FileValidation
+        from cortexmark.formula_validate import FileValidation
 
         fv = FileValidation(file="test.md", inline_count=3, display_count=1, total_count=4)
         assert fv.file == "test.md"
@@ -5210,7 +5322,7 @@ class TestFileValidationDataclass:
 
 class TestValidationSummaryDataclass:
     def test_defaults(self) -> None:
-        from phinitelab_pdf_pipeline.formula_validate import ValidationSummary
+        from cortexmark.formula_validate import ValidationSummary
 
         vs = ValidationSummary()
         assert vs.files_scanned == 0
@@ -5220,45 +5332,45 @@ class TestValidationSummaryDataclass:
 
 class TestCheckBalancedDelimiters:
     def test_balanced(self) -> None:
-        from phinitelab_pdf_pipeline.formula_validate import check_balanced_delimiters
+        from cortexmark.formula_validate import check_balanced_delimiters
 
         assert check_balanced_delimiters("{x + y}") == []
         assert check_balanced_delimiters("(a[b]{c})") == []
 
     def test_unclosed_brace(self) -> None:
-        from phinitelab_pdf_pipeline.formula_validate import check_balanced_delimiters
+        from cortexmark.formula_validate import check_balanced_delimiters
 
         issues = check_balanced_delimiters("{x + y")
         assert len(issues) >= 1
         assert any("unclosed" in i.message for i in issues)
 
     def test_mismatched(self) -> None:
-        from phinitelab_pdf_pipeline.formula_validate import check_balanced_delimiters
+        from cortexmark.formula_validate import check_balanced_delimiters
 
         issues = check_balanced_delimiters("{x)")
         assert any("mismatched" in i.message or "unclosed" in i.message for i in issues)
 
     def test_extra_closing(self) -> None:
-        from phinitelab_pdf_pipeline.formula_validate import check_balanced_delimiters
+        from cortexmark.formula_validate import check_balanced_delimiters
 
         issues = check_balanced_delimiters("x}")
         assert any("unmatched closing" in i.message for i in issues)
 
     def test_escaped_brace_ignored(self) -> None:
-        from phinitelab_pdf_pipeline.formula_validate import check_balanced_delimiters
+        from cortexmark.formula_validate import check_balanced_delimiters
 
         # Escaped braces should not be counted
         assert check_balanced_delimiters("\\{text\\}") == []
 
     def test_nested(self) -> None:
-        from phinitelab_pdf_pipeline.formula_validate import check_balanced_delimiters
+        from cortexmark.formula_validate import check_balanced_delimiters
 
         assert check_balanced_delimiters("{{inner}}") == []
 
 
 class TestCheckEnvironments:
     def test_matched_environment(self) -> None:
-        from phinitelab_pdf_pipeline.formula_validate import check_environments
+        from cortexmark.formula_validate import check_environments
 
         text = "\\begin{equation}x=1\\end{equation}"
         issues = check_environments(text)
@@ -5266,28 +5378,28 @@ class TestCheckEnvironments:
         assert not any(i.kind == "error" for i in issues)
 
     def test_mismatched_environment(self) -> None:
-        from phinitelab_pdf_pipeline.formula_validate import check_environments
+        from cortexmark.formula_validate import check_environments
 
         text = "\\begin{equation}x=1\\end{align}"
         issues = check_environments(text)
         assert any("mismatch" in i.message for i in issues)
 
     def test_unclosed_environment(self) -> None:
-        from phinitelab_pdf_pipeline.formula_validate import check_environments
+        from cortexmark.formula_validate import check_environments
 
         text = "\\begin{align}x=1"
         issues = check_environments(text)
         assert any("unclosed" in i.message for i in issues)
 
     def test_extra_end(self) -> None:
-        from phinitelab_pdf_pipeline.formula_validate import check_environments
+        from cortexmark.formula_validate import check_environments
 
         text = "\\end{equation}"
         issues = check_environments(text)
         assert any("without matching" in i.message for i in issues)
 
     def test_unknown_environment_warning(self) -> None:
-        from phinitelab_pdf_pipeline.formula_validate import check_environments
+        from cortexmark.formula_validate import check_environments
 
         text = "\\begin{myenv}x\\end{myenv}"
         issues = check_environments(text)
@@ -5296,7 +5408,7 @@ class TestCheckEnvironments:
 
 class TestCheckCommands:
     def test_known_commands(self) -> None:
-        from phinitelab_pdf_pipeline.formula_validate import check_commands
+        from cortexmark.formula_validate import check_commands
 
         cmds, issues = check_commands("\\frac{1}{2} + \\alpha")
         assert "frac" in cmds
@@ -5304,13 +5416,13 @@ class TestCheckCommands:
         assert not any(i.kind == "error" for i in issues)
 
     def test_unknown_command(self) -> None:
-        from phinitelab_pdf_pipeline.formula_validate import check_commands
+        from cortexmark.formula_validate import check_commands
 
         _cmds, issues = check_commands("\\myfancycmd{x}")
         assert any("unknown" in i.message and "myfancycmd" in i.message for i in issues)
 
     def test_empty_text(self) -> None:
-        from phinitelab_pdf_pipeline.formula_validate import check_commands
+        from cortexmark.formula_validate import check_commands
 
         cmds, issues = check_commands("")
         assert cmds == []
@@ -5319,36 +5431,36 @@ class TestCheckCommands:
 
 class TestComputeNestingDepth:
     def test_flat(self) -> None:
-        from phinitelab_pdf_pipeline.formula_validate import compute_nesting_depth
+        from cortexmark.formula_validate import compute_nesting_depth
 
         assert compute_nesting_depth("x + y") == 0
 
     def test_depth_one(self) -> None:
-        from phinitelab_pdf_pipeline.formula_validate import compute_nesting_depth
+        from cortexmark.formula_validate import compute_nesting_depth
 
         assert compute_nesting_depth("{x}") == 1
 
     def test_depth_three(self) -> None:
-        from phinitelab_pdf_pipeline.formula_validate import compute_nesting_depth
+        from cortexmark.formula_validate import compute_nesting_depth
 
         assert compute_nesting_depth("{a{b{c}}}") == 3
 
     def test_escaped_braces(self) -> None:
-        from phinitelab_pdf_pipeline.formula_validate import compute_nesting_depth
+        from cortexmark.formula_validate import compute_nesting_depth
 
         assert compute_nesting_depth("\\{x\\}") == 0
 
 
 class TestComputeComplexity:
     def test_simple_formula(self) -> None:
-        from phinitelab_pdf_pipeline.formula_validate import Formula, compute_complexity
+        from cortexmark.formula_validate import Formula, compute_complexity
 
         f = Formula(text="x", display="inline", nesting_depth=0, command_count=0)
         score = compute_complexity(f)
         assert 0.0 <= score <= 100.0
 
     def test_complex_formula(self) -> None:
-        from phinitelab_pdf_pipeline.formula_validate import Formula, compute_complexity
+        from cortexmark.formula_validate import Formula, compute_complexity
 
         f = Formula(
             text="a" * 300,
@@ -5361,7 +5473,7 @@ class TestComputeComplexity:
         assert score == 100.0  # all factors maxed out
 
     def test_medium_formula(self) -> None:
-        from phinitelab_pdf_pipeline.formula_validate import Formula, compute_complexity
+        from cortexmark.formula_validate import Formula, compute_complexity
 
         f = Formula(
             text="\\frac{a}{b}",
@@ -5376,54 +5488,54 @@ class TestComputeComplexity:
 
 class TestValidateFormula:
     def test_valid_simple(self) -> None:
-        from phinitelab_pdf_pipeline.formula_validate import validate_formula
+        from cortexmark.formula_validate import validate_formula
 
         f = validate_formula("x + y", display="inline")
         assert f.valid is True
         assert f.display == "inline"
 
     def test_empty_formula(self) -> None:
-        from phinitelab_pdf_pipeline.formula_validate import validate_formula
+        from cortexmark.formula_validate import validate_formula
 
         f = validate_formula("", display="inline")
         assert f.valid is False
         assert any("empty" in i.message for i in f.issues)
 
     def test_whitespace_only_formula(self) -> None:
-        from phinitelab_pdf_pipeline.formula_validate import validate_formula
+        from cortexmark.formula_validate import validate_formula
 
         f = validate_formula("   ", display="inline")
         assert f.valid is False
 
     def test_unbalanced_brace(self) -> None:
-        from phinitelab_pdf_pipeline.formula_validate import validate_formula
+        from cortexmark.formula_validate import validate_formula
 
         f = validate_formula("\\frac{x}{y", display="display")
         assert f.valid is False
         assert f.error_count >= 1
 
     def test_valid_with_environments(self) -> None:
-        from phinitelab_pdf_pipeline.formula_validate import validate_formula
+        from cortexmark.formula_validate import validate_formula
 
         f = validate_formula("\\begin{cases}a\\\\b\\end{cases}", display="display")
         assert f.valid is True
         assert "cases" in f.environments
 
     def test_complexity_assigned(self) -> None:
-        from phinitelab_pdf_pipeline.formula_validate import validate_formula
+        from cortexmark.formula_validate import validate_formula
 
         f = validate_formula("\\frac{\\alpha}{\\beta}", display="display")
         assert f.complexity >= 0.0
 
     def test_commands_populated(self) -> None:
-        from phinitelab_pdf_pipeline.formula_validate import validate_formula
+        from cortexmark.formula_validate import validate_formula
 
         f = validate_formula("\\sum_{i=1}^{n} \\alpha_i", display="display")
         assert "sum" in f.commands
         assert "alpha" in f.commands
 
     def test_line_number(self) -> None:
-        from phinitelab_pdf_pipeline.formula_validate import validate_formula
+        from cortexmark.formula_validate import validate_formula
 
         f = validate_formula("x", display="inline", line=42)
         assert f.line == 42
@@ -5431,7 +5543,7 @@ class TestValidateFormula:
 
 class TestExtractAndValidate:
     def test_inline_extraction(self) -> None:
-        from phinitelab_pdf_pipeline.formula_validate import extract_and_validate
+        from cortexmark.formula_validate import extract_and_validate
 
         text = "The value $x + y$ is positive."
         formulas = extract_and_validate(text)
@@ -5439,7 +5551,7 @@ class TestExtractAndValidate:
         assert formulas[0].display == "inline"
 
     def test_display_extraction(self) -> None:
-        from phinitelab_pdf_pipeline.formula_validate import extract_and_validate
+        from cortexmark.formula_validate import extract_and_validate
 
         text = "We have:\n$$E = mc^2$$\n"
         formulas = extract_and_validate(text)
@@ -5447,7 +5559,7 @@ class TestExtractAndValidate:
         assert formulas[0].display == "display"
 
     def test_mixed_formulas(self) -> None:
-        from phinitelab_pdf_pipeline.formula_validate import extract_and_validate
+        from cortexmark.formula_validate import extract_and_validate
 
         text = "Inline: $\\alpha$. Display:\n$$\\beta = 1$$\n"
         formulas = extract_and_validate(text)
@@ -5457,13 +5569,13 @@ class TestExtractAndValidate:
         assert len(display) >= 1
 
     def test_no_formulas(self) -> None:
-        from phinitelab_pdf_pipeline.formula_validate import extract_and_validate
+        from cortexmark.formula_validate import extract_and_validate
 
         formulas = extract_and_validate("Just plain text.")
         assert formulas == []
 
     def test_display_not_double_counted_as_inline(self) -> None:
-        from phinitelab_pdf_pipeline.formula_validate import extract_and_validate
+        from cortexmark.formula_validate import extract_and_validate
 
         text = "$$x^2$$"
         formulas = extract_and_validate(text)
@@ -5474,7 +5586,7 @@ class TestExtractAndValidate:
 
 class TestValidateFile:
     def test_validate_file(self, tmp_path: Path) -> None:
-        from phinitelab_pdf_pipeline.formula_validate import validate_file
+        from cortexmark.formula_validate import validate_file
 
         md = tmp_path / "test.md"
         md.write_text("# Test\n$x$\n$$y^2$$\n", encoding="utf-8")
@@ -5487,17 +5599,17 @@ class TestValidateFile:
 
 class TestValidateTree:
     def test_empty_dir(self, tmp_path: Path) -> None:
-        from phinitelab_pdf_pipeline.formula_validate import validate_tree
+        from cortexmark.formula_validate import validate_tree
 
         assert validate_tree(tmp_path) == []
 
     def test_nonexistent(self, tmp_path: Path) -> None:
-        from phinitelab_pdf_pipeline.formula_validate import validate_tree
+        from cortexmark.formula_validate import validate_tree
 
         assert validate_tree(tmp_path / "nope") == []
 
     def test_single_file(self, tmp_path: Path) -> None:
-        from phinitelab_pdf_pipeline.formula_validate import validate_tree
+        from cortexmark.formula_validate import validate_tree
 
         md = tmp_path / "a.md"
         md.write_text("$x$\n", encoding="utf-8")
@@ -5505,7 +5617,7 @@ class TestValidateTree:
         assert len(results) == 1
 
     def test_multiple_files(self, tmp_path: Path) -> None:
-        from phinitelab_pdf_pipeline.formula_validate import validate_tree
+        from cortexmark.formula_validate import validate_tree
 
         (tmp_path / "a.md").write_text("$x$\n", encoding="utf-8")
         (tmp_path / "b.md").write_text("$$y$$\n", encoding="utf-8")
@@ -5513,7 +5625,7 @@ class TestValidateTree:
         assert len(results) == 2
 
     def test_file_as_root(self, tmp_path: Path) -> None:
-        from phinitelab_pdf_pipeline.formula_validate import validate_tree
+        from cortexmark.formula_validate import validate_tree
 
         md = tmp_path / "single.md"
         md.write_text("$a$\n", encoding="utf-8")
@@ -5523,7 +5635,7 @@ class TestValidateTree:
 
 class TestFormulaBuildSummary:
     def test_summary_aggregation(self) -> None:
-        from phinitelab_pdf_pipeline.formula_validate import FileValidation, build_summary
+        from cortexmark.formula_validate import FileValidation, build_summary
 
         v1 = FileValidation(file="a.md", inline_count=2, display_count=1, total_count=3, valid_count=2, error_count=1)
         v2 = FileValidation(file="b.md", inline_count=1, display_count=2, total_count=3, valid_count=3, error_count=0)
@@ -5536,7 +5648,7 @@ class TestFormulaBuildSummary:
         assert summary.total_errors == 1
 
     def test_empty_summary(self) -> None:
-        from phinitelab_pdf_pipeline.formula_validate import build_summary
+        from cortexmark.formula_validate import build_summary
 
         summary = build_summary([])
         assert summary.files_scanned == 0
@@ -5546,7 +5658,7 @@ class TestFormulaBuildSummary:
 
 class TestFormulaWriteReport:
     def test_writes_json(self, tmp_path: Path) -> None:
-        from phinitelab_pdf_pipeline.formula_validate import (
+        from cortexmark.formula_validate import (
             FileValidation,
             ValidationSummary,
             write_report,
@@ -5568,7 +5680,7 @@ class TestFormulaWriteReport:
 
 class TestFormulaCLIParser:
     def test_parser_defaults(self) -> None:
-        from phinitelab_pdf_pipeline.formula_validate import build_parser
+        from cortexmark.formula_validate import build_parser
 
         parser = build_parser()
         args = parser.parse_args([])
@@ -5576,7 +5688,7 @@ class TestFormulaCLIParser:
         assert args.output is None
 
     def test_parser_with_args(self) -> None:
-        from phinitelab_pdf_pipeline.formula_validate import build_parser
+        from cortexmark.formula_validate import build_parser
 
         parser = build_parser()
         args = parser.parse_args(["--input", "/tmp/test", "--output", "/tmp/out.json"])
@@ -5589,7 +5701,7 @@ class TestFormulaCLIParser:
 
 class TestCitationContextDataclass:
     def test_creation(self) -> None:
-        from phinitelab_pdf_pipeline.citation_context import CitationContext
+        from cortexmark.citation_context import CitationContext
 
         ctx = CitationContext(
             raw_text="(Smith, 2020)",
@@ -5604,7 +5716,7 @@ class TestCitationContextDataclass:
 
 class TestCoCitationDataclass:
     def test_creation(self) -> None:
-        from phinitelab_pdf_pipeline.citation_context import CoCitation
+        from cortexmark.citation_context import CoCitation
 
         cc = CoCitation(cite_a="(A, 2020)", cite_b="(B, 2021)", sentence="Both A, 2020 and B, 2021.", count=2)
         assert cc.count == 2
@@ -5612,7 +5724,7 @@ class TestCoCitationDataclass:
 
 class TestSelfCitationDataclass:
     def test_creation(self) -> None:
-        from phinitelab_pdf_pipeline.citation_context import SelfCitation
+        from cortexmark.citation_context import SelfCitation
 
         sc = SelfCitation(raw_text="(Smith, 2020)", matching_author="Smith", line=5)
         assert sc.matching_author == "Smith"
@@ -5620,7 +5732,7 @@ class TestSelfCitationDataclass:
 
 class TestContextSummaryDataclass:
     def test_defaults(self) -> None:
-        from phinitelab_pdf_pipeline.citation_context import ContextSummary
+        from cortexmark.citation_context import ContextSummary
 
         cs = ContextSummary()
         assert cs.files_scanned == 0
@@ -5629,14 +5741,14 @@ class TestContextSummaryDataclass:
 
 class TestSplitSentences:
     def test_two_sentences(self) -> None:
-        from phinitelab_pdf_pipeline.citation_context import _split_sentences
+        from cortexmark.citation_context import _split_sentences
 
         text = "First sentence. Second sentence."
         sentences = _split_sentences(text)
         assert len(sentences) >= 2
 
     def test_collapses_single_newlines(self) -> None:
-        from phinitelab_pdf_pipeline.citation_context import _split_sentences
+        from cortexmark.citation_context import _split_sentences
 
         text = "This is\na continuation. And a second."
         sentences = _split_sentences(text)
@@ -5645,44 +5757,44 @@ class TestSplitSentences:
 
 class TestClassifyPurpose:
     def test_foundational(self) -> None:
-        from phinitelab_pdf_pipeline.citation_context import classify_purpose
+        from cortexmark.citation_context import classify_purpose
 
         purpose, conf = classify_purpose("Our method is based on Smith (2020).")
         assert purpose == "foundational"
         assert conf > 0.5
 
     def test_comparative(self) -> None:
-        from phinitelab_pdf_pipeline.citation_context import classify_purpose
+        from cortexmark.citation_context import classify_purpose
 
         purpose, _conf = classify_purpose("In contrast to Jones (2019), we find.")
         assert purpose == "comparative"
 
     def test_methodological(self) -> None:
-        from phinitelab_pdf_pipeline.citation_context import classify_purpose
+        from cortexmark.citation_context import classify_purpose
 
         purpose, _conf = classify_purpose("We use the method of Brown (2018) to analyze data.")
         assert purpose == "methodological"
 
     def test_extending(self) -> None:
-        from phinitelab_pdf_pipeline.citation_context import classify_purpose
+        from cortexmark.citation_context import classify_purpose
 
         purpose, _conf = classify_purpose("We extend the framework of Chen (2021).")
         assert purpose == "extending"
 
     def test_background(self) -> None:
-        from phinitelab_pdf_pipeline.citation_context import classify_purpose
+        from cortexmark.citation_context import classify_purpose
 
         purpose, _conf = classify_purpose("This has been widely studied in the literature.")
         assert purpose == "background"
 
     def test_refuting(self) -> None:
-        from phinitelab_pdf_pipeline.citation_context import classify_purpose
+        from cortexmark.citation_context import classify_purpose
 
         purpose, _conf = classify_purpose("We disagree with the analysis of Lee (2017).")
         assert purpose == "refuting"
 
     def test_unknown(self) -> None:
-        from phinitelab_pdf_pipeline.citation_context import classify_purpose
+        from cortexmark.citation_context import classify_purpose
 
         purpose, conf = classify_purpose("Some random sentence with no cues.")
         assert purpose == "unknown"
@@ -5691,7 +5803,7 @@ class TestClassifyPurpose:
 
 class TestExtractCitationContexts:
     def test_author_year(self) -> None:
-        from phinitelab_pdf_pipeline.citation_context import extract_citation_contexts
+        from cortexmark.citation_context import extract_citation_contexts
 
         text = "This builds upon (Smith, 2020) for the core method."
         contexts = extract_citation_contexts(text)
@@ -5699,7 +5811,7 @@ class TestExtractCitationContexts:
         assert contexts[0].cite_type == "author-year"
 
     def test_numeric_bracket(self) -> None:
-        from phinitelab_pdf_pipeline.citation_context import extract_citation_contexts
+        from cortexmark.citation_context import extract_citation_contexts
 
         text = "Several works [1, 2, 3] have studied this problem."
         contexts = extract_citation_contexts(text)
@@ -5707,20 +5819,20 @@ class TestExtractCitationContexts:
         assert contexts[0].cite_type == "numeric"
 
     def test_no_citations(self) -> None:
-        from phinitelab_pdf_pipeline.citation_context import extract_citation_contexts
+        from cortexmark.citation_context import extract_citation_contexts
 
         contexts = extract_citation_contexts("Plain text with no refs.")
         assert contexts == []
 
     def test_multiple_citations_in_sentence(self) -> None:
-        from phinitelab_pdf_pipeline.citation_context import extract_citation_contexts
+        from cortexmark.citation_context import extract_citation_contexts
 
         text = "Based on (Smith, 2020) and [5], we proceed."
         contexts = extract_citation_contexts(text)
         assert len(contexts) >= 2
 
     def test_source_file_preserved(self) -> None:
-        from phinitelab_pdf_pipeline.citation_context import extract_citation_contexts
+        from cortexmark.citation_context import extract_citation_contexts
 
         contexts = extract_citation_contexts("See (Smith, 2020).", source_file="paper.md")
         if contexts:
@@ -5729,7 +5841,7 @@ class TestExtractCitationContexts:
 
 class TestDetectCoCitations:
     def test_co_citation_pair(self) -> None:
-        from phinitelab_pdf_pipeline.citation_context import CitationContext, detect_co_citations
+        from cortexmark.citation_context import CitationContext, detect_co_citations
 
         shared_sent = "Both (Smith, 2020) and (Jones, 2021) found similar results."
         contexts = [
@@ -5740,7 +5852,7 @@ class TestDetectCoCitations:
         assert len(co) >= 1
 
     def test_no_co_citations(self) -> None:
-        from phinitelab_pdf_pipeline.citation_context import CitationContext, detect_co_citations
+        from cortexmark.citation_context import CitationContext, detect_co_citations
 
         contexts = [
             CitationContext("(Smith, 2020)", "author-year", "Sentence A.", "background", 0.8),
@@ -5752,7 +5864,7 @@ class TestDetectCoCitations:
 
 class TestDetectSelfCitations:
     def test_self_citation_found(self) -> None:
-        from phinitelab_pdf_pipeline.citation_context import CitationContext, detect_self_citations
+        from cortexmark.citation_context import CitationContext, detect_self_citations
 
         contexts = [
             CitationContext("(Smith, 2020)", "author-year", "Our prior work (Smith, 2020).", "extending", 0.8),
@@ -5762,7 +5874,7 @@ class TestDetectSelfCitations:
         assert self_cites[0].matching_author == "Smith"
 
     def test_no_match(self) -> None:
-        from phinitelab_pdf_pipeline.citation_context import CitationContext, detect_self_citations
+        from cortexmark.citation_context import CitationContext, detect_self_citations
 
         contexts = [
             CitationContext("(Jones, 2021)", "author-year", "See Jones.", "background", 0.8),
@@ -5771,7 +5883,7 @@ class TestDetectSelfCitations:
         assert self_cites == []
 
     def test_no_authors_provided(self) -> None:
-        from phinitelab_pdf_pipeline.citation_context import CitationContext, detect_self_citations
+        from cortexmark.citation_context import CitationContext, detect_self_citations
 
         contexts = [
             CitationContext("(Smith, 2020)", "author-year", "See Smith.", "background", 0.8),
@@ -5780,7 +5892,7 @@ class TestDetectSelfCitations:
         assert detect_self_citations(contexts, document_authors=[]) == []
 
     def test_numeric_citations_skipped(self) -> None:
-        from phinitelab_pdf_pipeline.citation_context import CitationContext, detect_self_citations
+        from cortexmark.citation_context import CitationContext, detect_self_citations
 
         contexts = [
             CitationContext("[1]", "numeric", "See [1].", "background", 0.8),
@@ -5791,7 +5903,7 @@ class TestDetectSelfCitations:
 
 class TestExtractAuthorsFromText:
     def test_author_line(self) -> None:
-        from phinitelab_pdf_pipeline.citation_context import _extract_authors_from_text
+        from cortexmark.citation_context import _extract_authors_from_text
 
         text = "# My Paper\nAuthors: Alice Smith, Bob Jones, and Carol Lee\n\n## Abstract"
         authors = _extract_authors_from_text(text)
@@ -5799,7 +5911,7 @@ class TestExtractAuthorsFromText:
         assert any("Smith" in a for a in authors)
 
     def test_no_authors(self) -> None:
-        from phinitelab_pdf_pipeline.citation_context import _extract_authors_from_text
+        from cortexmark.citation_context import _extract_authors_from_text
 
         authors = _extract_authors_from_text("Just some text with no author.")
         assert authors == []
@@ -5807,7 +5919,7 @@ class TestExtractAuthorsFromText:
 
 class TestCitationAnalyzeFile:
     def test_analyze_file(self, tmp_path: Path) -> None:
-        from phinitelab_pdf_pipeline.citation_context import analyze_file
+        from cortexmark.citation_context import analyze_file
 
         md = tmp_path / "paper.md"
         md.write_text(
@@ -5823,17 +5935,17 @@ class TestCitationAnalyzeFile:
 
 class TestCitationAnalyzeTree:
     def test_empty_dir(self, tmp_path: Path) -> None:
-        from phinitelab_pdf_pipeline.citation_context import analyze_tree
+        from cortexmark.citation_context import analyze_tree
 
         assert analyze_tree(tmp_path) == []
 
     def test_nonexistent(self, tmp_path: Path) -> None:
-        from phinitelab_pdf_pipeline.citation_context import analyze_tree
+        from cortexmark.citation_context import analyze_tree
 
         assert analyze_tree(tmp_path / "missing") == []
 
     def test_single_file(self, tmp_path: Path) -> None:
-        from phinitelab_pdf_pipeline.citation_context import analyze_tree
+        from cortexmark.citation_context import analyze_tree
 
         md = tmp_path / "paper.md"
         md.write_text("See (Smith, 2020) for details.\n", encoding="utf-8")
@@ -5841,7 +5953,7 @@ class TestCitationAnalyzeTree:
         assert len(results) == 1
 
     def test_file_as_root(self, tmp_path: Path) -> None:
-        from phinitelab_pdf_pipeline.citation_context import analyze_tree
+        from cortexmark.citation_context import analyze_tree
 
         md = tmp_path / "paper.md"
         md.write_text("See (Smith, 2020).\n", encoding="utf-8")
@@ -5851,7 +5963,7 @@ class TestCitationAnalyzeTree:
 
 class TestCitationBuildSummary:
     def test_aggregation(self) -> None:
-        from phinitelab_pdf_pipeline.citation_context import FileContextReport, build_summary
+        from cortexmark.citation_context import FileContextReport, build_summary
 
         r1 = FileContextReport(file="a.md", total_citations=3, purpose_distribution={"foundational": 2, "unknown": 1})
         r2 = FileContextReport(
@@ -5863,7 +5975,7 @@ class TestCitationBuildSummary:
         assert summary.purpose_distribution["foundational"] == 3
 
     def test_empty_summary(self) -> None:
-        from phinitelab_pdf_pipeline.citation_context import build_summary
+        from cortexmark.citation_context import build_summary
 
         s = build_summary([])
         assert s.files_scanned == 0
@@ -5872,7 +5984,7 @@ class TestCitationBuildSummary:
 
 class TestCitationWriteReport:
     def test_writes_json(self, tmp_path: Path) -> None:
-        from phinitelab_pdf_pipeline.citation_context import (
+        from cortexmark.citation_context import (
             ContextSummary,
             FileContextReport,
             write_report,
@@ -5892,7 +6004,7 @@ class TestCitationWriteReport:
 
 class TestCitationCLIParser:
     def test_parser_defaults(self) -> None:
-        from phinitelab_pdf_pipeline.citation_context import build_parser
+        from cortexmark.citation_context import build_parser
 
         parser = build_parser()
         args = parser.parse_args([])
@@ -5904,7 +6016,7 @@ class TestCitationCLIParser:
 
 class TestSciQAIssueDataclass:
     def test_creation(self) -> None:
-        from phinitelab_pdf_pipeline.scientific_qa import SciQAIssue
+        from cortexmark.scientific_qa import SciQAIssue
 
         issue = SciQAIssue(check="theorem_proof_pairing", severity="warning", message="missing proof")
         assert issue.check == "theorem_proof_pairing"
@@ -5913,14 +6025,14 @@ class TestSciQAIssueDataclass:
 
 class TestFileSciQAReportDataclass:
     def test_badge_gold(self) -> None:
-        from phinitelab_pdf_pipeline.scientific_qa import FileSciQAReport
+        from cortexmark.scientific_qa import FileSciQAReport
 
         r = FileSciQAReport(file="a.md")
         assert r.badge == "gold"
         assert r.error_count == 0
 
     def test_badge_fail(self) -> None:
-        from phinitelab_pdf_pipeline.scientific_qa import FileSciQAReport, SciQAIssue
+        from cortexmark.scientific_qa import FileSciQAReport, SciQAIssue
 
         r = FileSciQAReport(
             file="a.md",
@@ -5929,7 +6041,7 @@ class TestFileSciQAReportDataclass:
         assert r.badge == "fail"
 
     def test_badge_silver(self) -> None:
-        from phinitelab_pdf_pipeline.scientific_qa import FileSciQAReport, SciQAIssue
+        from cortexmark.scientific_qa import FileSciQAReport, SciQAIssue
 
         r = FileSciQAReport(
             file="a.md",
@@ -5938,7 +6050,7 @@ class TestFileSciQAReportDataclass:
         assert r.badge == "silver"
 
     def test_badge_bronze(self) -> None:
-        from phinitelab_pdf_pipeline.scientific_qa import FileSciQAReport, SciQAIssue
+        from cortexmark.scientific_qa import FileSciQAReport, SciQAIssue
 
         r = FileSciQAReport(
             file="a.md",
@@ -5951,7 +6063,7 @@ class TestFileSciQAReportDataclass:
         assert r.badge == "bronze"
 
     def test_error_warning_counts(self) -> None:
-        from phinitelab_pdf_pipeline.scientific_qa import FileSciQAReport, SciQAIssue
+        from cortexmark.scientific_qa import FileSciQAReport, SciQAIssue
 
         r = FileSciQAReport(
             file="x.md",
@@ -5968,7 +6080,7 @@ class TestFileSciQAReportDataclass:
 
 class TestSciQASummaryDataclass:
     def test_defaults(self) -> None:
-        from phinitelab_pdf_pipeline.scientific_qa import SciQASummary
+        from cortexmark.scientific_qa import SciQASummary
 
         s = SciQASummary()
         assert s.files_scanned == 0
@@ -5977,14 +6089,14 @@ class TestSciQASummaryDataclass:
 
 class TestCheckTheoremProofPairing:
     def test_theorem_with_proof(self) -> None:
-        from phinitelab_pdf_pipeline.scientific_qa import check_theorem_proof_pairing
+        from cortexmark.scientific_qa import check_theorem_proof_pairing
 
         text = "**Theorem 1.** Some statement.\n\n**Proof.** We show that..."
         issues = check_theorem_proof_pairing(text)
         assert len(issues) == 0
 
     def test_theorem_without_proof(self) -> None:
-        from phinitelab_pdf_pipeline.scientific_qa import check_theorem_proof_pairing
+        from cortexmark.scientific_qa import check_theorem_proof_pairing
 
         text = "**Theorem 1.** Some statement.\n\nSome other text."
         issues = check_theorem_proof_pairing(text)
@@ -5992,28 +6104,28 @@ class TestCheckTheoremProofPairing:
         assert any("no corresponding proof" in i.message for i in issues)
 
     def test_theorem_proof_omitted(self) -> None:
-        from phinitelab_pdf_pipeline.scientific_qa import check_theorem_proof_pairing
+        from cortexmark.scientific_qa import check_theorem_proof_pairing
 
         text = "**Theorem 1.** Statement.\n\nThe proof is omitted."
         issues = check_theorem_proof_pairing(text)
         assert len(issues) == 0
 
     def test_theorem_proof_left_as_exercise(self) -> None:
-        from phinitelab_pdf_pipeline.scientific_qa import check_theorem_proof_pairing
+        from cortexmark.scientific_qa import check_theorem_proof_pairing
 
         text = "**Theorem 1.** Statement.\n\nThe proof is left to the reader."
         issues = check_theorem_proof_pairing(text)
         assert len(issues) == 0
 
     def test_labeled_proof(self) -> None:
-        from phinitelab_pdf_pipeline.scientific_qa import check_theorem_proof_pairing
+        from cortexmark.scientific_qa import check_theorem_proof_pairing
 
         text = "**Theorem 2.1** Statement.\n\n**Proof of Theorem 2.1.** Done."
         issues = check_theorem_proof_pairing(text)
         assert len(issues) == 0
 
     def test_lemma_no_proof(self) -> None:
-        from phinitelab_pdf_pipeline.scientific_qa import check_theorem_proof_pairing
+        from cortexmark.scientific_qa import check_theorem_proof_pairing
 
         text = "**Lemma 3.** A useful lemma."
         issues = check_theorem_proof_pairing(text)
@@ -6022,14 +6134,14 @@ class TestCheckTheoremProofPairing:
 
 class TestCheckDefinitionBeforeUse:
     def test_definition_before(self) -> None:
-        from phinitelab_pdf_pipeline.scientific_qa import check_definition_before_use
+        from cortexmark.scientific_qa import check_definition_before_use
 
         text = "**Definition 1.** A set is...\n\nBy Definition 1, we have..."
         issues = check_definition_before_use(text)
         assert len(issues) == 0
 
     def test_reference_before_definition(self) -> None:
-        from phinitelab_pdf_pipeline.scientific_qa import check_definition_before_use
+        from cortexmark.scientific_qa import check_definition_before_use
 
         # DEFINITION_RE also matches plain "Definition X" references,
         # so detection only triggers when the reference match position
@@ -6041,7 +6153,7 @@ class TestCheckDefinitionBeforeUse:
         assert isinstance(issues, list)
 
     def test_no_definitions(self) -> None:
-        from phinitelab_pdf_pipeline.scientific_qa import check_definition_before_use
+        from cortexmark.scientific_qa import check_definition_before_use
 
         issues = check_definition_before_use("Just regular text.")
         assert issues == []
@@ -6049,14 +6161,14 @@ class TestCheckDefinitionBeforeUse:
 
 class TestCheckNotationConsistency:
     def test_consistent_notation(self) -> None:
-        from phinitelab_pdf_pipeline.scientific_qa import check_notation_consistency
+        from cortexmark.scientific_qa import check_notation_consistency
 
         text = "Let $X$ be a set."
         issues = check_notation_consistency(text)
         assert issues == []
 
     def test_conflicting_notation(self) -> None:
-        from phinitelab_pdf_pipeline.scientific_qa import check_notation_consistency
+        from cortexmark.scientific_qa import check_notation_consistency
 
         text = "Let $X$ be a set. Later, let $X$ be a function."
         issues = check_notation_consistency(text)
@@ -6064,7 +6176,7 @@ class TestCheckNotationConsistency:
         assert any("multiple times" in i.message for i in issues)
 
     def test_no_notation(self) -> None:
-        from phinitelab_pdf_pipeline.scientific_qa import check_notation_consistency
+        from cortexmark.scientific_qa import check_notation_consistency
 
         issues = check_notation_consistency("No math here.")
         assert issues == []
@@ -6072,14 +6184,14 @@ class TestCheckNotationConsistency:
 
 class TestCheckCrossrefCompleteness:
     def test_resolved_reference(self) -> None:
-        from phinitelab_pdf_pipeline.scientific_qa import check_crossref_completeness
+        from cortexmark.scientific_qa import check_crossref_completeness
 
         text = "**Theorem 1.** Statement.\n\nBy Theorem 1, we have."
         issues = check_crossref_completeness(text)
         assert len(issues) == 0
 
     def test_unresolved_reference(self) -> None:
-        from phinitelab_pdf_pipeline.scientific_qa import check_crossref_completeness
+        from cortexmark.scientific_qa import check_crossref_completeness
 
         text = "See Theorem 5 for details."
         issues = check_crossref_completeness(text)
@@ -6089,7 +6201,7 @@ class TestCheckCrossrefCompleteness:
         assert len(issues) == 0
 
     def test_unresolved_with_some_definitions(self) -> None:
-        from phinitelab_pdf_pipeline.scientific_qa import check_crossref_completeness
+        from cortexmark.scientific_qa import check_crossref_completeness
 
         # Note: THEOREM_HEADING_RE also matches plain "Theorem X" references,
         # so the function may not detect all unresolved refs. Verify it runs.
@@ -6100,7 +6212,7 @@ class TestCheckCrossrefCompleteness:
 
 class TestCheckAlgorithmValidity:
     def test_valid_algorithm(self) -> None:
-        from phinitelab_pdf_pipeline.scientific_qa import check_algorithm_validity
+        from cortexmark.scientific_qa import check_algorithm_validity
 
         text = (
             "**Algorithm 1: Binary Search**\n"
@@ -6114,21 +6226,21 @@ class TestCheckAlgorithmValidity:
         assert not any(i.severity in ("error", "warning") for i in issues)
 
     def test_no_input(self) -> None:
-        from phinitelab_pdf_pipeline.scientific_qa import check_algorithm_validity
+        from cortexmark.scientific_qa import check_algorithm_validity
 
         text = "**Algorithm 2: Sort**\nOutput: sorted array\n1. Do the sorting\n2. Return result\n"
         issues = check_algorithm_validity(text)
         assert any("no declared inputs" in i.message for i in issues)
 
     def test_short_body(self) -> None:
-        from phinitelab_pdf_pipeline.scientific_qa import check_algorithm_validity
+        from cortexmark.scientific_qa import check_algorithm_validity
 
         text = "**Algorithm 3: Empty**\nOk"
         issues = check_algorithm_validity(text)
         assert any("very short" in i.message for i in issues)
 
     def test_no_algorithms(self) -> None:
-        from phinitelab_pdf_pipeline.scientific_qa import check_algorithm_validity
+        from cortexmark.scientific_qa import check_algorithm_validity
 
         issues = check_algorithm_validity("Regular text without algorithms.")
         assert issues == []
@@ -6136,28 +6248,28 @@ class TestCheckAlgorithmValidity:
 
 class TestCheckFormulaQuality:
     def test_good_quality(self) -> None:
-        from phinitelab_pdf_pipeline.scientific_qa import check_formula_quality
+        from cortexmark.scientific_qa import check_formula_quality
 
         text = "We have $x = 1$ and $$y = 2$$."
         issues = check_formula_quality(text)
         assert not any(i.severity == "error" for i in issues)
 
     def test_low_fidelity(self) -> None:
-        from phinitelab_pdf_pipeline.scientific_qa import check_formula_quality
+        from cortexmark.scientific_qa import check_formula_quality
 
         text = "$x=1$ <!-- formula-not-decoded -->\n$y=2$ <!-- formula-not-decoded -->\n$z=3$\n"
         issues = check_formula_quality(text, min_fidelity=50.0)
         assert any("fidelity" in i.message.lower() for i in issues)
 
     def test_empty_blocks(self) -> None:
-        from phinitelab_pdf_pipeline.scientific_qa import check_formula_quality
+        from cortexmark.scientific_qa import check_formula_quality
 
         text = "$$ $$ and $ $."
         issues = check_formula_quality(text)
         assert any("empty" in i.message for i in issues)
 
     def test_no_formulas(self) -> None:
-        from phinitelab_pdf_pipeline.scientific_qa import check_formula_quality
+        from cortexmark.scientific_qa import check_formula_quality
 
         issues = check_formula_quality("Just text, no math.")
         assert issues == []
@@ -6165,7 +6277,7 @@ class TestCheckFormulaQuality:
 
 class TestRunAllChecks:
     def test_combines_all_checks(self) -> None:
-        from phinitelab_pdf_pipeline.scientific_qa import run_all_checks
+        from cortexmark.scientific_qa import run_all_checks
 
         text = "**Theorem 1.** Statement.\n**Algorithm 1: Test**\nOk.\n$x = 1$\n"
         issues = run_all_checks(text)
@@ -6173,7 +6285,7 @@ class TestRunAllChecks:
         assert isinstance(issues, list)
 
     def test_clean_document(self) -> None:
-        from phinitelab_pdf_pipeline.scientific_qa import run_all_checks
+        from cortexmark.scientific_qa import run_all_checks
 
         text = (
             "**Theorem 1.** Statement.\n\n"
@@ -6188,7 +6300,7 @@ class TestRunAllChecks:
 
 class TestSciQAAnalyzeFile:
     def test_analyze_file(self, tmp_path: Path) -> None:
-        from phinitelab_pdf_pipeline.scientific_qa import analyze_file
+        from cortexmark.scientific_qa import analyze_file
 
         md = tmp_path / "doc.md"
         md.write_text(
@@ -6203,7 +6315,7 @@ class TestSciQAAnalyzeFile:
         assert report.formulas_found >= 1
 
     def test_badge_assigned(self, tmp_path: Path) -> None:
-        from phinitelab_pdf_pipeline.scientific_qa import analyze_file
+        from cortexmark.scientific_qa import analyze_file
 
         md = tmp_path / "clean.md"
         md.write_text("**Theorem 1.** Stmt.\n\n**Proof.** Done.\n", encoding="utf-8")
@@ -6213,17 +6325,17 @@ class TestSciQAAnalyzeFile:
 
 class TestSciQAAnalyzeTree:
     def test_empty_dir(self, tmp_path: Path) -> None:
-        from phinitelab_pdf_pipeline.scientific_qa import analyze_tree
+        from cortexmark.scientific_qa import analyze_tree
 
         assert analyze_tree(tmp_path) == []
 
     def test_nonexistent(self, tmp_path: Path) -> None:
-        from phinitelab_pdf_pipeline.scientific_qa import analyze_tree
+        from cortexmark.scientific_qa import analyze_tree
 
         assert analyze_tree(tmp_path / "missing") == []
 
     def test_multiple_files(self, tmp_path: Path) -> None:
-        from phinitelab_pdf_pipeline.scientific_qa import analyze_tree
+        from cortexmark.scientific_qa import analyze_tree
 
         (tmp_path / "a.md").write_text("**Theorem 1.** X.\n\n**Proof.** Y.\n", encoding="utf-8")
         (tmp_path / "b.md").write_text("$z = 1$\n", encoding="utf-8")
@@ -6231,7 +6343,7 @@ class TestSciQAAnalyzeTree:
         assert len(results) == 2
 
     def test_file_as_root(self, tmp_path: Path) -> None:
-        from phinitelab_pdf_pipeline.scientific_qa import analyze_tree
+        from cortexmark.scientific_qa import analyze_tree
 
         md = tmp_path / "doc.md"
         md.write_text("$x$\n", encoding="utf-8")
@@ -6241,7 +6353,7 @@ class TestSciQAAnalyzeTree:
 
 class TestSciQABuildSummary:
     def test_aggregation(self) -> None:
-        from phinitelab_pdf_pipeline.scientific_qa import FileSciQAReport, SciQAIssue, build_summary
+        from cortexmark.scientific_qa import FileSciQAReport, SciQAIssue, build_summary
 
         r1 = FileSciQAReport(
             file="a.md",
@@ -6264,7 +6376,7 @@ class TestSciQABuildSummary:
         assert "fail" in summary.badge_distribution
 
     def test_empty_summary(self) -> None:
-        from phinitelab_pdf_pipeline.scientific_qa import build_summary
+        from cortexmark.scientific_qa import build_summary
 
         s = build_summary([])
         assert s.files_scanned == 0
@@ -6272,7 +6384,7 @@ class TestSciQABuildSummary:
 
 class TestSciQAWriteReport:
     def test_writes_json(self, tmp_path: Path) -> None:
-        from phinitelab_pdf_pipeline.scientific_qa import FileSciQAReport, SciQASummary, write_report
+        from cortexmark.scientific_qa import FileSciQAReport, SciQASummary, write_report
 
         r = FileSciQAReport(file="a.md", theorems_found=1)
         s = SciQASummary(files_scanned=1, total_issues=0)
@@ -6289,7 +6401,7 @@ class TestSciQAWriteReport:
 
 class TestSciQACLIParser:
     def test_parser_defaults(self) -> None:
-        from phinitelab_pdf_pipeline.scientific_qa import build_parser
+        from cortexmark.scientific_qa import build_parser
 
         parser = build_parser()
         args = parser.parse_args([])
@@ -6301,21 +6413,21 @@ class TestSciQACLIParser:
 
 class TestRunPipelinePhase4Stages:
     def test_analyze_in_stage_choices(self) -> None:
-        from phinitelab_pdf_pipeline.run_pipeline import build_parser
+        from cortexmark.run_pipeline import build_parser
 
         parser = build_parser()
         args = parser.parse_args(["--stages", "analyze"])
         assert "analyze" in args.stages
 
     def test_validate_in_stage_choices(self) -> None:
-        from phinitelab_pdf_pipeline.run_pipeline import build_parser
+        from cortexmark.run_pipeline import build_parser
 
         parser = build_parser()
         args = parser.parse_args(["--stages", "validate"])
         assert "validate" in args.stages
 
     def test_analyze_validate_together(self) -> None:
-        from phinitelab_pdf_pipeline.run_pipeline import build_parser
+        from cortexmark.run_pipeline import build_parser
 
         parser = build_parser()
         args = parser.parse_args(["--stages", "analyze", "validate"])
@@ -6323,7 +6435,7 @@ class TestRunPipelinePhase4Stages:
         assert "validate" in args.stages
 
     def test_default_stages_exclude_analyze_validate(self) -> None:
-        from phinitelab_pdf_pipeline.run_pipeline import build_parser
+        from cortexmark.run_pipeline import build_parser
 
         parser = build_parser()
         args = parser.parse_args([])
@@ -6331,7 +6443,7 @@ class TestRunPipelinePhase4Stages:
         assert "validate" not in args.stages
 
     def test_all_six_stages(self) -> None:
-        from phinitelab_pdf_pipeline.run_pipeline import build_parser
+        from cortexmark.run_pipeline import build_parser
 
         parser = build_parser()
         all_stages = ["convert", "clean", "chunk", "render", "analyze", "validate"]
@@ -6344,7 +6456,7 @@ class TestRunPipelinePhase4Stages:
 
 class TestPhase4ModuleImports:
     def test_formula_validate_imports(self) -> None:
-        import phinitelab_pdf_pipeline.formula_validate as fv
+        import cortexmark.formula_validate as fv
 
         assert hasattr(fv, "validate_formula")
         assert hasattr(fv, "extract_and_validate")
@@ -6359,7 +6471,7 @@ class TestPhase4ModuleImports:
         assert hasattr(fv, "compute_complexity")
 
     def test_citation_context_imports(self) -> None:
-        import phinitelab_pdf_pipeline.citation_context as cc
+        import cortexmark.citation_context as cc
 
         assert hasattr(cc, "classify_purpose")
         assert hasattr(cc, "extract_citation_contexts")
@@ -6371,7 +6483,7 @@ class TestPhase4ModuleImports:
         assert hasattr(cc, "write_report")
 
     def test_scientific_qa_imports(self) -> None:
-        import phinitelab_pdf_pipeline.scientific_qa as sq
+        import cortexmark.scientific_qa as sq
 
         assert hasattr(sq, "check_theorem_proof_pairing")
         assert hasattr(sq, "check_definition_before_use")
@@ -6386,15 +6498,15 @@ class TestPhase4ModuleImports:
         assert hasattr(sq, "write_report")
 
     def test_constants_exist(self) -> None:
-        from phinitelab_pdf_pipeline.formula_validate import KNOWN_COMMANDS, KNOWN_ENVIRONMENTS
-        from phinitelab_pdf_pipeline.scientific_qa import ALL_CHECKS
+        from cortexmark.formula_validate import KNOWN_COMMANDS, KNOWN_ENVIRONMENTS
+        from cortexmark.scientific_qa import ALL_CHECKS
 
         assert len(KNOWN_COMMANDS) > 50
         assert len(KNOWN_ENVIRONMENTS) > 10
         assert len(ALL_CHECKS) == 6
 
     def test_all_purposes(self) -> None:
-        from phinitelab_pdf_pipeline.citation_context import ALL_PURPOSES
+        from cortexmark.citation_context import ALL_PURPOSES
 
         assert "foundational" in ALL_PURPOSES
         assert "comparative" in ALL_PURPOSES
@@ -6547,15 +6659,15 @@ class TestDetectTextbookDeep:
 class TestDetectSyllabusDeep:
     def test_all_signals(self) -> None:
         text = (
-            "# Course Syllabus\n\n"
-            "Instructor: Prof. Smith\n\n"
+            "# Source Outline\n\n"
+            "Maintainer: Team Lead\n\n"
             "Week 1: Intro\nWeek 2: Basics\nWeek 3: Intermediate\nWeek 4: Adv\n\n"
             "## Grading\n\n40% Midterm, 60% Final\n"
         )
         score, signals = detect_syllabus(text)
         assert score >= 0.7
-        assert any("instructor" in s for s in signals)
-        assert any("course" in s for s in signals)
+        assert any("week" in s for s in signals)
+        assert any("grading" in s or "assessment" in s for s in signals)
 
 
 class TestDetectPaperDeep:
@@ -6739,7 +6851,7 @@ class TestRenderFormulaItem:
             text = ""
             orig = ""
 
-        from phinitelab_pdf_pipeline.convert import FORMULA_PLACEHOLDER
+        from cortexmark.convert import FORMULA_PLACEHOLDER
 
         result = render_formula_item(FakeItem())
         assert result == FORMULA_PLACEHOLDER
@@ -6813,7 +6925,7 @@ class TestNormalizeMarkdownDeep:
 
 class TestRecoverFormulaPlaceholdersDeep:
     def test_multiple_placeholders(self) -> None:
-        from phinitelab_pdf_pipeline.convert import FORMULA_PLACEHOLDER
+        from cortexmark.convert import FORMULA_PLACEHOLDER
 
         class FakeItem:
             def __init__(self, text: str) -> None:
@@ -6835,14 +6947,14 @@ class TestRecoverFormulaPlaceholdersDeep:
 class TestParseWeekEntriesDeep:
     def test_multi_week_with_bullets(self) -> None:
         text = (
-            "## Week 1: Introduction\n"
+            "## Section 1: Introduction\n"
             "- Overview of the course\n"
             "- Setup environment\n\n"
-            "## Week 2: Basics\n"
+            "## Section 2: Basics\n"
             "- Fundamentals\n"
             "- Practice\n"
         )
-        entries = parse_week_entries(text)
+        entries = parse_section_entries(text)
         assert 1 in entries
         assert 2 in entries
         assert "Introduction" in entries[1]["title"]
@@ -6850,7 +6962,7 @@ class TestParseWeekEntriesDeep:
 
     def test_week_without_bullets(self) -> None:
         text = "## Week 1: Intro\n\n## Week 2: Next\n"
-        entries = parse_week_entries(text)
+        entries = parse_section_entries(text)
         assert 1 in entries
         assert entries[1]["bullets"] == []
 
@@ -6987,86 +7099,88 @@ class TestCitationsDeep:
 
 class TestRenderMetaTemplates:
     def test_render_meta_templates(self, tmp_path: Path) -> None:
-        course_root = tmp_path / "course"
-        course_root.mkdir()
-        syllabus_text = (
-            "Course Title: Reinforcement Learning\n"
-            "Instructor: Prof. Smith\n"
-            "Classroom Code: ABC123\n\n"
-            "## Required Programs\n- Python\n- MATLAB\n\n"
-            "## Assessment\n- 40% Midterm\n- 60% Final\n\n"
-            "## Week 1: Introduction\n- Basics of RL\n\n"
-            "## Week 2: MDP\n- Markov processes\n"
+        source_root = tmp_path / "source"
+        source_root.mkdir()
+        outline_text = (
+            "Source Name: Structured Source Processing\n"
+            "Maintainer: Team Lead\n"
+            "Source Code: ABC123\n\n"
+            "## Recommended Tools\n- Python\n- MATLAB\n\n"
+            "## Evaluation\n- 40% Midterm\n- 60% Final\n\n"
+            "## Section 1: Introduction\n- Basics of RL\n\n"
+            "## Section 2: Segments\n- Markov processes\n"
         )
-        entries = parse_week_entries(syllabus_text)
-        from phinitelab_pdf_pipeline.render_templates import render_meta_templates
+        entries = parse_section_entries(outline_text)
+        from cortexmark.render_templates import render_meta_templates
 
-        written = render_meta_templates(course_root, syllabus_text, entries)
+        written = render_meta_templates(source_root, outline_text, entries)
         assert len(written) == 2
-        profile = (course_root / "00_meta" / "course_profile.md").read_text(encoding="utf-8")
-        assert "Reinforcement Learning" in profile
-        assert "Prof. Smith" in profile
-        rules = (course_root / "00_meta" / "global_rules.md").read_text(encoding="utf-8")
+        profile = (source_root / "00_meta" / "source_profile.md").read_text(encoding="utf-8")
+        assert "Structured Source Processing" in profile
+        assert "Team Lead" in profile
+        rules = (source_root / "00_meta" / "global_rules.md").read_text(encoding="utf-8")
         assert "# Global Rules" in rules
 
 
-class TestRenderWeekTemplates:
-    def test_render_week_templates(self, tmp_path: Path) -> None:
-        course_root = tmp_path / "course"
+class TestRenderSectionTemplates:
+    def test_render_section_templates(self, tmp_path: Path) -> None:
+        source_root = tmp_path / "source"
         raw_root = tmp_path / "raw"
         cleaned_root = tmp_path / "cleaned"
-        for d in [course_root, raw_root, cleaned_root]:
+        for d in [source_root, raw_root, cleaned_root]:
             d.mkdir()
 
-        # Create a week directory
-        week_dir = course_root / "01_introduction"
-        week_dir.mkdir()
+        # Create a section directory
+        section_dir = source_root / "01_introduction"
+        section_dir.mkdir()
 
         # Create raw content
-        raw_week = raw_root / "01_introduction"
-        raw_week.mkdir()
-        (raw_week / "content.md").write_text(
-            "# Introduction to RL\n\nReinforcement learning is a paradigm.\n\n## Key Concepts\n\n- State\n- Action\n",
+        raw_section = raw_root / "01_introduction"
+        raw_section.mkdir()
+        (raw_section / "content.md").write_text(
+            "# Introduction to Structured Sources\n\nStructured source processing uses deterministic steps.\n\n## Core Concepts\n\n- State\n- Action\n",
             encoding="utf-8",
         )
 
-        entries = {1: {"title": "Introduction", "bullets": ["RL basics", "Environment setup"]}}
-        from phinitelab_pdf_pipeline.render_templates import render_week_templates
+        entries = {1: {"title": "Introduction", "bullets": ["Source basics", "Tool setup"]}}
+        from cortexmark.render_templates import render_section_templates
 
-        written = render_week_templates(course_root, raw_root, cleaned_root, entries)
+        written = render_section_templates(source_root, raw_root, cleaned_root, entries)
         assert len(written) >= 2
-        rules_path = week_dir / "rules.md"
+        rules_path = section_dir / "rules.md"
+        task_list_path = section_dir / "tasks" / "task_list.md"
         assert rules_path.exists()
+        assert task_list_path.exists()
         rules_text = rules_path.read_text(encoding="utf-8")
-        assert "Week 01 Rules" in rules_text
+        assert "Section 01 Rules" in rules_text
         assert "Introduction" in rules_text
 
-    def test_empty_course(self, tmp_path: Path) -> None:
-        course_root = tmp_path / "course"
+    def test_empty_source(self, tmp_path: Path) -> None:
+        source_root = tmp_path / "source"
         raw_root = tmp_path / "raw"
         cleaned_root = tmp_path / "cleaned"
-        for d in [course_root, raw_root, cleaned_root]:
+        for d in [source_root, raw_root, cleaned_root]:
             d.mkdir()
-        from phinitelab_pdf_pipeline.render_templates import render_week_templates
+        from cortexmark.render_templates import render_section_templates
 
-        written = render_week_templates(course_root, raw_root, cleaned_root, {})
+        written = render_section_templates(source_root, raw_root, cleaned_root, {})
         assert written == []
 
 
-class TestBuildCourseProfileText:
+class TestBuildSourceProfileText:
     def test_full_profile(self) -> None:
-        text = build_course_profile_text(
-            course_title="RL",
-            semester="Fall 2024",
-            instructor="Prof. X",
-            main_topics=["MDP", "TD Learning"],
+        text = build_source_profile_text(
+            source_name="Structured Source",
+            source_cycle="Cycle 2024",
+            maintainer="Maintainer X",
+            main_topics=["Segments", "Rule Extraction"],
             programs=["Python"],
             notes=["Note 1"],
         )
-        assert "# Course Profile" in text
-        assert "RL" in text
-        assert "Fall 2024" in text
-        assert "- MDP" in text
+        assert "# Source Profile" in text
+        assert "Structured Source" in text
+        assert "Cycle 2024" in text
+        assert "- Segments" in text
         assert "- Python" in text
 
 
@@ -7082,32 +7196,32 @@ class TestBuildGlobalRulesText:
         assert "- AI Rule" in text
 
 
-class TestBuildWeekRulesText:
-    def test_week_rules(self) -> None:
-        text = build_week_rules_text(
-            week_number=3,
-            title="Dynamic Programming",
-            scope_items=["Policy evaluation", "Value iteration"],
+class TestBuildSectionRulesText:
+    def test_section_rules(self) -> None:
+        text = build_section_rules_text(
+            section_number=3,
+            title="Structured Processing",
+            scope_items=["Boundary detection", "Rule extraction"],
             exclude_items=["Unrelated topics"],
             output_items=["Summary"],
         )
-        assert "Week 03 Rules" in text
+        assert "Section 03 Rules" in text
         assert "## Scope" in text
-        assert "Policy evaluation" in text
+        assert "Boundary detection" in text
 
 
 class TestBuildAssignmentText:
     def test_assignment_output(self) -> None:
         text = build_assignment_text(
-            week_number=5,
-            objective="Learn TD methods",
-            tasks=["Implement TD(0)", "Compare with MC"],
+            section_number=5,
+            objective="Learn section processing",
+            tasks=["Summarize the key concepts", "List the main constraints"],
             submission=["Submit as Markdown"],
         )
-        assert "Week 05 Assignment" in text
+        assert "Section 05 Tasks" in text
         assert "## Objective" in text
-        assert "Learn TD methods" in text
-        assert "1. Implement TD(0)" in text
+        assert "Learn section processing" in text
+        assert "1. Summarize the key concepts" in text
 
 
 class TestRunPipelineBuildParserFull:
@@ -7772,7 +7886,7 @@ class TestQaPipelineDeep:
         assert written.exists()
 
     def test_build_summary(self) -> None:
-        from phinitelab_pdf_pipeline.qa_pipeline import QASummary
+        from cortexmark.qa_pipeline import QASummary
 
         report = FileQAReport(file="test.md")
         summary = build_summary([report])
@@ -7873,7 +7987,7 @@ class TestAllBuildParsers:
     """Test every module's build_parser() to cover CLI argument definitions."""
 
     def test_chunk_parser(self) -> None:
-        from phinitelab_pdf_pipeline.chunk import build_parser as bp
+        from cortexmark.chunk import build_parser as bp
 
         p = bp()
         assert p is not None
@@ -7881,151 +7995,151 @@ class TestAllBuildParsers:
         assert ns.input == Path("/tmp/x")
 
     def test_clean_parser(self) -> None:
-        from phinitelab_pdf_pipeline.clean import build_parser as bp
+        from cortexmark.clean import build_parser as bp
 
         p = bp()
         ns = p.parse_args(["--input", "/tmp/x", "--output-dir", "/tmp/y"])
         assert ns.input == Path("/tmp/x")
 
     def test_convert_parser(self) -> None:
-        from phinitelab_pdf_pipeline.convert import build_parser as bp
+        from cortexmark.convert import build_parser as bp
 
         p = bp()
         ns = p.parse_args(["--input", "/tmp/x"])
         assert ns.input == Path("/tmp/x")
 
     def test_diff_parser(self) -> None:
-        from phinitelab_pdf_pipeline.diff import build_parser as bp
+        from cortexmark.diff import build_parser as bp
 
         p = bp()
         ns = p.parse_args(["--old", "/tmp/a", "--new", "/tmp/b"])
         assert ns.old == Path("/tmp/a")
 
     def test_parallel_parser(self) -> None:
-        from phinitelab_pdf_pipeline.parallel import build_parser as bp
+        from cortexmark.parallel import build_parser as bp
 
         p = bp()
         ns = p.parse_args(["--input", "/tmp/x", "--operation", "ocr_quality"])
         assert ns.operation == "ocr_quality"
 
     def test_figures_parser(self) -> None:
-        from phinitelab_pdf_pipeline.figures import build_parser as bp
+        from cortexmark.figures import build_parser as bp
 
         p = bp()
         ns = p.parse_args(["--input", "/tmp/x"])
         assert ns.input == Path("/tmp/x")
 
     def test_formula_score_parser(self) -> None:
-        from phinitelab_pdf_pipeline.formula_score import build_parser as bp
+        from cortexmark.formula_score import build_parser as bp
 
         p = bp()
         ns = p.parse_args(["--input", "/tmp/x"])
         assert ns.input == Path("/tmp/x")
 
     def test_ghpages_parser(self) -> None:
-        from phinitelab_pdf_pipeline.ghpages import build_parser as bp
+        from cortexmark.ghpages import build_parser as bp
 
         p = bp()
         ns = p.parse_args(["--input", "/tmp/x"])
         assert ns.input == Path("/tmp/x")
 
     def test_metadata_parser(self) -> None:
-        from phinitelab_pdf_pipeline.metadata import build_parser as bp
+        from cortexmark.metadata import build_parser as bp
 
         p = bp()
         ns = p.parse_args(["--input", "/tmp/x"])
         assert ns.input == Path("/tmp/x")
 
     def test_doc_type_parser(self) -> None:
-        from phinitelab_pdf_pipeline.doc_type import build_parser as bp
+        from cortexmark.doc_type import build_parser as bp
 
         p = bp()
         ns = p.parse_args(["--input", "/tmp/x"])
         assert ns.input == Path("/tmp/x")
 
     def test_rag_export_parser(self) -> None:
-        from phinitelab_pdf_pipeline.rag_export import build_parser as bp
+        from cortexmark.rag_export import build_parser as bp
 
         p = bp()
         ns = p.parse_args(["--input", "/tmp/x"])
         assert ns.input == Path("/tmp/x")
 
     def test_ocr_quality_parser(self) -> None:
-        from phinitelab_pdf_pipeline.ocr_quality import build_parser as bp
+        from cortexmark.ocr_quality import build_parser as bp
 
         p = bp()
         ns = p.parse_args(["--input", "/tmp/x"])
         assert ns.input == Path("/tmp/x")
 
     def test_citations_parser(self) -> None:
-        from phinitelab_pdf_pipeline.citations import build_parser as bp
+        from cortexmark.citations import build_parser as bp
 
         p = bp()
         ns = p.parse_args(["--input", "/tmp/x"])
         assert ns.input == Path("/tmp/x")
 
     def test_qa_pipeline_parser(self) -> None:
-        from phinitelab_pdf_pipeline.qa_pipeline import build_parser as bp
+        from cortexmark.qa_pipeline import build_parser as bp
 
         p = bp()
         ns = p.parse_args(["--input", "/tmp/x"])
         assert ns.input == Path("/tmp/x")
 
     def test_topics_parser(self) -> None:
-        from phinitelab_pdf_pipeline.topics import build_parser as bp
+        from cortexmark.topics import build_parser as bp
 
         p = bp()
         ns = p.parse_args(["--input", "/tmp/x"])
         assert ns.input == Path("/tmp/x")
 
     def test_plugin_parser(self) -> None:
-        from phinitelab_pdf_pipeline.plugin import build_parser as bp
+        from cortexmark.plugin import build_parser as bp
 
         p = bp()
         ns = p.parse_args(["--plugin-dir", "/tmp/x"])
         assert ns.plugin_dir == Path("/tmp/x")
 
     def test_cross_ref_parser(self) -> None:
-        from phinitelab_pdf_pipeline.cross_ref import build_parser as bp
+        from cortexmark.cross_ref import build_parser as bp
 
         p = bp()
         ns = p.parse_args(["--input", "/tmp/x"])
         assert ns.input == Path("/tmp/x")
 
     def test_notation_glossary_parser(self) -> None:
-        from phinitelab_pdf_pipeline.notation_glossary import build_parser as bp
+        from cortexmark.notation_glossary import build_parser as bp
 
         p = bp()
         ns = p.parse_args(["--input", "/tmp/x"])
         assert ns.input == Path("/tmp/x")
 
     def test_algorithm_extract_parser(self) -> None:
-        from phinitelab_pdf_pipeline.algorithm_extract import build_parser as bp
+        from cortexmark.algorithm_extract import build_parser as bp
 
         p = bp()
         ns = p.parse_args(["--input", "/tmp/x"])
         assert ns.input == Path("/tmp/x")
 
     def test_multi_format_parser(self) -> None:
-        from phinitelab_pdf_pipeline.multi_format import build_parser as bp
+        from cortexmark.multi_format import build_parser as bp
 
         p = bp()
         ns = p.parse_args(["--input", "/tmp/x"])
         assert ns.input == Path("/tmp/x")
 
     def test_semantic_chunk_parser(self) -> None:
-        from phinitelab_pdf_pipeline.semantic_chunk import build_parser as bp
+        from cortexmark.semantic_chunk import build_parser as bp
 
         p = bp()
         ns = p.parse_args(["--input", "/tmp/x"])
         assert ns.input == Path("/tmp/x")
 
     def test_render_templates_parser(self) -> None:
-        from phinitelab_pdf_pipeline.render_templates import build_parser as bp
+        from cortexmark.render_templates import build_parser as bp
 
         p = bp()
-        p.parse_args([])
-        assert p is not None
+        ns = p.parse_args(["--outline-file", "00_meta/outline.md"])
+        assert ns.outline_file == Path("00_meta/outline.md")
 
 
 # ── Additional uncovered function tests ──────────────────────────────────────
@@ -8102,14 +8216,14 @@ class TestConvertBuildParserArgs:
     """Test convert module build_parser with full args."""
 
     def test_engine_choices(self) -> None:
-        from phinitelab_pdf_pipeline.convert import build_parser as bp
+        from cortexmark.convert import build_parser as bp
 
         p = bp()
         ns = p.parse_args(["--input", "/tmp/x", "--engine", "docling"])
         assert ns.engine == "docling"
 
     def test_output_dir(self) -> None:
-        from phinitelab_pdf_pipeline.convert import build_parser as bp
+        from cortexmark.convert import build_parser as bp
 
         p = bp()
         ns = p.parse_args(["--input", "/tmp/x", "--output-dir", "/tmp/y"])
@@ -8122,7 +8236,7 @@ class TestParallelProcessPool:
     def test_process_pool_type(self) -> None:
         from concurrent.futures import ProcessPoolExecutor
 
-        from phinitelab_pdf_pipeline.parallel import ParallelConfig, _get_pool
+        from cortexmark.parallel import ParallelConfig, _get_pool
 
         cfg = ParallelConfig(workers=2, pool_type="process")
         pool = _get_pool(cfg)

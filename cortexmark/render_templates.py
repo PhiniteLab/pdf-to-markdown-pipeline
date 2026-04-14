@@ -5,17 +5,71 @@ import re
 from pathlib import Path
 from typing import Any
 
-from phinitelab_pdf_pipeline.common import load_config, resolve_path, setup_logging
+from cortexmark.common import (
+    get_source_id,
+    load_config,
+    resolve_configured_path,
+    setup_logging,
+)
 
-WEEK_HEADING_RE = re.compile(r"^##\s+Week\s+(\d+)\s*:\s*(.+?)\s*$", re.IGNORECASE)
+SECTION_HEADING_RE = re.compile(
+    r"^##\s+(?:Section|Module|Chapter|Unit|Topic|Week)\s+(\d+)\s*:\s*(.+?)\s*$",
+    re.IGNORECASE,
+)
 LINE_VALUE_RE_TEMPLATE = r"(?m)^(?:##\s+)?{label}:\s*(.+?)\s*$"
 ACRONYMS = {"rl": "RL", "mdp": "MDP", "td": "TD", "hjb": "HJB", "pg": "PG"}
+DEFAULT_OUTLINE_CANDIDATES: tuple[str, ...] = (
+    "00_meta/outline.md",
+    "00_meta/source_outline.md",
+    "00_meta/syllabus.md",
+    "00_meta/course_syllabus.md",
+)
 
 
 def read_text(path: Path) -> str:
     if not path.exists():
         raise FileNotFoundError(f"Required file not found: {path}")
     return path.read_text(encoding="utf-8")
+
+
+def resolve_outline_path(
+    raw_root: Path,
+    *,
+    cfg: dict[str, Any] | None = None,
+    override: Path | None = None,
+) -> Path | None:
+    """Resolve outline path from explicit arg, config, known candidates, then discovery."""
+    if override:
+        candidate = override if override.is_absolute() else raw_root / override
+        if not candidate.exists():
+            raise FileNotFoundError(f"Outline file not found: {candidate}")
+        return candidate.resolve()
+
+    rt_cfg = (cfg or {}).get("render_templates", {})
+    seen: set[str] = set()
+    candidates: list[Path] = []
+    configured = rt_cfg.get("outline_file")
+    if configured:
+        candidates.append(Path(str(configured)))
+    for rel in DEFAULT_OUTLINE_CANDIDATES:
+        candidates.append(Path(rel))
+
+    for rel_path in candidates:
+        key = str(rel_path)
+        if key in seen:
+            continue
+        seen.add(key)
+        candidate = rel_path if rel_path.is_absolute() else raw_root / rel_path
+        if candidate.exists():
+            return candidate.resolve()
+
+    meta_root = raw_root / "00_meta"
+    if meta_root.exists():
+        for pattern in ("*outline*.md", "*outline*.txt", "*syllabus*.md", "*syllabus*.txt"):
+            for candidate in sorted(meta_root.glob(pattern)):
+                if candidate.is_file():
+                    return candidate.resolve()
+    return None
 
 
 def extract_line_value(text: str, label: str, fallback: str) -> str:
@@ -87,32 +141,32 @@ def humanize_topic(slug: str) -> str:
     return " ".join(rendered) if rendered else slug
 
 
-def parse_week_entries(syllabus_text: str) -> dict[int, dict[str, list[str] | str]]:
-    lines = syllabus_text.splitlines()
+def parse_section_entries(outline_text: str) -> dict[int, dict[str, list[str] | str]]:
+    lines = outline_text.splitlines()
     entries: dict[int, dict[str, list[str] | str]] = {}
-    current_week: int | None = None
+    current_section: int | None = None
     current_title = ""
     current_bullets: list[str] = []
 
     def flush() -> None:
-        nonlocal current_week, current_title, current_bullets
-        if current_week is not None:
-            entries[current_week] = {
+        nonlocal current_section, current_title, current_bullets
+        if current_section is not None:
+            entries[current_section] = {
                 "title": clean_inline(current_title),
                 "bullets": [clean_inline(item) for item in current_bullets if item.strip()],
             }
-        current_week = None
+        current_section = None
         current_title = ""
         current_bullets = []
 
     for line in lines:
-        heading_match = WEEK_HEADING_RE.match(line.strip())
+        heading_match = SECTION_HEADING_RE.match(line.strip())
         if heading_match:
             flush()
-            current_week = int(heading_match.group(1))
+            current_section = int(heading_match.group(1))
             current_title = heading_match.group(2).strip()
             continue
-        if current_week is None:
+        if current_section is None:
             continue
         stripped = line.strip()
         if stripped.startswith("## "):
@@ -158,30 +212,30 @@ def summarize_text(text: str, max_chars: int = 240) -> str:
     return cleaned[: max_chars - 1].rstrip() + "…"
 
 
-def build_course_profile_text(
-    course_title: str,
-    semester: str,
-    instructor: str,
+def build_source_profile_text(
+    source_name: str,
+    source_cycle: str,
+    maintainer: str,
     main_topics: list[str],
     programs: list[str],
     notes: list[str],
 ) -> str:
     lines = [
-        "# Course Profile",
+        "# Source Profile",
         "",
-        "## Course Name",
-        course_title,
+        "## Source Name",
+        source_name,
         "",
-        "## Semester",
-        semester,
+        "## Source Cycle",
+        source_cycle,
         "",
-        "## Instructor",
-        instructor,
+        "## Maintainer",
+        maintainer,
         "",
-        "## Main Topics",
+        "## Primary Topics",
     ]
     lines.extend(f"- {topic}" for topic in main_topics)
-    lines.extend(["", "## Programming Tools"])
+    lines.extend(["", "## Recommended Tools"])
     lines.extend(f"- {program}" for program in programs)
     lines.extend(["", "## Notes"])
     lines.extend(f"- {note}" for note in notes)
@@ -195,8 +249,8 @@ def build_global_rules_text(existing_rules: list[str], ai_rules: list[str], admi
     return "\n".join(lines).strip() + "\n"
 
 
-def build_week_rules_text(
-    week_number: int,
+def build_section_rules_text(
+    section_number: int,
     title: str,
     scope_items: list[str],
     exclude_items: list[str],
@@ -205,7 +259,7 @@ def build_week_rules_text(
     max_scope: int = 6,
 ) -> str:
     lines = [
-        f"# Week {week_number:02d} Rules",
+        f"# Section {section_number:02d} Rules",
         "",
         "## Scope",
     ]
@@ -218,7 +272,7 @@ def build_week_rules_text(
 
 
 def build_assignment_text(
-    week_number: int,
+    section_number: int,
     objective: str,
     tasks: list[str],
     submission: list[str],
@@ -226,7 +280,7 @@ def build_assignment_text(
     max_tasks: int = 5,
 ) -> str:
     lines = [
-        f"# Week {week_number:02d} Assignment",
+        f"# Section {section_number:02d} Tasks",
         "",
         "## Objective",
         objective,
@@ -234,79 +288,88 @@ def build_assignment_text(
         "## Tasks",
     ]
     lines.extend(f"{index + 1}. {task}" for index, task in enumerate(first_items(tasks, limit=max_tasks)))
-    lines.extend(["", "## Submission"])
+    lines.extend(["", "## Deliverables"])
     lines.extend(f"- {item}" for item in first_items(submission, limit=4))
     return "\n".join(lines).strip() + "\n"
 
 
 def render_meta_templates(
-    course_root: Path,
-    syllabus_text: str,
-    week_entries: dict[int, dict[str, list[str] | str]],
+    source_root: Path,
+    outline_text: str,
+    section_entries: dict[int, dict[str, list[str] | str]],
 ) -> list[Path]:
-    course_title = extract_line_value(syllabus_text, "Course Title", fallback=course_root.name)
-    instructor = extract_line_value(syllabus_text, "Instructor", fallback="Belirtilmemiş")
-    classroom_code = extract_line_value(syllabus_text, "Classroom Code", fallback="Belirtilmemiş")
-    programs = extract_programs(extract_section(syllabus_text, "Required Programs"))
-    assessment = bullet_lines_from_section(extract_section(syllabus_text, "Assessment"))
+    source_name = extract_line_value(
+        outline_text,
+        "Source Name",
+        fallback=source_root.name,
+    )
+    maintainer = extract_line_value(
+        outline_text,
+        "Maintainer",
+        fallback="Not specified",
+    )
+    source_code = extract_line_value(
+        outline_text,
+        "Source Code",
+        fallback="Not specified",
+    )
+    programs = extract_programs(extract_section(outline_text, "Recommended Tools"))
+    assessment = bullet_lines_from_section(extract_section(outline_text, "Evaluation"))
     if not assessment:
-        assessment = [
-            clean_inline(line) for line in extract_section(syllabus_text, "Assessment").splitlines() if line.strip()
-        ]
+        raw_eval = extract_section(outline_text, "Evaluation")
+        assessment = [clean_inline(line) for line in raw_eval.splitlines() if line.strip()]
 
     main_topics = []
-    for entry in week_entries.values():
+    for entry in section_entries.values():
         title = str(entry["title"])
-        if "(Synchronous)" in title:
-            continue
         main_topics.append(title)
     main_topics = first_items(main_topics, limit=8)
 
-    ai_section = extract_section(syllabus_text, "Use of an Instructor-Developed LLM-Based AI System")
-    other_rules = extract_section(syllabus_text, "Other Rules")
+    ai_section = extract_section(outline_text, "Usage Notes")
+    other_rules = extract_section(outline_text, "Global Rules")
     ai_rules = bullet_lines_from_section(ai_section)
     admin_rules = bullet_lines_from_section(other_rules)
 
     notes = [
-        f"Classroom Code: {classroom_code}",
-        "Assessment: " + "; ".join(assessment) if assessment else "Assessment bilgisi bulunamadı.",
-        "Bu profil ve hafta şablonları syllabus ve hafta içeriklerinden deterministik olarak dolduruldu.",
+        f"Source Code: {source_code}",
+        "Evaluation: " + "; ".join(assessment) if assessment else "Evaluation: not provided.",
+        "This profile and section templates are generated deterministically from available source material.",
     ]
 
-    course_profile_path = course_root / "00_meta" / "course_profile.md"
-    course_profile_path.parent.mkdir(parents=True, exist_ok=True)
-    course_profile_path.write_text(
-        build_course_profile_text(
-            course_title=course_title,
-            semester="Belirtilmemiş",
-            instructor=instructor,
+    source_profile_path = source_root / "00_meta" / "source_profile.md"
+    source_profile_path.parent.mkdir(parents=True, exist_ok=True)
+    source_profile_path.write_text(
+        build_source_profile_text(
+            source_name=source_name,
+            source_cycle="Not specified",
+            maintainer=maintainer,
             main_topics=main_topics,
-            programs=programs or ["Belirtilmemiş"],
+            programs=programs or ["Not specified"],
             notes=notes,
         ),
         encoding="utf-8",
     )
 
-    global_rules_path = course_root / "00_meta" / "global_rules.md"
+    global_rules_path = source_root / "00_meta" / "global_rules.md"
     existing_rules = [
-        "Yanıt dili Türkçe olmalı",
-        "Sadece ilgili hafta kullanılmalı",
-        "Haftalar karıştırılmamalı",
-        "Pedagojik çıktı üretilmeli",
-        "Gereksiz genişletme yapılmamalı",
+        "Use only evidence available in the source files.",
+        "Do not mix content across unrelated sections or sources.",
+        "Keep outputs concise, structured, and technically accurate.",
+        "Flag assumptions when source evidence is missing.",
+        "Avoid speculative expansion outside the provided material.",
     ]
     global_rules_path.write_text(
         build_global_rules_text(existing_rules=existing_rules, ai_rules=ai_rules, admin_rules=admin_rules),
         encoding="utf-8",
     )
-    return [course_profile_path, global_rules_path]
+    return [source_profile_path, global_rules_path]
 
 
-def render_week_templates(
-    course_root: Path,
+def render_section_templates(
+    source_root: Path,
     raw_root: Path,
     cleaned_root: Path,
-    week_entries: dict[int, dict[str, list[str] | str]],
+    section_entries: dict[int, dict[str, list[str] | str]],
     *,
     cfg: dict[str, Any] | None = None,
 ) -> list[Path]:
@@ -316,17 +379,16 @@ def render_week_templates(
     max_tasks = rt_cfg.get("max_tasks", 5)
 
     written: list[Path] = []
-    for week_dir in sorted(p for p in course_root.iterdir() if p.is_dir() and p.name != "00_meta"):
-        week_prefix = week_dir.name.split("_", 1)[0]
-        if not week_prefix.isdigit():
-            continue
-        week_number = int(week_prefix)
-        week_entry = week_entries.get(week_number, {})
-        week_title = str(week_entry.get("title", humanize_topic(week_dir.name)))
-        week_bullets = [str(item) for item in week_entry.get("bullets", [])]
+    section_dirs = [p for p in sorted(source_root.iterdir()) if p.is_dir() and p.name != "00_meta"]
+    for index, section_dir in enumerate(section_dirs, start=1):
+        section_prefix = section_dir.name.split("_", 1)[0]
+        section_number = int(section_prefix) if section_prefix.isdigit() else index
+        section_entry = section_entries.get(section_number, {})
+        section_title = str(section_entry.get("title", humanize_topic(section_dir.name)))
+        section_bullets = [str(item) for item in section_entry.get("bullets", [])]
 
-        raw_content_path = raw_root / week_dir.name / "content.md"
-        cleaned_content_path = cleaned_root / week_dir.name / "content.md"
+        raw_content_path = raw_root / section_dir.name / "content.md"
+        cleaned_content_path = cleaned_root / section_dir.name / "content.md"
         content_text = read_text(raw_content_path) if raw_content_path.exists() else ""
         if not content_text and cleaned_content_path.exists():
             content_text = read_text(cleaned_content_path)
@@ -338,56 +400,51 @@ def render_week_templates(
         content_paragraphs = paragraphs_from_markdown(content_text)
 
         scope_items = [
-            f"Ana odak: {week_title}",
-            *week_bullets,
+            f"Primary focus: {section_title}",
+            *section_bullets,
             *content_headings[:3],
         ]
         exclude_items = [
-            "İlgisiz haftaların kavramları ve algoritmaları",
-            "Belgede geçmeyen gereksiz yan konular",
-            "Kanıtsız veya kaynak dışı iddialar",
-            "Konu dışı araç ve framework tartışmaları",
+            "Concepts from unrelated sections or source fragments",
+            "Claims not grounded in the source material",
+            "Off-topic implementation details",
+            "Unnecessary framework-specific detours",
         ]
         output_items = [
-            "Türkçe, kısa ve pedagojik açıklama üret",
-            "Gerekli olduğunda denklem, algoritma veya adım dizisini açıkça yaz",
-            "Haftanın ana kavramlarını birbirine bağlayan yapılandırılmış özet ver",
-            "Kod haftalarında çözümü codes/ klasörüyle uyumlu düşün",
+            "Produce concise, instructional Markdown output",
+            "Include equations, algorithms, or step lists when relevant",
+            "Connect key concepts in a structured summary",
+            "Use explicit assumptions only when source context is missing",
         ]
 
         objective_source = content_paragraphs[0] if content_paragraphs else ""
         if objective_source:
             objective = (
-                f"Bu haftada {week_title} konusunu çalış ve şu çerçeveyi temel al: "
+                f"Study {section_title} and use this source-grounded framing: "
                 f"{summarize_text(objective_source, max_chars=max_summary)}"
             )
         else:
-            objective = (
-                f"Bu haftada {week_title} konusunu syllabus kapsamına bağlı kalarak açıklayıp uygulamaya dönüştür."
-            )
+            objective = f"Explain {section_title} using only the available outline/content context."
 
-        task_seed = week_bullets or content_headings or [week_title]
+        task_seed = section_bullets or content_headings or [section_title]
         tasks = [
-            f"{item} başlığını kısa ama teknik olarak doğru biçimde açıkla." for item in first_items(task_seed, limit=3)
+            f"Explain '{item}' in a concise but technically accurate way." for item in first_items(task_seed, limit=3)
         ]
-        if "coding" in week_dir.name:
-            tasks.append("Haftanın ana fikrini gösterecek küçük bir kod iskeleti veya pseudocode üret.")
-        else:
-            tasks.append("Kavramsal akışı bir örnek veya mini senaryo ile somutlaştır.")
-        tasks.append("Öğrenme çıktısını en fazla birkaç alt başlıkta yapılandırılmış biçimde teslim et.")
+        tasks.append("Add a short worked example or scenario that reinforces the main idea.")
+        tasks.append("Deliver the output using a few clear section headings.")
 
         submission = [
-            "Tek bir düzenli Markdown çıktı hazırla.",
-            "Kullanılan kavramları haftanın kapsamıyla sınırlı tut.",
-            "Kod haftalarında gerekli ise ilgili dosyaları codes/ altına yerleştir.",
-            "Teslimde kısa özet + ana kavramlar + gerekiyorsa örnek çözüm bulunsun.",
+            "Submit a single, well-structured Markdown file.",
+            "Keep terminology scoped to the active section.",
+            "Include concise summary + core concepts + example where useful.",
+            "Document open assumptions explicitly.",
         ]
 
-        rules_path = week_dir / "rules.md"
+        rules_path = section_dir / "rules.md"
         rules_path.write_text(
-            build_week_rules_text(
-                week_number=week_number,
-                title=week_title,
+            build_section_rules_text(
+                section_number=section_number,
+                title=section_title,
                 scope_items=scope_items,
                 exclude_items=exclude_items,
                 output_items=output_items,
@@ -397,12 +454,12 @@ def render_week_templates(
         )
         written.append(rules_path)
 
-        assignment_dir = week_dir / "assignment"
-        assignment_dir.mkdir(parents=True, exist_ok=True)
-        assignment_path = assignment_dir / "assignment.md"
-        assignment_path.write_text(
+        tasks_dir = section_dir / "tasks"
+        tasks_dir.mkdir(parents=True, exist_ok=True)
+        task_list_path = tasks_dir / "task_list.md"
+        task_list_path.write_text(
             build_assignment_text(
-                week_number=week_number,
+                section_number=section_number,
                 objective=objective,
                 tasks=tasks,
                 submission=submission,
@@ -410,7 +467,7 @@ def render_week_templates(
             ),
             encoding="utf-8",
         )
-        written.append(assignment_path)
+        written.append(task_list_path)
     return written
 
 
@@ -418,10 +475,15 @@ def render_week_templates(
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Populate course markdown templates deterministically.")
-    parser.add_argument("--course-root", type=Path, help="Course directory under data/raw")
-    parser.add_argument("--raw-root", type=Path, help="Raw markdown root for the same course")
-    parser.add_argument("--cleaned-root", type=Path, help="Cleaned markdown root for the same course")
+    parser = argparse.ArgumentParser(description="Populate source templates deterministically from Markdown content.")
+    parser.add_argument("--source-root", type=Path, help="Source directory under data/raw")
+    parser.add_argument("--raw-root", type=Path, help="Raw markdown root for the same source")
+    parser.add_argument("--cleaned-root", type=Path, help="Cleaned markdown root for the same source")
+    parser.add_argument(
+        "--outline-file",
+        type=Path,
+        help="Optional outline path (absolute or relative to --raw-root).",
+    )
     parser.add_argument("--config", type=Path, help="Path to pipeline.yaml")
     return parser
 
@@ -433,18 +495,27 @@ def main() -> int:
     cfg = load_config(args.config)
     log = setup_logging("render_templates", cfg)
 
-    course_id = cfg.get("course_id", "mkt4822-RL")
-    course_root = (args.course_root or resolve_path(cfg["paths"]["data_raw"]) / course_id).resolve()
-    raw_root = (args.raw_root or resolve_path(cfg["paths"]["output_raw_md"]) / course_id).resolve()
-    cleaned_root = (args.cleaned_root or resolve_path(cfg["paths"]["output_cleaned_md"]) / course_id).resolve()
+    source_id = get_source_id(cfg)
+    source_root = (args.source_root or resolve_configured_path(cfg, "data_raw", "data/raw") / source_id).resolve()
+    raw_root = (args.raw_root or resolve_configured_path(cfg, "output_raw_md", "outputs/raw_md") / source_id).resolve()
+    cleaned_root = (
+        args.cleaned_root or resolve_configured_path(cfg, "output_cleaned_md", "outputs/cleaned_md") / source_id
+    ).resolve()
 
     try:
-        syllabus_path = raw_root / "00_meta" / "MKT4822_syllabus.md"
-        syllabus_text = read_text(syllabus_path)
-        week_entries = parse_week_entries(syllabus_text)
+        outline_text = ""
+        section_entries: dict[int, dict[str, list[str] | str]] = {}
+        outline_path = resolve_outline_path(raw_root, cfg=cfg, override=args.outline_file)
+        if outline_path:
+            outline_text = read_text(outline_path)
+            section_entries = parse_section_entries(outline_text)
+        else:
+            log.warning(
+                "No outline file detected under %s; generating templates from folder/content structure only.", raw_root
+            )
         written: list[Path] = []
-        written.extend(render_meta_templates(course_root, syllabus_text, week_entries))
-        written.extend(render_week_templates(course_root, raw_root, cleaned_root, week_entries, cfg=cfg))
+        written.extend(render_meta_templates(source_root, outline_text, section_entries))
+        written.extend(render_section_templates(source_root, raw_root, cleaned_root, section_entries, cfg=cfg))
     except FileNotFoundError as exc:
         log.error("file not found: %s", exc)
         return 1
@@ -452,7 +523,7 @@ def main() -> int:
         log.error("invalid input: %s", exc)
         return 1
 
-    log.info("populated %d template file(s) under %s", len(written), course_root)
+    log.info("populated %d template file(s) under %s", len(written), source_root)
     return 0
 
 

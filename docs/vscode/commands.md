@@ -7,48 +7,48 @@ All commands are accessible via the **Command Palette** (`Ctrl+Shift+P`) with th
 
 | Command | Title | Description |
 |---------|-------|-------------|
-| `pdfPipeline.newSession` | New Session | Create a named session to scope inputs and outputs |
-| `pdfPipeline.setActiveSession` | Set as Active | Mark a session as the active session |
-| `pdfPipeline.deleteSession` | Delete Session | Remove a session and its data |
-| `pdfPipeline.processSession` | Process Active Session | Run the full pipeline on the active session |
+| `cortexmark.newSession` | New Session | Create a named session to scope inputs and outputs |
+| `cortexmark.setActiveSession` | Set as Active | Mark a session as the active session |
+| `cortexmark.deleteSession` | Delete Session | Remove a session and its data |
+| `cortexmark.processSession` | Process Active Session | Run the full pipeline on the active session |
 
 ## File Management
 
 | Command | Title | Description |
 |---------|-------|-------------|
-| `pdfPipeline.addPdf` | Add PDFs… | Open file picker to add PDF files to `data/raw/` |
-| `pdfPipeline.addFolder` | Add PDF Folder… | Open folder picker to add all PDFs from a directory |
-| `pdfPipeline.openOutput` | Reveal in Explorer | Open an output folder in the VS Code file explorer |
-| `pdfPipeline.deleteOutput` | Delete | Remove output files or directories |
-| `pdfPipeline.openConfig` | Open Config | Open `configs/pipeline.yaml` in the editor |
+| `cortexmark.addPdf` | Add PDFs… | Open file picker to add PDF files to `data/raw/` |
+| `cortexmark.addFolder` | Add PDF Folder… | Open folder picker to add all PDFs from a directory |
+| `cortexmark.openOutput` | Reveal in Explorer | Open an output folder in the VS Code file explorer |
+| `cortexmark.deleteOutput` | Delete | Remove output files or directories |
+| `cortexmark.openConfig` | Open Config | Open `configs/pipeline.yaml` in the editor |
 
 ## Pipeline Execution
 
 | Command | Title | Description |
 |---------|-------|-------------|
-| `pdfPipeline.runFull` | Run Full Pipeline | Execute all default stages (convert → clean → chunk → render) |
-| `pdfPipeline.runConvert` | Convert Only | Run only the PDF → Markdown conversion stage |
-| `pdfPipeline.runQA` | Generate QA Report | Generate a quality assurance report |
-| `pdfPipeline.runDiff` | Compare Two Folders | Diff two output directories side-by-side |
+| `cortexmark.runFull` | Run Full Pipeline | Execute all default stages (convert → clean → chunk → render) |
+| `cortexmark.runConvert` | Convert Only | Run only the PDF → Markdown conversion stage |
+| `cortexmark.runQA` | Generate QA Report | Generate a quality assurance report |
+| `cortexmark.runDiff` | Compare Two Folders | Diff two output directories side-by-side |
 
 ## Analysis Commands
 
 | Command | Title | Description |
 |---------|-------|-------------|
-| `pdfPipeline.runCrossRef` | Run Cross-Reference Analysis | Detect and resolve cross-references |
-| `pdfPipeline.runAlgorithm` | Run Algorithm Extraction | Find pseudocode and algorithm blocks |
-| `pdfPipeline.runNotation` | Run Notation Glossary | Catalog mathematical symbols and notation |
-| `pdfPipeline.runSemanticChunk` | Run Semantic Chunking | ML-based semantic segmentation of sections |
-| `pdfPipeline.runAllAnalysis` | Run All Analyses | Execute all four analysis modules |
+| `cortexmark.runCrossRef` | Run Cross-Reference Analysis | Detect and resolve cross-references |
+| `cortexmark.runAlgorithm` | Run Algorithm Extraction | Find pseudocode and algorithm blocks |
+| `cortexmark.runNotation` | Run Notation Glossary | Catalog mathematical symbols and notation |
+| `cortexmark.runSemanticChunk` | Run Semantic Chunking | ML-based semantic segmentation of sections |
+| `cortexmark.runAllAnalysis` | Run All Analyses | Execute all four analysis modules |
 
 ## Preview & Dashboard
 
 | Command | Title | Description |
 |---------|-------|-------------|
-| `pdfPipeline.previewFile` | Preview Markdown | Open a rendered preview of an output Markdown file |
-| `pdfPipeline.refreshPreview` | Refresh Preview | Reload the Markdown preview panel |
-| `pdfPipeline.refreshDashboard` | Refresh Dashboard | Reload the dashboard webview with latest stats |
-| `pdfPipeline.refresh` | Refresh | Refresh the sidebar tree view |
+| `cortexmark.previewFile` | Preview Markdown | Open a rendered preview of an output Markdown file |
+| `cortexmark.refreshPreview` | Refresh Preview | Reload the Markdown preview panel |
+| `cortexmark.refreshDashboard` | Refresh Dashboard | Reload the dashboard webview with latest stats |
+| `cortexmark.refresh` | Refresh | Refresh the sidebar tree view |
 
 ## Context Menus
 

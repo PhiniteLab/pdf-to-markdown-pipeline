@@ -14,7 +14,7 @@ export class PipelineRunner implements vscode.Disposable {
   private progressResolve: (() => void) | null = null;
 
   constructor() {
-    this.output = vscode.window.createOutputChannel("PhiniteLab PDF Pipeline");
+    this.output = vscode.window.createOutputChannel("CortexMark");
   }
 
   get busy(): boolean {
@@ -91,7 +91,7 @@ export class PipelineRunner implements vscode.Disposable {
     onLine?: (line: string) => void,
   ): Promise<RunResult> {
     const args = [
-      "-m", "phinitelab_pdf_pipeline.run_pipeline",
+      "-m", "cortexmark.run_pipeline",
       "--config", path.resolve(opts.root, opts.config),
       "--engine", opts.engine,
     ];
@@ -116,7 +116,7 @@ export class PipelineRunner implements vscode.Disposable {
     return this.exec(
       opts.python,
       [
-        "-m", "phinitelab_pdf_pipeline.qa_pipeline",
+        "-m", "cortexmark.qa_pipeline",
         "--config", path.resolve(opts.root, opts.config),
         "--input", opts.input,
         "--output", opts.output,
@@ -133,7 +133,7 @@ export class PipelineRunner implements vscode.Disposable {
     return this.exec(
       opts.python,
       [
-        "-m", "phinitelab_pdf_pipeline.diff",
+        "-m", "cortexmark.diff",
         "--config", path.resolve(opts.root, opts.config),
         "--old", opts.oldDir,
         "--new", opts.newDir,
@@ -147,44 +147,44 @@ export class PipelineRunner implements vscode.Disposable {
   // ── Analysis module commands ─────────────────────────────────────────
 
   runCrossRef(opts: {
-    python: string; root: string; input: string;
+    python: string; root: string; input: string; output: string;
   }): Promise<RunResult> {
     return this.execWithProgress(
       opts.python,
-      ["-m", "phinitelab_pdf_pipeline.cross_ref", opts.input],
+      ["-m", "cortexmark.cross_ref", "--input", opts.input, "--output", opts.output],
       opts.root,
       "Cross Reference Analysis",
     );
   }
 
   runAlgorithmExtract(opts: {
-    python: string; root: string; input: string;
+    python: string; root: string; input: string; output: string;
   }): Promise<RunResult> {
     return this.execWithProgress(
       opts.python,
-      ["-m", "phinitelab_pdf_pipeline.algorithm_extract", opts.input],
+      ["-m", "cortexmark.algorithm_extract", "--input", opts.input, "--output", opts.output],
       opts.root,
       "Algorithm Extraction",
     );
   }
 
   runNotationGlossary(opts: {
-    python: string; root: string; input: string;
+    python: string; root: string; input: string; output: string;
   }): Promise<RunResult> {
     return this.execWithProgress(
       opts.python,
-      ["-m", "phinitelab_pdf_pipeline.notation_glossary", opts.input],
+      ["-m", "cortexmark.notation_glossary", "--input", opts.input, "--output", opts.output],
       opts.root,
       "Notation Glossary",
     );
   }
 
   runSemanticChunk(opts: {
-    python: string; root: string; input: string;
+    python: string; root: string; input: string; outputDir: string;
   }): Promise<RunResult> {
     return this.execWithProgress(
       opts.python,
-      ["-m", "phinitelab_pdf_pipeline.semantic_chunk", opts.input],
+      ["-m", "cortexmark.semantic_chunk", "--input", opts.input, "--output-dir", opts.outputDir],
       opts.root,
       "Semantic Chunking",
     );

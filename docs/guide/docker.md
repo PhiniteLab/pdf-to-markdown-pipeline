@@ -62,7 +62,7 @@ The image includes a built-in health check:
 
 ```dockerfile
 HEALTHCHECK --interval=30s --timeout=5s --retries=2 \
-  CMD ["python", "-c", "import phinitelab_pdf_pipeline; print('ok')"]
+  CMD ["python", "-c", "import cortexmark; print('ok')"]
 ```
 
 Check health status:

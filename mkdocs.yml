@@ -1,5 +1,4 @@
-site_name: PhiniteLab PDF Pipeline
-site_url: https://phinitelab.github.io/pdf-to-markdown-pipeline/
+site_name: CortexMark
 site_description: Convert PDF documents to structured Markdown with a multi-stage pipeline.
 site_author: Mehmet İşcan
 
@@ -7,7 +6,7 @@ repo_name: PhiniteLab/pdf-to-markdown-pipeline
 repo_url: https://github.com/PhiniteLab/pdf-to-markdown-pipeline
 edit_uri: edit/main/docs/
 
-copyright: Copyright &copy; 2024–2026 PhiniteLab
+copyright: Copyright &copy; 2024–2026 CortexMark
 
 theme:
   name: material

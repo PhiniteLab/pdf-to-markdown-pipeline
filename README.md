@@ -1,4 +1,4 @@
-# PhiniteLab PDF Pipeline
+# CortexMark
 
 [![CI](https://github.com/PhiniteLab/pdf-to-markdown-pipeline/actions/workflows/ci.yml/badge.svg)](https://github.com/PhiniteLab/pdf-to-markdown-pipeline/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/PhiniteLab/pdf-to-markdown-pipeline/graph/badge.svg)](https://codecov.io/gh/PhiniteLab/pdf-to-markdown-pipeline)
@@ -24,10 +24,10 @@ A multi-stage pipeline that converts PDF documents into structured Markdown, cle
 - **Figure extraction**: image catalog from Markdown and HTML `<img>` references with file existence validation
 - **Version diffing**: unified diff format with JSON change statistics across file trees
 - **Plugin architecture**: custom pipeline hooks (`pre_convert`, `post_convert`, `pre_clean`, `post_clean`, `pre_chunk`, `post_chunk`, `post_pipeline`) via file-based discovery
-- **Template rendering**: deterministic syllabus and week template population
+- **Template rendering**: deterministic source profile and section template population
 - **Docker support**: containerized execution with minimal setup
 - **VS Code extension**: session management, Markdown preview panel, quality dashboard, analysis module integration, progress visualization, and chat panel with 22 commands
-- **Validated by 755 tests** with a minimum coverage threshold of 70%
+- **Validated by an extensive pytest suite** with a minimum coverage threshold of 70%
 
 ## Dual-Engine Approach
 
@@ -37,6 +37,23 @@ A multi-stage pipeline that converts PDF documents into structured Markdown, cle
 | **markitdown** | Extracts more raw text in difficult PDFs | Can turn formulas into table-like artifacts |
 
 The default mode, `dual`, uses Docling output as the structural backbone and fills missing paragraphs from markitdown output through fingerprint matching. Table artifacts and short fragments are filtered automatically.
+
+## Migration from PhiniteLab PDF Pipeline
+
+This release rebrands the public package and extension surfaces to **CortexMark**.
+
+| Old surface | New surface |
+|---|---|
+| PyPI package `phinitelab-pdf-pipeline` | PyPI package `cortexmark` |
+| Python module `phinitelab_pdf_pipeline` | Python module `cortexmark` |
+| CLI command `phinitelab-pdf-pipeline` | CLI command `cortexmark` |
+| VS Code extension `phinitelab-pdf-pipeline-vscode` | VS Code extension `cortexmark-vscode` |
+| Session store `.phinitelab-pdf-pipeline/` | Session store `.cortexmark/` |
+
+Notes:
+- This is a **breaking rename** for public package, module, CLI, and extension IDs.
+- The VS Code extension now uses a new extension identity; existing users should install the new `cortexmark-vscode` package manually.
+- Existing workspace session data is read from the legacy `.phinitelab-pdf-pipeline/sessions.json` path and copied into `.cortexmark/sessions.json` automatically when needed.
 
 ## Installation
 
@@ -63,7 +80,7 @@ CPU-only PyTorch, then install the package with the `[docling]` extra:
 
 ```bash
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
-pip install "phinitelab-pdf-pipeline[docling] @ git+https://github.com/PhiniteLab/pdf-to-markdown-pipeline.git"
+pip install "cortexmark[docling] @ git+https://github.com/PhiniteLab/pdf-to-markdown-pipeline.git"
 ```
 
 > **Note:** Pre-installing CPU-only PyTorch prevents pip from downloading the
@@ -74,7 +91,7 @@ pip install "phinitelab-pdf-pipeline[docling] @ git+https://github.com/PhiniteLa
 If you have an NVIDIA GPU with CUDA, you can install with GPU support directly:
 
 ```bash
-pip install "phinitelab-pdf-pipeline[gpu] @ git+https://github.com/PhiniteLab/pdf-to-markdown-pipeline.git"
+pip install "cortexmark[gpu] @ git+https://github.com/PhiniteLab/pdf-to-markdown-pipeline.git"
 ```
 
 This pulls the default PyTorch from PyPI, which includes CUDA support on Linux.
@@ -82,16 +99,16 @@ To target a specific CUDA version (e.g. CUDA 12.8):
 
 ```bash
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
-pip install "phinitelab-pdf-pipeline[gpu] @ git+https://github.com/PhiniteLab/pdf-to-markdown-pipeline.git"
+pip install "cortexmark[gpu] @ git+https://github.com/PhiniteLab/pdf-to-markdown-pipeline.git"
 ```
 
 ### Which installation should I choose?
 
 | Scenario | Command |
 |----------|---------|
-| Lightweight / markitdown only | `pip install phinitelab-pdf-pipeline` |
-| Docling engine on CPU | Pre-install CPU torch, then `pip install "phinitelab-pdf-pipeline[docling]"` |
-| Docling engine with NVIDIA GPU | `pip install "phinitelab-pdf-pipeline[gpu]"` |
+| Lightweight / markitdown only | `pip install cortexmark` |
+| Docling engine on CPU | Pre-install CPU torch, then `pip install "cortexmark[docling]"` |
+| Docling engine with NVIDIA GPU | `pip install "cortexmark[gpu]"` |
 
 ### WSL / Linux notes
 
@@ -124,34 +141,34 @@ docker compose --profile test up  # Run the test profile
 
 ### CLI command
 
-After installation, you can use the `phinitelab-pdf-pipeline` command:
+After installation, you can use the `cortexmark` command:
 
 ```bash
 # Run all stages in order
-phinitelab-pdf-pipeline
+cortexmark
 
 # Run only selected stages
-phinitelab-pdf-pipeline --stages convert clean
+cortexmark --stages convert clean
 
 # Use a different config file
-phinitelab-pdf-pipeline --config configs/pipeline.yaml
+cortexmark --config configs/pipeline.yaml
 
 # Select a conversion engine
-phinitelab-pdf-pipeline --engine docling      # Docling only
-phinitelab-pdf-pipeline --engine markitdown   # markitdown only
-phinitelab-pdf-pipeline --engine dual         # combined mode (default)
+cortexmark --engine docling      # Docling only
+cortexmark --engine markitdown   # markitdown only
+cortexmark --engine dual         # combined mode (default)
 
 # Custom input directory or single file
-phinitelab-pdf-pipeline --input path/to/my.pdf
+cortexmark --input path/to/my.pdf
 
 # Session-scoped output directories
-phinitelab-pdf-pipeline --session-name experiment1
+cortexmark --session-name sample-session
 
 # Disable idempotency (force reprocess)
-phinitelab-pdf-pipeline --no-manifest
+cortexmark --no-manifest
 ```
 
-Run `phinitelab-pdf-pipeline --help` to view all available arguments.
+Run `cortexmark --help` to view all available arguments.
 
 ### Makefile shortcuts
 
@@ -174,32 +191,32 @@ Each module can also be executed independently:
 
 ```bash
 # Core stages
-python -m phinitelab_pdf_pipeline.convert --config configs/pipeline.yaml
-python -m phinitelab_pdf_pipeline.clean --config configs/pipeline.yaml
-python -m phinitelab_pdf_pipeline.chunk --config configs/pipeline.yaml
-python -m phinitelab_pdf_pipeline.render_templates --config configs/pipeline.yaml
+python -m cortexmark.convert --config configs/pipeline.yaml
+python -m cortexmark.clean --config configs/pipeline.yaml
+python -m cortexmark.chunk --config configs/pipeline.yaml
+python -m cortexmark.render_templates --config configs/pipeline.yaml
 
 # Quality & analysis
-python -m phinitelab_pdf_pipeline.qa_pipeline --input outputs/cleaned_md
-python -m phinitelab_pdf_pipeline.ocr_quality --input outputs/raw_md
-python -m phinitelab_pdf_pipeline.formula_score --input outputs/raw_md
+python -m cortexmark.qa_pipeline --input outputs/cleaned_md
+python -m cortexmark.ocr_quality --input outputs/raw_md
+python -m cortexmark.formula_score --input outputs/raw_md
 
 # Metadata & classification
-python -m phinitelab_pdf_pipeline.metadata --input outputs/cleaned_md
-python -m phinitelab_pdf_pipeline.citations --input outputs/cleaned_md
-python -m phinitelab_pdf_pipeline.doc_type --input outputs/cleaned_md
-python -m phinitelab_pdf_pipeline.topics --input outputs/cleaned_md
-python -m phinitelab_pdf_pipeline.figures --input outputs/cleaned_md
+python -m cortexmark.metadata --input outputs/cleaned_md
+python -m cortexmark.citations --input outputs/cleaned_md
+python -m cortexmark.doc_type --input outputs/cleaned_md
+python -m cortexmark.topics --input outputs/cleaned_md
+python -m cortexmark.figures --input outputs/cleaned_md
 
 # Export & output
-python -m phinitelab_pdf_pipeline.rag_export --input outputs/chunks
-python -m phinitelab_pdf_pipeline.multi_format --input outputs/cleaned_md
-python -m phinitelab_pdf_pipeline.ghpages --input outputs/cleaned_md
-python -m phinitelab_pdf_pipeline.diff --old outputs/v1 --new outputs/v2
+python -m cortexmark.rag_export --input outputs/chunks
+python -m cortexmark.multi_format --input outputs/cleaned_md
+python -m cortexmark.ghpages --input outputs/cleaned_md
+python -m cortexmark.diff --old outputs/v1 --new outputs/v2
 
 # Utilities
-python -m phinitelab_pdf_pipeline.parallel --help
-python -m phinitelab_pdf_pipeline.plugin --help
+python -m cortexmark.parallel --help
+python -m cortexmark.plugin --help
 ```
 
 ## Pipeline Stages
@@ -223,9 +240,9 @@ PDF files
 1. **convert**: PDF → raw Markdown. Docling handles structure (headings, formulas, algorithms), while markitdown fills text gaps via fingerprint-based deduplication.
 2. **clean**: removes page numbers, repeated headers/footers, and broken line wraps. Normalizes heading hierarchy and table blocks.
 3. **chunk**: splits cleaned Markdown into logical sections based on heading levels (default: H1 and H2). Files are numbered (e.g., `chunk_001_Introduction.md`).
-4. **render** *(optional)*: fills course and week template files deterministically from syllabus content.
+4. **render** *(optional)*: fills source profile and section template files deterministically from outline/content metadata.
 5. **analyze** *(optional)*: runs semantic chunking, cross-reference analysis, algorithm extraction, and notation glossary on cleaned Markdown.
-6. **validate** *(optional)*: runs formula validation, scientific QA checks, and citation context analysis. Produces quality reports under `outputs/quality/`.
+6. **validate** *(optional)*: runs formula validation, scientific QA checks, and citation context analysis. Produces quality reports under `outputs/quality/` (or `outputs/quality/<session-name>/` when session-scoped).
 
 ### Optional Analysis Modules
 
@@ -258,13 +275,15 @@ PDF files
 All settings are controlled from `configs/pipeline.yaml`:
 
 ```yaml
-course_id: mkt4822-RL
+source_id: default
 
 paths:
   data_raw: data/raw
   output_raw_md: outputs/raw_md
   output_cleaned_md: outputs/cleaned_md
   output_chunks: outputs/chunks
+  output_quality: outputs/quality
+  output_semantic_chunks: outputs/semantic_chunks
 
 convert:
   engine: dual                         # docling | markitdown | dual
@@ -285,6 +304,7 @@ chunk:
   split_levels: [1, 2]                 # Heading levels that trigger new chunks
 
 render_templates:
+  outline_file: 00_meta/outline.md
   language: en
   max_summary_chars: 240
   max_scope_items: 6
@@ -306,7 +326,7 @@ Any script can receive an alternative config file through `--config <path>`.
 
 ```text
 pdf-to-markdown-pipeline/
-├── phinitelab_pdf_pipeline/           # Python package
+├── cortexmark/           # Python package
 │   ├── run_pipeline.py                #   Orchestrator and CLI entry point
 │   ├── convert.py                     #   PDF → Markdown (docling/markitdown/dual)
 │   ├── clean.py                       #   Markdown cleanup and normalization
@@ -340,7 +360,7 @@ pdf-to-markdown-pipeline/
 │   └── test_pipeline_structure.py     # 755 tests (70% minimum coverage)
 ├── data/raw/                          # Source PDF files (user-provided)
 │   ├── books/
-│   ├── lecture_notes/
+│   ├── notes/
 │   ├── manuscripts/
 │   ├── reports/
 │   ├── textbooks/chapters/
@@ -370,14 +390,14 @@ pdf-to-markdown-pipeline/
 
 | Problem | Resolution |
 |---------|------------|
-| `ImportError: The 'docling' package is required` | Docling is not included in the default installation. Install it with `pip install "phinitelab-pdf-pipeline[docling]"` or `pip install "phinitelab-pdf-pipeline[gpu]"`. |
-| `ModuleNotFoundError: No module named 'phinitelab_pdf_pipeline'` | Make sure the project was installed with `pip install -e .`. Prefer `python -m phinitelab_pdf_pipeline.convert` over `python phinitelab_pdf_pipeline/convert.py`. |
-| `FileNotFoundError: Config file not found` | Pass a valid config path with `--config`, for example `phinitelab-pdf-pipeline --config configs/pipeline.yaml`. |
+| `ImportError: The 'docling' package is required` | Docling is not included in the default installation. Install it with `pip install "cortexmark[docling]"` or `pip install "cortexmark[gpu]"`. |
+| `ModuleNotFoundError: No module named 'cortexmark'` | Make sure the project was installed with `pip install -e .`. Prefer `python -m cortexmark.convert` over `python cortexmark/convert.py`. |
+| `FileNotFoundError: Config file not found` | Pass a valid config path with `--config`, for example `cortexmark --config configs/pipeline.yaml`. |
 | Docling installation fails | Docling may require system libraries and a compiler toolchain. On Debian/Ubuntu, install `build-essential` and `poppler-utils`, or use Docker instead. |
 | Memory issues on large PDFs | Verify `num_threads: 1` and `device: cpu` in `configs/pipeline.yaml`. If needed, constrain Docker resources explicitly. |
 | Formulas look corrupted | `engine: dual` usually gives the best output. Compare with `--engine docling` and `--engine markitdown` when debugging. |
 | Idempotency does not skip unchanged files | Check that `outputs/.manifest.json` is writable. To rebuild from scratch, run `make clean-outputs`. |
-| Tests fail after code changes | Run `make lint && make test && pyright phinitelab_pdf_pipeline/` to check all quality gates. |
+| Tests fail after code changes | Run `make lint && make test && pyright cortexmark/` to check all quality gates. |
 
 ## Development Notes
 
@@ -397,13 +417,13 @@ make format                        # Apply automatic fixes
 ### Type checking
 
 ```bash
-pyright phinitelab_pdf_pipeline/   # standard mode, currently 0 errors, 0 warnings
+pyright cortexmark/   # standard mode, currently 0 errors, 0 warnings
 ```
 
 ### Coverage
 
 ```bash
-python -m pytest tests/ --cov=phinitelab_pdf_pipeline --cov-report=term-missing
+python -m pytest tests/ --cov=cortexmark --cov-report=term-missing
 ```
 
 The minimum coverage threshold is 70%, enforced by pytest-cov.

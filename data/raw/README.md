@@ -8,11 +8,11 @@ This directory organizes source PDF files by document type. Each subdirectory fe
 |--------|-------------|-----------------|
 | `manuscripts/` | Academic journal articles, conference papers | `ver1.pdf` (Kim & Yang, IEEE TAC 2023) |
 | `books/` | Complete books (single PDF per book) | `sutton_barto_2018.pdf` |
-| `textbooks/` | Textbooks — top-level PDFs or per-chapter splits | `reinforcement_learning.pdf` |
+| `textbooks/` | Textbooks — top-level PDFs or per-chapter splits | `reference_book.pdf` |
 | `textbooks/chapters/` | Individual chapter PDFs from a textbook | `ch01_introduction.pdf` |
-| `lecture_notes/` | Lecture slides, handouts, course notes | `week03_bandits.pdf` |
-| `reports/` | Technical reports, white papers, surveys | `deepmind_muzero_2020.pdf` |
-| `theses/` | Master's/PhD theses, dissertations | `ziebart_2010_maxent.pdf` |
+| `notes/` | Notes, handouts, reference packets | `topic03_overview.pdf` |
+| `reports/` | Technical reports, white papers, surveys | `systems_report_2020.pdf` |
+| `theses/` | Master's/PhD theses, dissertations | `dissertation_sample.pdf` |
 
 ## Usage
 
@@ -20,10 +20,10 @@ Process any folder through the pipeline:
 
 ```bash
 # Process a specific document type
-python -m phinitelab_pdf_pipeline.convert --input data/raw/manuscripts --output-dir outputs/raw_md --no-manifest
+python -m cortexmark.convert --input data/raw/manuscripts --output-dir outputs/raw_md --no-manifest
 
 # Or process a single file
-python -m phinitelab_pdf_pipeline.convert --input data/raw/books/my_book.pdf --output outputs/raw_md/books/my_book.md
+python -m cortexmark.convert --input data/raw/books/my_book.pdf --output outputs/raw_md/books/my_book.md
 ```
 
 ## Output Mapping
@@ -39,6 +39,5 @@ data/raw/manuscripts/ver1.pdf
 
 ## Notes
 
-- The `mkt4822-RL/` course directory is managed separately with its own config (`course_id` in pipeline.yaml).
 - Each folder is processed independently — the pipeline uses `--input` to target any subdirectory.
 - `.gitkeep` files are placed in empty directories to preserve structure in version control.

@@ -7,7 +7,7 @@ services:
       - ./configs:/app/configs
     environment:
       - PYTHONPATH=/app
-    entrypoint: ["python", "-m", "phinitelab_pdf_pipeline.run_pipeline"]
+    entrypoint: ["python", "-m", "cortexmark.run_pipeline"]
     restart: "no"
 
   analyze:
@@ -18,7 +18,7 @@ services:
       - ./configs:/app/configs
     environment:
       - PYTHONPATH=/app
-    entrypoint: ["python", "-m", "phinitelab_pdf_pipeline.run_pipeline", "--stages", "analyze", "validate"]
+    entrypoint: ["python", "-m", "cortexmark.run_pipeline", "--stages", "analyze", "validate"]
     profiles:
       - analysis
 
@@ -26,7 +26,7 @@ services:
     build: .
     volumes:
       - ./tests:/app/tests
-      - ./phinitelab_pdf_pipeline:/app/phinitelab_pdf_pipeline
+      - ./cortexmark:/app/cortexmark
       - ./configs:/app/configs
     environment:
       - PYTHONPATH=/app
@@ -37,10 +37,10 @@ services:
   lint:
     build: .
     volumes:
-      - ./phinitelab_pdf_pipeline:/app/phinitelab_pdf_pipeline
+      - ./cortexmark:/app/cortexmark
       - ./tests:/app/tests
     environment:
       - PYTHONPATH=/app
-    entrypoint: ["python", "-m", "ruff", "check", "phinitelab_pdf_pipeline/", "tests/"]
+    entrypoint: ["python", "-m", "ruff", "check", "cortexmark/", "tests/"]
     profiles:
       - lint

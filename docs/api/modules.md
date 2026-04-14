@@ -1,188 +1,188 @@
 # API Reference
 
-::: phinitelab_pdf_pipeline.common
+::: cortexmark.common
     options:
       show_root_heading: true
       show_source: true
 
 ---
 
-::: phinitelab_pdf_pipeline.convert
+::: cortexmark.convert
     options:
       show_root_heading: true
       show_source: true
 
 ---
 
-::: phinitelab_pdf_pipeline.clean
+::: cortexmark.clean
     options:
       show_root_heading: true
       show_source: true
 
 ---
 
-::: phinitelab_pdf_pipeline.chunk
+::: cortexmark.chunk
     options:
       show_root_heading: true
       show_source: true
 
 ---
 
-::: phinitelab_pdf_pipeline.render_templates
+::: cortexmark.render_templates
     options:
       show_root_heading: true
       show_source: true
 
 ---
 
-::: phinitelab_pdf_pipeline.semantic_chunk
+::: cortexmark.semantic_chunk
     options:
       show_root_heading: true
       show_source: true
 
 ---
 
-::: phinitelab_pdf_pipeline.cross_ref
+::: cortexmark.cross_ref
     options:
       show_root_heading: true
       show_source: true
 
 ---
 
-::: phinitelab_pdf_pipeline.algorithm_extract
+::: cortexmark.algorithm_extract
     options:
       show_root_heading: true
       show_source: true
 
 ---
 
-::: phinitelab_pdf_pipeline.notation_glossary
+::: cortexmark.notation_glossary
     options:
       show_root_heading: true
       show_source: true
 
 ---
 
-::: phinitelab_pdf_pipeline.formula_validate
+::: cortexmark.formula_validate
     options:
       show_root_heading: true
       show_source: true
 
 ---
 
-::: phinitelab_pdf_pipeline.formula_score
+::: cortexmark.formula_score
     options:
       show_root_heading: true
       show_source: true
 
 ---
 
-::: phinitelab_pdf_pipeline.scientific_qa
+::: cortexmark.scientific_qa
     options:
       show_root_heading: true
       show_source: true
 
 ---
 
-::: phinitelab_pdf_pipeline.citation_context
+::: cortexmark.citation_context
     options:
       show_root_heading: true
       show_source: true
 
 ---
 
-::: phinitelab_pdf_pipeline.citations
+::: cortexmark.citations
     options:
       show_root_heading: true
       show_source: true
 
 ---
 
-::: phinitelab_pdf_pipeline.figures
+::: cortexmark.figures
     options:
       show_root_heading: true
       show_source: true
 
 ---
 
-::: phinitelab_pdf_pipeline.doc_type
+::: cortexmark.doc_type
     options:
       show_root_heading: true
       show_source: true
 
 ---
 
-::: phinitelab_pdf_pipeline.ocr_quality
+::: cortexmark.ocr_quality
     options:
       show_root_heading: true
       show_source: true
 
 ---
 
-::: phinitelab_pdf_pipeline.metadata
+::: cortexmark.metadata
     options:
       show_root_heading: true
       show_source: true
 
 ---
 
-::: phinitelab_pdf_pipeline.topics
+::: cortexmark.topics
     options:
       show_root_heading: true
       show_source: true
 
 ---
 
-::: phinitelab_pdf_pipeline.rag_export
+::: cortexmark.rag_export
     options:
       show_root_heading: true
       show_source: true
 
 ---
 
-::: phinitelab_pdf_pipeline.diff
+::: cortexmark.diff
     options:
       show_root_heading: true
       show_source: true
 
 ---
 
-::: phinitelab_pdf_pipeline.ghpages
+::: cortexmark.ghpages
     options:
       show_root_heading: true
       show_source: true
 
 ---
 
-::: phinitelab_pdf_pipeline.qa_pipeline
+::: cortexmark.qa_pipeline
     options:
       show_root_heading: true
       show_source: true
 
 ---
 
-::: phinitelab_pdf_pipeline.parallel
+::: cortexmark.parallel
     options:
       show_root_heading: true
       show_source: true
 
 ---
 
-::: phinitelab_pdf_pipeline.plugin
+::: cortexmark.plugin
     options:
       show_root_heading: true
       show_source: true
 
 ---
 
-::: phinitelab_pdf_pipeline.multi_format
+::: cortexmark.multi_format
     options:
       show_root_heading: true
       show_source: true
 
 ---
 
-::: phinitelab_pdf_pipeline.run_pipeline
+::: cortexmark.run_pipeline
     options:
       show_root_heading: true
       show_source: true

@@ -2,13 +2,15 @@
 # Pipeline configuration
 # ─────────────────────────────────────────────
 
-course_id: mkt4822-RL
+source_id: default
 
 paths:
   data_raw: data/raw
   output_raw_md: outputs/raw_md
   output_cleaned_md: outputs/cleaned_md
   output_chunks: outputs/chunks
+  output_quality: outputs/quality
+  output_semantic_chunks: outputs/semantic_chunks
 
 convert:
   # Primary engine: docling | markitdown | dual
@@ -34,6 +36,7 @@ chunk:
   split_levels: [1, 2]
 
 render_templates:
+  outline_file: 00_meta/outline.md
   language: en
   max_summary_chars: 240
   max_scope_items: 6

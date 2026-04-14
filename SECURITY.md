@@ -13,16 +13,16 @@ If you discover a security vulnerability in this project, please report it
 responsibly:
 
 1. **Do not** open a public GitHub issue.
-2. Email [security@phinitelab.com](mailto:security@phinitelab.com) with a
-   description of the vulnerability, steps to reproduce, and any potential
-   impact.
-3. You will receive an acknowledgement within 48 hours.
+2. Use GitHub's private vulnerability reporting for this repository when it is
+   available.
+3. If private reporting is not available, contact the maintainer privately
+   through the repository's listed contact channels before public disclosure.
 4. A fix will be developed and released as soon as feasible, typically within
    7 days for critical issues.
 
 ## Scope
 
-This policy covers the Python pipeline (`phinitelab_pdf_pipeline/`), the VS
+This policy covers the Python pipeline (`cortexmark/`), the VS
 Code extension (`vscode-extension/`), Docker images, and CI/CD workflows.
 
 ## Best Practices
