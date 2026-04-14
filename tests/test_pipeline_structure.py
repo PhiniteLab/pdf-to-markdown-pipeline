@@ -4894,7 +4894,7 @@ class TestPackageJsonStructure:
         self.pkg = json.loads((EXT_DIR / "package.json").read_text(encoding="utf-8"))
 
     def test_version_is_0_3(self) -> None:
-        assert self.pkg["version"] == "0.3.0"
+        assert self.pkg["version"] == "0.3.2"
 
     def test_engine_constraint(self) -> None:
         assert "vscode" in self.pkg["engines"]
