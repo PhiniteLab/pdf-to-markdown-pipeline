@@ -1,3 +1,4 @@
+import * as cp from "child_process";
 import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
@@ -37,8 +38,34 @@ function sessionInputDir(mgr: SessionManager, wsRoot: string): string | undefine
   return path.dirname(abs);
 }
 
-/** Resolve the Python executable: check venv first, then user setting. */
-function resolvePython(wsRoot: string): string {
+/** Try to obtain the interpreter path from the Microsoft Python extension. */
+async function getPythonFromExtension(): Promise<string | undefined> {
+  try {
+    const pythonExt = vscode.extensions.getExtension("ms-python.python");
+    if (!pythonExt) return undefined;
+    if (!pythonExt.isActive) {
+      await pythonExt.activate();
+    }
+    const api = pythonExt.exports;
+    const wsFolder = vscode.workspace.workspaceFolders?.[0]?.uri;
+    // New environments API (2023+)
+    if (api?.environments?.getActiveEnvironmentPath) {
+      const env = api.environments.getActiveEnvironmentPath(wsFolder);
+      if (env?.path) return env.path;
+    }
+    // Legacy API
+    if (api?.settings?.getExecutionDetails) {
+      const details = api.settings.getExecutionDetails(wsFolder);
+      if (details?.execCommand?.[0]) return details.execCommand[0];
+    }
+  } catch {
+    // Python extension not available or API changed — ignore
+  }
+  return undefined;
+}
+
+/** Resolve the Python executable: user setting → venv → Python extension → python3. */
+async function resolvePython(wsRoot: string): Promise<string> {
   const userPython = cfg<string>("pythonPath");
   // If user explicitly set an absolute path, honour it.
   if (userPython && path.isAbsolute(userPython)) {
@@ -58,8 +85,38 @@ function resolvePython(wsRoot: string): string {
       return c;
     }
   }
+  // Try the Microsoft Python extension's selected interpreter
+  const extPython = await getPythonFromExtension();
+  if (extPython) return extPython;
   // Fallback to user setting or python3
   return userPython || "python3";
+}
+
+/** Check whether the cortexmark package is importable by the given Python. */
+function checkCortexmark(python: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    cp.execFile(python, ["-c", "import cortexmark"], { timeout: 15_000 }, (err) => {
+      resolve(!err);
+    });
+  });
+}
+
+/** Show a warning with an Install button when cortexmark is missing. */
+async function promptCortexmarkInstall(python: string): Promise<void> {
+  const action = await vscode.window.showWarningMessage(
+    "CortexMark Python backend is not installed. Pipeline commands will not work until it is installed.",
+    "Install with pip",
+    "Show Instructions",
+  );
+  if (action === "Install with pip") {
+    const terminal = vscode.window.createTerminal("CortexMark Setup");
+    terminal.show();
+    terminal.sendText(`"${python}" -m pip install cortexmark`);
+  } else if (action === "Show Instructions") {
+    void vscode.env.openExternal(
+      vscode.Uri.parse("https://github.com/PhiniteLab/pdf-to-markdown-pipeline#installation"),
+    );
+  }
 }
 
 function requireActiveSession(mgr: SessionManager): Session | undefined {
@@ -78,6 +135,15 @@ function requireActiveSession(mgr: SessionManager): Session | undefined {
 export function activate(context: vscode.ExtensionContext): void {
   const wsRoot = root();
   if (!wsRoot) return;
+
+  // ── Check Python backend availability (non-blocking) ───────────────────
+  void (async () => {
+    const python = await resolvePython(wsRoot);
+    const ok = await checkCortexmark(python);
+    if (!ok) {
+      await promptCortexmarkInstall(python);
+    }
+  })();
 
   // ── Core services ──────────────────────────────────────────────────────
   const sessions = new SessionManager(wsRoot);
@@ -338,7 +404,7 @@ async function processActiveSession(
   const inputDir = sessionInputDir(mgr, wsRoot);
   const result = await runner.runPipeline(
     {
-      python: resolvePython(wsRoot),
+      python: await resolvePython(wsRoot),
       root: wsRoot,
       config: cfg<string>("configPath"),
       engine: cfg<string>("defaultEngine"),
@@ -365,7 +431,7 @@ async function cmdRunFull(runner: PipelineRunner, wsRoot: string, mgr: SessionMa
   const session = requireActiveSession(mgr);
   if (!session) return;
   await runner.runPipeline({
-    python: resolvePython(wsRoot),
+    python: await resolvePython(wsRoot),
     root: wsRoot,
     config: cfg<string>("configPath"),
     engine: cfg<string>("defaultEngine"),
@@ -379,7 +445,7 @@ async function cmdRunConvert(runner: PipelineRunner, wsRoot: string, mgr: Sessio
   const session = requireActiveSession(mgr);
   if (!session) return;
   await runner.runPipeline({
-    python: resolvePython(wsRoot),
+    python: await resolvePython(wsRoot),
     root: wsRoot,
     config: cfg<string>("configPath"),
     engine: cfg<string>("defaultEngine"),
@@ -404,7 +470,7 @@ async function cmdRunQA(
     return;
   }
   await runner.runQA({
-    python: resolvePython(wsRoot),
+    python: await resolvePython(wsRoot),
     root: wsRoot,
     config: cfg<string>("configPath"),
     input: sessionPaths.cleanedDir,
@@ -435,7 +501,7 @@ async function cmdRunDiff(runner: PipelineRunner, wsRoot: string, mgr: SessionMa
     : path.resolve(wsRoot, "outputs/quality/diff_report.json");
 
   await runner.runDiff({
-    python: resolvePython(wsRoot),
+    python: await resolvePython(wsRoot),
     root: wsRoot,
     config: cfg<string>("configPath"),
     oldDir,
@@ -501,7 +567,7 @@ async function cmdRunAnalysis(
     return;
   }
 
-  const python = resolvePython(wsRoot);
+  const python = await resolvePython(wsRoot);
 
   let result;
   switch (kind) {
@@ -565,7 +631,7 @@ async function cmdRunAllAnalysis(
     return;
   }
 
-  const python = resolvePython(wsRoot);
+  const python = await resolvePython(wsRoot);
 
   const analyses: [string, () => Promise<import("./pipelineRunner").RunResult>][] = [
     [
