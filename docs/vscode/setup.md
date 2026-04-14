@@ -1,0 +1,74 @@
+# VS Code Extension — Setup
+
+## Installation
+
+### From VSIX (recommended)
+
+1. Build the extension:
+
+    ```bash
+    cd vscode-extension
+    npm install && npm run compile
+    npx @vscode/vsce package
+    ```
+
+2. Install the `.vsix` file in VS Code:
+
+    ```
+    Ctrl+Shift+P → Extensions: Install from VSIX…
+    ```
+
+### From source (development)
+
+```bash
+cd vscode-extension
+npm install
+npm run compile
+```
+
+Press **F5** in VS Code to launch an Extension Development Host.
+
+## Requirements
+
+- VS Code **1.92** or later
+- Python 3.11+ with the pipeline installed (`pip install -e .` in the project root)
+- `poppler-utils` and `tesseract-ocr` on the system PATH
+
+## Settings
+
+Open **Settings → Extensions → CortexMark** or edit
+`settings.json`:
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `cortexmark.pythonPath` | `"python3"` | Python executable. Leave as `python3` for auto-detection of workspace `.venv`. |
+| `cortexmark.configPath` | `"configs/pipeline.yaml"` | Pipeline config file path relative to workspace root. |
+| `cortexmark.defaultEngine` | `"dual"` | Default engine: `docling`, `markitdown`, or `dual`. |
+| `cortexmark.autoProcess` | `false` | Automatically run pipeline when new PDFs appear in `data/raw/`. |
+
+### Example `settings.json`
+
+```json
+{
+  "cortexmark.pythonPath": "${workspaceFolder}/.venv/bin/python",
+  "cortexmark.configPath": "configs/pipeline.yaml",
+  "cortexmark.defaultEngine": "dual",
+  "cortexmark.autoProcess": false
+}
+```
+
+> On Windows, set `cortexmark.pythonPath` explicitly (for example:
+> `${workspaceFolder}\\.venv\\Scripts\\python.exe`).
+
+## Sidebar Views
+
+The extension adds a **CortexMark** activity bar icon with three views:
+
+| View | Description |
+|------|-------------|
+| **Pipeline** | Tree view with sessions, actions, analysis modules, and outputs |
+| **Dashboard** | Webview showing run statistics and output summaries |
+| **Chat** | Webview chat panel for interactive Q&A about documents |
+
+When a pipeline run uses a session name, quality artifacts are expected under
+`outputs/quality/<session-name>/`.

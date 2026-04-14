@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <title>Phi sidebar icon</title>
+  <desc>Minimal monochrome phi symbol for a VS Code sidebar icon.</desc>
+  <g fill="none" stroke="currentColor" stroke-width="14" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Outer phi loop -->
+    <path d="M128 36
+             C176 36, 210 72, 210 128
+             C210 184, 176 220, 128 220
+             C80 220, 46 184, 46 128
+             C46 72, 80 36, 128 36" />
+    <!-- Inner openings -->
+    <path d="M105 63
+             C76 78, 62 102, 62 128
+             C62 154, 76 178, 105 193" />
+    <path d="M151 63
+             C180 78, 194 102, 194 128
+             C194 154, 180 178, 151 193" />
+    <!-- Vertical stem -->
+    <path d="M128 32 L128 232" />
+  </g>
+</svg>

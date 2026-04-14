@@ -1,0 +1,46 @@
+services:
+  pipeline:
+    build: .
+    volumes:
+      - ./data:/app/data
+      - ./outputs:/app/outputs
+      - ./configs:/app/configs
+    environment:
+      - PYTHONPATH=/app
+    entrypoint: ["python", "-m", "cortexmark.run_pipeline"]
+    restart: "no"
+
+  analyze:
+    build: .
+    volumes:
+      - ./data:/app/data
+      - ./outputs:/app/outputs
+      - ./configs:/app/configs
+    environment:
+      - PYTHONPATH=/app
+    entrypoint: ["python", "-m", "cortexmark.run_pipeline", "--stages", "analyze", "validate"]
+    profiles:
+      - analysis
+
+  test:
+    build: .
+    volumes:
+      - ./tests:/app/tests
+      - ./cortexmark:/app/cortexmark
+      - ./configs:/app/configs
+    environment:
+      - PYTHONPATH=/app
+    entrypoint: ["python", "-m", "pytest", "tests/", "-v"]
+    profiles:
+      - test
+
+  lint:
+    build: .
+    volumes:
+      - ./cortexmark:/app/cortexmark
+      - ./tests:/app/tests
+    environment:
+      - PYTHONPATH=/app
+    entrypoint: ["python", "-m", "ruff", "check", "cortexmark/", "tests/"]
+    profiles:
+      - lint
