@@ -1,6 +1,8 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
+import type { PathPolicy } from "./pathPolicy";
+import type { SessionManager } from "./sessionManager";
 
 /**
  * Markdown preview panel that renders converted output files
@@ -13,7 +15,11 @@ export class PreviewPanel implements vscode.Disposable {
   private currentFile: string | undefined;
   private readonly disposables: vscode.Disposable[] = [];
 
-  constructor(private readonly extensionUri: vscode.Uri) {}
+  constructor(
+    private readonly extensionUri: vscode.Uri,
+    private readonly pathPolicy: PathPolicy,
+    private readonly sessions: SessionManager,
+  ) {}
 
   /**
    * Open or reveal the preview for a given Markdown file.
@@ -70,11 +76,7 @@ export class PreviewPanel implements vscode.Disposable {
       content = `*File not found: ${fileName}*`;
     }
 
-    // Try to load QA data for this file
-    const wsRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-    if (wsRoot) {
-      qaData = loadQAInfo(filePath, wsRoot);
-    }
+    qaData = loadQAInfo(filePath, this.sessions, this.pathPolicy);
 
     this.panel.webview.html = buildPreviewHtml(content, qaData, fileName);
   }
@@ -97,9 +99,9 @@ interface QAInfo {
 
 // ── Load QA report data ────────────────────────────────────────────────────
 
-function loadQAInfo(filePath: string, wsRoot: string): QAInfo | undefined {
-  const sessionQualityPath = deriveSessionQualityPath(filePath, wsRoot);
-  const qaPath = sessionQualityPath ?? path.join(wsRoot, "outputs", "quality", "qa_report.json");
+function loadQAInfo(filePath: string, sessions: SessionManager, pathPolicy: PathPolicy): QAInfo | undefined {
+  const sessionQualityPath = deriveSessionQualityPath(filePath, sessions, pathPolicy);
+  const qaPath = sessionQualityPath ?? path.join(pathPolicy.outputRoots.quality, "qa_report.json");
   if (!fs.existsSync(qaPath)) return undefined;
 
   try {
@@ -129,38 +131,16 @@ function loadQAInfo(filePath: string, wsRoot: string): QAInfo | undefined {
   }
 }
 
-function deriveSessionQualityPath(filePath: string, wsRoot: string): string | undefined {
-  const relative = path.relative(wsRoot, filePath);
-  const parts = relative.split(path.sep);
-  const cleanedIndex = parts.indexOf("cleaned_md");
-  if (cleanedIndex >= 0 && parts.length > cleanedIndex + 1) {
-    const sessionName = parts[cleanedIndex + 1];
-    if (isKnownSession(wsRoot, sessionName)) {
-      return path.join(wsRoot, "outputs", "quality", sessionName, "qa_report.json");
-    }
+function deriveSessionQualityPath(
+  filePath: string,
+  sessions: SessionManager,
+  pathPolicy: PathPolicy,
+): string | undefined {
+  const session = sessions.outputPathForFile(filePath);
+  if (session) {
+    return path.join(pathPolicy.sessionOutputs(session.name).qualityDir, "qa_report.json");
   }
   return undefined;
-}
-
-function isKnownSession(wsRoot: string, sessionName: string): boolean {
-  const storePaths = [
-    path.join(wsRoot, ".cortexmark", "sessions.json"),
-    path.join(wsRoot, ".phinitelab-pdf-pipeline", "sessions.json"),
-  ];
-  for (const storePath of storePaths) {
-    if (!fs.existsSync(storePath)) continue;
-    try {
-      const store = JSON.parse(fs.readFileSync(storePath, "utf-8")) as {
-        sessions?: Array<{ name?: string }>;
-      };
-      if (store.sessions?.some((session) => session.name === sessionName)) {
-        return true;
-      }
-    } catch {
-      // Try the next store path.
-    }
-  }
-  return false;
 }
 
 // ── Build HTML ─────────────────────────────────────────────────────────────

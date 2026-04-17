@@ -2,16 +2,17 @@
 
 A VS Code extension that provides session-based batch processing for the CortexMark with a Markdown preview panel, quality dashboard, real-time progress tracking, analysis module integration, and a chat panel.
 
+> Note: The extension UI (`.vsix`) does **not** include the Python backend. `cortexmark` must be installed separately in the user's Python environment.
+
 ## Migration Notes
 
 This extension was renamed from **PhiniteLab PDF Pipeline** to **CortexMark**.
 
 - Old extension ID: `phinitelab-pdf-pipeline-vscode`
 - New extension ID: `cortexmark-vscode`
-- Old publisher: `phinitelab`
-- New publisher: `cortexmark`
+- Current shipped publisher in `package.json`: `PhiniteLab`
 
-Because the Marketplace identity changed, existing installs may need a **manual install/upgrade** to the new `cortexmark-vscode` package. Session metadata is migrated from `.phinitelab-pdf-pipeline/sessions.json` to `.cortexmark/sessions.json` automatically when present.
+The extension display name and package ID changed, but the current shipped manifest still uses the `PhiniteLab` publisher. Existing installs may still need a **manual install/upgrade** to the `cortexmark-vscode` package. Session metadata is migrated from `.phinitelab-pdf-pipeline/sessions.json` to `.cortexmark/sessions.json` automatically when present.
 
 ## Features
 
@@ -70,13 +71,15 @@ CortexMark
 
 | Command | Description |
 |---------|-------------|
+| `Environment Doctor` | Run environment diagnostics and open the report |
+| `Setup Wizard` | Guided setup for install/settings/docs actions using the extension setup guide |
 | `Refresh` | Refresh sidebar tree and dashboard |
 | `New Session` | Create a new processing session |
 | `Delete Session` | Remove a session and its data |
 | `Set as Active` | Switch the active session |
 | `Process Active Session` | Run pipeline on active session |
-| `Add PDFs...` | Add PDF files to active session |
-| `Add PDF Folder...` | Add a folder of PDFs |
+| `Add PDFs...` | Register selected PDFs with the active session |
+| `Add PDF Folder...` | Register all PDFs from a selected folder with the active session |
 | `Run Full Pipeline` | Execute all stages |
 | `Convert Only` | Run convert stage only |
 | `Generate QA Report` | Run quality analysis |
@@ -121,7 +124,7 @@ CortexMark
 
 | File | Purpose |
 |------|---------|
-| `src/extension.ts` | Activation, command registration (22 commands), file watchers, panel integration |
+| `src/extension.ts` | Activation, command registration (includes Environment Doctor + Setup Wizard), file watchers, panel integration |
 | `src/sessionManager.ts` | Session persistence (`.cortexmark/sessions.json`), event emitter |
 | `src/sessionTree.ts` | Tree data provider (Sessions, Actions, Analysis, Outputs groups) |
 | `src/pipelineRunner.ts` | Python subprocess spawning with progress bar, cancellation, and analysis module support |
@@ -144,3 +147,4 @@ Press `F5` in VS Code to run the extension in an Extension Development Host.
 
 - Node.js 18+
 - The Python pipeline package installed in the workspace (see main README)
+- Optional engine extras: `cortexmark[docling]` for dual/docling conversion and OCR workflows

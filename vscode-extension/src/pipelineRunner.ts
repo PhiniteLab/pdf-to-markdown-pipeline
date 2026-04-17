@@ -84,15 +84,20 @@ export class PipelineRunner implements vscode.Disposable {
     });
   }
 
+  private resolveConfigArg(root: string, config: string): string {
+    return path.isAbsolute(config) ? config : path.resolve(root, config);
+  }
+
   // ── High-level commands ──────────────────────────────────────────────
 
   runPipeline(
     opts: { python: string; root: string; config: string; engine: string; stages?: string[]; input?: string; sessionName?: string },
     onLine?: (line: string) => void,
   ): Promise<RunResult> {
+    const configArg = this.resolveConfigArg(opts.root, opts.config);
     const args = [
       "-m", "cortexmark.run_pipeline",
-      "--config", path.resolve(opts.root, opts.config),
+      "--config", configArg,
       "--engine", opts.engine,
     ];
     if (opts.input) {
@@ -113,11 +118,12 @@ export class PipelineRunner implements vscode.Disposable {
   runQA(opts: {
     python: string; root: string; config: string; input: string; output: string;
   }): Promise<RunResult> {
+    const configArg = this.resolveConfigArg(opts.root, opts.config);
     return this.exec(
       opts.python,
       [
         "-m", "cortexmark.qa_pipeline",
-        "--config", path.resolve(opts.root, opts.config),
+        "--config", configArg,
         "--input", opts.input,
         "--output", opts.output,
         "--format", "both",
@@ -130,11 +136,12 @@ export class PipelineRunner implements vscode.Disposable {
   runDiff(opts: {
     python: string; root: string; config: string; oldDir: string; newDir: string; output: string;
   }): Promise<RunResult> {
+    const configArg = this.resolveConfigArg(opts.root, opts.config);
     return this.exec(
       opts.python,
       [
         "-m", "cortexmark.diff",
-        "--config", path.resolve(opts.root, opts.config),
+        "--config", configArg,
         "--old", opts.oldDir,
         "--new", opts.newDir,
         "--output", opts.output,

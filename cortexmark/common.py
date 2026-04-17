@@ -39,15 +39,16 @@ def load_config(path: Path | None = None) -> dict[str, Any]:
     if _config_cache is not None and path is None:
         return _config_cache
     env_path = os.getenv("PIPELINE_CONFIG")
-    config_path = path or (Path(env_path) if env_path else DEFAULT_CONFIG_PATH)
-    if config_path == DEFAULT_CONFIG_PATH or (env_path and not config_path.is_absolute()):
-        config_path = resolve_path(str(config_path))
+    raw_config = path or (Path(env_path) if env_path else DEFAULT_CONFIG_PATH)
+    config_path = raw_config if raw_config.is_absolute() else resolve_path(str(raw_config))
     if not config_path.exists():
         raise FileNotFoundError(f"Config file not found: {config_path}")
     with config_path.open(encoding="utf-8") as fh:
         cfg = yaml.safe_load(fh)
     if not isinstance(cfg, dict):
         raise ValueError(f"Config must be a YAML mapping, got {type(cfg).__name__}")
+    cfg.setdefault("__config_file__", str(config_path))
+    cfg.setdefault("__config_dir__", str(config_path.parent))
     if path is None:
         _config_cache = cfg
     return cfg
@@ -67,6 +68,24 @@ def resolve_path(raw: str) -> Path:
     return PROJECT_ROOT / p
 
 
+def resolve_relative_path(raw: str, base_dir: Path | str | None = None) -> Path:
+    """Resolve *raw* relative to *base_dir* when given, otherwise project root."""
+    p = Path(raw)
+    if p.is_absolute():
+        return p
+    if base_dir is not None:
+        return Path(base_dir) / p
+    return resolve_path(raw)
+
+
+def config_base_dir(cfg: dict[str, Any]) -> Path:
+    """Return the directory of the loaded config when known."""
+    raw = cfg.get("__config_dir__")
+    if raw:
+        return Path(str(raw))
+    return PROJECT_ROOT
+
+
 def get_source_id(cfg: dict[str, Any], *, default: str = DEFAULT_SOURCE_ID) -> str:
     """Return the generic source identifier used for default input/output scoping."""
     source_id = cfg.get("source_id")
@@ -78,8 +97,10 @@ def get_source_id(cfg: dict[str, Any], *, default: str = DEFAULT_SOURCE_ID) -> s
 def resolve_configured_path(cfg: dict[str, Any], key: str, fallback: str) -> Path:
     """Resolve a named entry from the ``paths`` config mapping with a stable fallback."""
     paths = cfg.get("paths", {})
-    raw = paths.get(key, fallback)
-    return resolve_path(str(raw))
+    if key in paths:
+        raw = paths[key]
+        return resolve_relative_path(str(raw), config_base_dir(cfg))
+    return resolve_path(fallback)
 
 
 def resolve_quality_dir(cfg: dict[str, Any], *, session_name: str | None = None) -> Path:

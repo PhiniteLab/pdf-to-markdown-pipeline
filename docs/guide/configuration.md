@@ -2,6 +2,27 @@
 
 The pipeline is configured via `configs/pipeline.yaml`.
 
+## VS Code extension path resolution (first patch)
+
+For the VS Code extension, effective paths are resolved with a small policy layer:
+
+- `cortexmark.configPath` (workspace setting) points to the config file.
+- `data_raw`/`output_*` entries inside the config define input/output roots.
+- `cortexmark.sessionStorePath` (optional) can move the session metadata file.
+
+Resolution rules:
+
+1. Absolute paths are used as-is.
+2. Relative paths support `${workspaceFolder}` / `${workspaceFolderBasename}` tokens.
+3. Safe fallbacks are always applied:
+   - `configs/pipeline.yaml`
+   - `data/raw`
+   - `outputs/raw_md`
+   - `outputs/cleaned_md`
+   - `outputs/chunks`
+   - `outputs/quality`
+   - `outputs/semantic_chunks`
+
 ## Full Configuration Reference
 
 ```yaml
@@ -84,3 +105,8 @@ reprocessing:
 ```bash
 cortexmark --config configs/pipeline.yaml --no-manifest
 ```
+
+The session manifest and extension session store can be overridden with extension
+settings in VS Code:
+
+- `cortexmark.sessionStorePath` → session metadata JSON path (`.cortexmark/sessions.json` by default).

@@ -31,8 +31,19 @@ Press **F5** in VS Code to launch an Extension Development Host.
 ## Requirements
 
 - VS Code **1.92** or later
-- Python 3.11+ with the pipeline installed (`pip install -e .` in the project root)
+- Python 3.11+ with the pipeline installed (`pip install cortexmark` in the target interpreter)
 - `poppler-utils` and `tesseract-ocr` on the system PATH
+
+> Important: The `.vsix` package only contains the VS Code extension (UI). It does **not** bundle the Python backend package (`cortexmark`). Backend setup must be completed on the target machine.
+
+## Recommended setup workflow
+
+1. Open workspace
+2. Run **CortexMark: Environment Doctor** (`cortexmark.checkEnvironment`)
+   to get a diagnostics report in the `CortexMark Environment` output channel.
+3. If checks fail, run **CortexMark: Setup Wizard** (`cortexmark.setupWizard`) for quick remediation actions.
+   The wizard links back to this extension-specific setup guide and only offers one-click backend install when the resolved interpreter is actually runnable.
+4. Keep each processing session scoped to a **single PDF folder root**. The current extension patch blocks mixing PDFs from different directories in one session to avoid ambiguous backend input paths.
 
 ## Settings
 
@@ -43,6 +54,7 @@ Open **Settings → Extensions → CortexMark** or edit
 |---------|---------|-------------|
 | `cortexmark.pythonPath` | `"python3"` | Python executable. Leave as `python3` for auto-detection of workspace `.venv`. |
 | `cortexmark.configPath` | `"configs/pipeline.yaml"` | Pipeline config file path relative to workspace root. |
+| `cortexmark.sessionStorePath` | `".cortexmark/sessions.json"` | Optional absolute/relative path to extension session metadata JSON. Relative values are resolved with workspace root. |
 | `cortexmark.defaultEngine` | `"dual"` | Default engine: `docling`, `markitdown`, or `dual`. |
 | `cortexmark.autoProcess` | `false` | Automatically run pipeline when new PDFs appear in `data/raw/`. |
 
@@ -52,6 +64,7 @@ Open **Settings → Extensions → CortexMark** or edit
 {
   "cortexmark.pythonPath": "${workspaceFolder}/.venv/bin/python",
   "cortexmark.configPath": "configs/pipeline.yaml",
+  "cortexmark.sessionStorePath": ".cortexmark/sessions.json",
   "cortexmark.defaultEngine": "dual",
   "cortexmark.autoProcess": false
 }
@@ -59,6 +72,12 @@ Open **Settings → Extensions → CortexMark** or edit
 
 > On Windows, set `cortexmark.pythonPath` explicitly (for example:
 > `${workspaceFolder}\\.venv\\Scripts\\python.exe`).
+
+### Engine-specific install notes
+
+- `markitdown`: `pip install cortexmark`
+- `docling`: `pip install "cortexmark[docling]"`
+- `dual`: use `cortexmark[docling]` if you want docling-assisted conversion available.
 
 ## Sidebar Views
 

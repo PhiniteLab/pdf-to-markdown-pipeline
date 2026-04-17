@@ -4977,6 +4977,9 @@ class TestPackageJsonStructure:
         expected_keys = {
             "cortexmark.pythonPath",
             "cortexmark.configPath",
+            "cortexmark.dataRoot",
+            "cortexmark.outputRoot",
+            "cortexmark.sessionStorePath",
             "cortexmark.defaultEngine",
             "cortexmark.autoProcess",
         }
@@ -5253,8 +5256,8 @@ class TestVSCodeExtensionConsistency:
 
     def test_total_commands_count(self) -> None:
         cmds = self.pkg["contributes"]["commands"]
-        # 14 original + 5 analysis + 3 preview/dashboard = 22
-        assert len(cmds) == 22, f"Expected 22 commands, got {len(cmds)}"
+        # 14 original + setup/wizard + 5 analysis + 3 preview/dashboard = 24
+        assert len(cmds) == 24, f"Expected 24 commands, got {len(cmds)}"
 
 
 # ══════════════════════════════════════════════════════════════════════════════

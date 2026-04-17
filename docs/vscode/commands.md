@@ -1,7 +1,14 @@
 # VS Code Extension — Commands
 
 All commands are accessible via the **Command Palette** (`Ctrl+Shift+P`) with the
-`PDF Pipeline:` prefix, or through the sidebar tree view icons.
+`CortexMark:` prefix, or through the sidebar tree view icons.
+
+### Setup & Health
+
+| Command | Title | Description |
+|---------|-------|-------------|
+| `cortexmark.checkEnvironment` | Environment Doctor | Run environment diagnostics (workspace/config/python/backend/engine/system checks) and open the `CortexMark Environment` output report. |
+| `cortexmark.setupWizard` | Setup Wizard | Guided setup flow for quick fixes: install backend, open settings, open docs, or open config. |
 
 ## Session Management
 
@@ -16,8 +23,8 @@ All commands are accessible via the **Command Palette** (`Ctrl+Shift+P`) with th
 
 | Command | Title | Description |
 |---------|-------|-------------|
-| `cortexmark.addPdf` | Add PDFs… | Open file picker to add PDF files to `data/raw/` |
-| `cortexmark.addFolder` | Add PDF Folder… | Open folder picker to add all PDFs from a directory |
+| `cortexmark.addPdf` | Add PDFs… | Select one or more PDFs and register them with the active session by workspace-relative path |
+| `cortexmark.addFolder` | Add PDF Folder… | Select a folder and register all discovered PDFs with the active session by workspace-relative path |
 | `cortexmark.openOutput` | Reveal in Explorer | Open an output folder in the VS Code file explorer |
 | `cortexmark.deleteOutput` | Delete | Remove output files or directories |
 | `cortexmark.openConfig` | Open Config | Open `configs/pipeline.yaml` in the editor |

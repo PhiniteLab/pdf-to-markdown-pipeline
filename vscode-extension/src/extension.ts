@@ -9,10 +9,46 @@ import { PreviewPanel } from "./previewPanel";
 import { SessionManager } from "./sessionManager";
 import { PipelineItem, SessionTreeProvider } from "./sessionTree";
 import type { Session } from "./types";
+import { resolvePathPolicy, type PathPolicy } from "./pathPolicy";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Helpers
 // ═══════════════════════════════════════════════════════════════════════════
+
+interface DoctorCheck {
+  title: string;
+  status: "ok" | "warn" | "error";
+  details: string;
+  fixes?: string[];
+}
+
+interface EnvironmentDoctorReport {
+  generatedAt: string;
+  workspace: string;
+  python: string;
+  pythonRunnable: boolean;
+  pythonVersion: string;
+  defaultEngine: string;
+  pathPolicy: {
+    configPath: string;
+    configFound: boolean;
+    configNotes: string[];
+    dataRoot: string;
+    outputRoots: PathPolicy["outputRoots"];
+    sessionStorePath: string;
+  };
+  checks: DoctorCheck[];
+  healthy: boolean;
+  errors: number;
+  warnings: number;
+}
+
+const DOCS_URL = "https://github.com/PhiniteLab/pdf-to-markdown-pipeline/blob/main/docs/vscode/setup.md";
+const STARTUP_DOCTOR_KEY_PREFIX = "cortexmark.startupDoctorLastChecked";
+const PYTHON_MIN_MINOR = 11;
+const MIN_PYTHON_VERSION = `3.${PYTHON_MIN_MINOR}`;
+const DOCTOR_CHANNEL_NAME = "CortexMark Environment";
+const doctorChannel: vscode.OutputChannel = vscode.window.createOutputChannel(DOCTOR_CHANNEL_NAME);
 
 function root(): string | undefined {
   return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
@@ -29,13 +65,410 @@ function need(r: string | undefined): r is string {
   return !!r;
 }
 
+async function runPythonCheck(
+  python: string,
+  code: string,
+  timeoutMs = 12_000,
+): Promise<{ ok: boolean; stdout: string; stderr: string }> {
+  return await new Promise((resolve) => {
+    cp.execFile(
+      python,
+      ["-c", code],
+      { timeout: timeoutMs },
+      (err, stdout, stderr) => {
+        resolve({
+          ok: !err,
+          stdout: String(stdout || "").trim(),
+          stderr: String(stderr || "").trim(),
+        });
+      },
+    );
+  });
+}
+
+function pushCheck(
+  report: DoctorCheck[],
+  status: DoctorCheck["status"],
+  title: string,
+  details: string,
+  fixes?: string[],
+): void {
+  report.push({ title, status, details, fixes: fixes?.filter(Boolean) });
+}
+
+function pythonVersionParts(result: string): { major: number; minor: number } | undefined {
+  const match = result.match(/^(\d+)\.(\d+)/);
+  if (!match) return undefined;
+  const major = Number.parseInt(match[1], 10);
+  const minor = Number.parseInt(match[2], 10);
+  if (!Number.isFinite(major) || !Number.isFinite(minor)) return undefined;
+  return { major, minor };
+}
+
+function pythonExecutableLabel(raw: string): string {
+  return raw.includes(" ") ? `"${raw}"` : raw;
+}
+
+async function runEnvironmentDoctor(policy: PathPolicy): Promise<EnvironmentDoctorReport> {
+  const reportChecks: DoctorCheck[] = [];
+  const now = new Date().toLocaleString();
+  const engine = (cfg<string>("defaultEngine") || "dual") as string;
+  const python = await resolvePython(policy.workspaceRoot);
+  const pythonExecutable = pythonExecutableLabel(python);
+  let pythonRunnable = false;
+  let pythonVersion = "unknown";
+
+  if (!policy.configFound) {
+    pushCheck(reportChecks, "error", "Workspace config", `Configured config file not found: ${policy.configPath}`, [
+      "Create or select an existing pipeline config and set cortexmark.configPath.",
+      "Open docs for setup and config guidance.",
+    ]);
+  } else {
+    pushCheck(reportChecks, "ok", "Workspace config", `Config file found at ${policy.configPath}`, [
+      "Open config to inspect settings.",
+    ]);
+  }
+  if (policy.configNotes.length > 0) {
+    pushCheck(reportChecks, "warn", "Path policy", policy.configNotes.join(" "));
+  }
+
+  if (!python) {
+    pushCheck(reportChecks, "error", "Python executable", "No python executable was resolved.", [
+      "Set cortexmark.pythonPath explicitly to a valid Python executable.",
+      "Open settings and point to a workspace interpreter.",
+      "Open settings to install the backend with the correct interpreter.",
+    ]);
+  } else {
+    const pythonProbe = await runPythonCheck(
+      python,
+      "import sys; print(f\"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}\")",
+    );
+    if (!pythonProbe.ok) {
+      pushCheck(reportChecks, "error", "Python executable", `${pythonExecutable} cannot run python code.`, [
+        "Set a working python executable in cortexmark.pythonPath.",
+        "Ensure selected interpreter is installed and reachable.",
+        "Use the Setup Wizard to open environment settings.",
+      ]);
+    } else {
+      pythonRunnable = true;
+      pythonVersion = pythonProbe.stdout || "unknown";
+      const pv = pythonVersionParts(pythonVersion);
+      if (!pv || pv.major < 3 || (pv.major === 3 && pv.minor < PYTHON_MIN_MINOR)) {
+        pushCheck(reportChecks, "error", "Python version", `Resolved Python is ${pythonVersion}; minimum is ${MIN_PYTHON_VERSION}.`, [
+          "Create/use Python 3.11+ interpreter and update cortexmark.pythonPath.",
+        ]);
+      } else {
+        pushCheck(reportChecks, "ok", "Python executable", `${pythonExecutable} (Python ${pythonVersion})`);
+      }
+
+      const backend = await runPythonCheck(python, "import cortexmark; print('ok')");
+      if (backend.ok) {
+        pushCheck(
+          reportChecks,
+          "ok",
+          "Python backend",
+          "cortexmark package is importable.",
+          ["Run pipeline commands from CortexMark view."],
+        );
+      } else {
+        pushCheck(
+          reportChecks,
+          "error",
+          "Python backend",
+          "cortexmark is not importable in the selected interpreter.",
+          [
+            "Install backend with pip install cortexmark.",
+            "Use the same Python interpreter for all setup and pipeline commands.",
+            "Open docs for full installation steps.",
+          ],
+        );
+      }
+
+      const doclingMissingMessage =
+        "docling is required for 'docling' and optional fallback in 'dual' for full extraction.";
+      if (engine === "docling" || engine === "dual") {
+        const docling = await runPythonCheck(
+          python,
+          "import importlib.util; print('yes' if importlib.util.find_spec('docling') else 'no')",
+        );
+        if (docling.ok && docling.stdout === "yes") {
+          pushCheck(
+            reportChecks,
+            "ok",
+            "Engine dependency",
+            `docling is available for engine = ${engine}.`,
+          );
+        } else {
+          const status = engine === "docling" ? "error" : "warn";
+          pushCheck(
+            reportChecks,
+            status,
+            "Engine dependency",
+            `${doclingMissingMessage} Current engine is "${engine}" and docling is not importable.`,
+            engine === "docling"
+              ? ["Install docling dependency: pip install \"cortexmark[docling]\"."]
+              : ["Install docling if you expect dual-mode conversion with docling output quality."],
+          );
+        }
+      } else {
+        pushCheck(reportChecks, "ok", "Engine dependency", "Engine is markitdown; docling is not required.");
+      }
+
+      const systemDeps = await runPythonCheck(
+        python,
+        "import shutil; print('pdftotext=' + str(bool(shutil.which('pdftotext')))); print('tesseract=' + str(bool(shutil.which('tesseract'))))",
+      );
+      const [pdfokLine, tesseractLine] = systemDeps.stdout.split("\n").map((line) => line.trim());
+      const hasPdf = pdfokLine?.includes("True");
+      const hasTess = tesseractLine?.includes("True");
+      if (engine === "docling" || engine === "dual") {
+        if (hasPdf && hasTess) {
+          pushCheck(reportChecks, "ok", "System tools", "poppler-utils and tesseract are available.");
+        } else if (hasPdf && !hasTess) {
+          pushCheck(reportChecks, "warn", "System tools", "pdftotext found, tesseract not found.", [
+            "Install tesseract-ocr and ensure it is on PATH if OCR is used.",
+          ]);
+        } else if (!hasPdf && hasTess) {
+          pushCheck(reportChecks, "warn", "System tools", "tesseract found, pdftotext not found.", [
+            "Install poppler-utils and ensure pdftotext is on PATH.",
+          ]);
+        } else {
+          pushCheck(reportChecks, "warn", "System tools", "Both pdftotext and tesseract were not found on PATH.", [
+            "Install poppler-utils and tesseract-ocr.",
+          ]);
+        }
+      } else {
+        pushCheck(reportChecks, "ok", "System tools", "Engine does not require docling-specific system tools.");
+      }
+    }
+  }
+
+  const errors = reportChecks.filter((x) => x.status === "error").length;
+  const warnings = reportChecks.filter((x) => x.status === "warn").length;
+  return {
+    generatedAt: now,
+    workspace: policy.workspaceRoot,
+    python,
+    pythonRunnable,
+    pythonVersion,
+    defaultEngine: engine,
+    pathPolicy: {
+      configPath: policy.configPath,
+      configFound: policy.configFound,
+      configNotes: [...policy.configNotes],
+      dataRoot: policy.dataRoot,
+      outputRoots: policy.outputRoots,
+      sessionStorePath: policy.sessionStorePath,
+    },
+    checks: reportChecks,
+    healthy: errors === 0,
+    errors,
+    warnings,
+  };
+}
+
+function formatDoctorReport(report: EnvironmentDoctorReport): string[] {
+  const lines: string[] = [];
+  lines.push("╭─ CortexMark Environment Doctor ───────────────────────────────────────────");
+  lines.push(`Workspace: ${report.workspace}`);
+  lines.push(`Python executable: ${report.python || "n/a"}`);
+  lines.push(`Python version: ${report.pythonVersion}`);
+  lines.push(`Default engine: ${report.defaultEngine}`);
+  lines.push("");
+  lines.push("Resolved paths:");
+  lines.push(`  Config:    ${report.pathPolicy.configPath}${report.pathPolicy.configFound ? "" : " (missing)"}`);
+  lines.push(`  Config notes: ${report.pathPolicy.configNotes.join(" | ") || "none"}`);
+  lines.push(`  Data root: ${report.pathPolicy.dataRoot}`);
+  lines.push(`  Output raw_md: ${report.pathPolicy.outputRoots.rawMd}`);
+  lines.push(`  Output cleaned_md: ${report.pathPolicy.outputRoots.cleanedMd}`);
+  lines.push(`  Output chunks: ${report.pathPolicy.outputRoots.chunks}`);
+  lines.push(`  Output quality: ${report.pathPolicy.outputRoots.quality}`);
+  lines.push(`  Output semantic chunks: ${report.pathPolicy.outputRoots.semanticChunks}`);
+  lines.push(`  Session store: ${report.pathPolicy.sessionStorePath}`);
+  lines.push(`Generated: ${report.generatedAt}`);
+  lines.push("");
+  for (const check of report.checks) {
+    const icon = check.status === "ok" ? "✓" : check.status === "warn" ? "⚠" : "✗";
+    lines.push(`${icon} ${check.title}: ${check.details}`);
+    if (check.fixes?.length) {
+      for (const fix of check.fixes) {
+        lines.push(`   - ${fix}`);
+      }
+    }
+  }
+  lines.push("");
+  lines.push(
+    `Summary: ${report.errors} error(s), ${report.warnings} warning(s), backend-ready: ${report.healthy ? "yes" : "no"}`,
+  );
+  lines.push("╰──────────────────────────────────────────────────────────────────────");
+  return lines;
+}
+
+async function showDoctorReport(report: EnvironmentDoctorReport): Promise<void> {
+  const ch = doctorChannel;
+  ch.clear();
+  for (const line of formatDoctorReport(report)) {
+    ch.appendLine(line);
+  }
+  ch.show(true);
+}
+
+async function runSetupInstallSuggestion(python: string, engineHint: "docling" | "markitdown" | "dual"): Promise<void> {
+  const packageArg = engineHint === "markitdown" ? "cortexmark" : "\"cortexmark[docling]\"";
+  const installLine = `${pythonExecutableLabel(python)} -m pip install ${packageArg}`;
+  const terminal = vscode.window.createTerminal("CortexMark Setup");
+  terminal.show();
+  terminal.sendText(installLine);
+}
+
+async function openDocs(): Promise<void> {
+  await vscode.env.openExternal(vscode.Uri.parse(DOCS_URL));
+}
+
+async function runEnvironmentWizard(context: vscode.ExtensionContext, policy: PathPolicy): Promise<EnvironmentDoctorReport> {
+  const python = await resolvePython(policy.workspaceRoot);
+  const report = await runEnvironmentDoctor(policy);
+  await showDoctorReport(report);
+
+  if (report.healthy) {
+    await vscode.window.showInformationMessage(
+      "Environment check passed. CortexMark backend is usable with current workspace settings.",
+    );
+    return report;
+  }
+
+  const quickActions = report.pythonRunnable
+    ? ["Install backend now", "Open Settings", "Open Setup Guide", "Open Config", "Re-run Doctor"]
+    : ["Open Settings", "Open Setup Guide", "Open Config", "Re-run Doctor"];
+    const action = await vscode.window.showInformationMessage(
+      `Environment issues detected (${report.errors} error, ${report.warnings} warning). Pick next step.`,
+      ...quickActions,
+  );
+  switch (action) {
+    case "Install backend now":
+      if (report.pythonRunnable) {
+        await runSetupInstallSuggestion(python, report.defaultEngine as "docling" | "markitdown" | "dual");
+      }
+      break;
+    case "Open Settings":
+      await vscode.commands.executeCommand("workbench.action.openSettings", "cortexmark");
+      break;
+    case "Open Setup Guide":
+      await openDocs();
+      break;
+    case "Open Config":
+      await cmdOpenConfig(policy);
+      break;
+    case "Re-run Doctor":
+      await cmdEnvironmentDoctor(context, policy);
+      break;
+    default:
+      break;
+  }
+  return report;
+}
+
+async function cmdRunSetupWizard(context: vscode.ExtensionContext, policy: PathPolicy): Promise<void> {
+  await runEnvironmentWizard(context, policy);
+}
+
+async function cmdEnvironmentDoctor(context: vscode.ExtensionContext, policy: PathPolicy): Promise<void> {
+  const report = await runEnvironmentDoctor(policy);
+  await showDoctorReport(report);
+  const summary = `${report.errors} error(s), ${report.warnings} warning(s)`;
+  if (report.healthy) {
+    void vscode.window.showInformationMessage(`CortexMark Environment Doctor: all checks passed (${summary}).`);
+  } else {
+    void vscode.window.showWarningMessage(`CortexMark Environment Doctor: ${summary} require attention.`);
+  }
+}
+
+async function maybeShowStartupEnvironmentGuidance(context: vscode.ExtensionContext, policy: PathPolicy): Promise<void> {
+  const wsRoot = policy.workspaceRoot;
+  const lastState = context.globalState.get<number>(`${STARTUP_DOCTOR_KEY_PREFIX}:${wsRoot}`);
+  const now = Date.now();
+  if (lastState && now - lastState < 24 * 60 * 60 * 1000) {
+    return;
+  }
+
+  const report = await runEnvironmentDoctor(policy);
+  if (!report.healthy) {
+    const action = await vscode.window.showWarningMessage(
+      `CortexMark setup check found ${report.errors} error(s). Run Environment Doctor for details.`,
+      "Run Environment Doctor",
+      "Setup Wizard",
+      "Later",
+    );
+    if (action === "Run Environment Doctor") {
+      await cmdEnvironmentDoctor(context, policy);
+    } else if (action === "Setup Wizard") {
+      await runEnvironmentWizard(context, policy);
+    }
+  }
+  await context.globalState.update(`${STARTUP_DOCTOR_KEY_PREFIX}:${wsRoot}`, now);
+}
+
+function actionSummary(report: EnvironmentDoctorReport): string {
+  if (report.healthy) {
+    return "Environment check passed.";
+  }
+  if (report.errors > 0) {
+    return `${report.errors} blocking issue(s) found.`;
+  }
+  return `${report.warnings} advisory issue(s) found.`;
+}
+
+async function checkAndGuideBeforeRun(context: vscode.ExtensionContext, policy: PathPolicy): Promise<boolean> {
+  const report = await runEnvironmentDoctor(policy);
+  if (report.healthy) {
+    return true;
+  }
+
+  const action = await vscode.window.showWarningMessage(
+    `CortexMark environment not ready: ${actionSummary(report)} Open Environment Doctor for fixes.`,
+    "Run Environment Doctor",
+    "Run Setup Wizard",
+    "Proceed anyway",
+  );
+  if (action === "Run Environment Doctor") {
+    await cmdEnvironmentDoctor(context, policy);
+    return false;
+  }
+  if (action === "Run Setup Wizard") {
+    await runEnvironmentWizard(context, policy);
+    return false;
+  }
+  // Advanced users can still proceed intentionally, but we keep the warning visible first.
+  return action === "Proceed anyway";
+}
+
+
 /** Derive the input directory from the active session's files. */
-function sessionInputDir(mgr: SessionManager, wsRoot: string): string | undefined {
+function sessionInputDir(mgr: SessionManager, policy: PathPolicy): string | undefined {
   const session = mgr.active();
   if (!session || session.files.length === 0) return undefined;
-  const first = session.files[0];
-  const abs = path.resolve(wsRoot, first.relativePath);
-  return path.dirname(abs);
+  const roots = new Set(
+    session.files.map((file) => path.dirname(path.resolve(policy.workspaceRoot, file.relativePath))),
+  );
+  if (roots.size !== 1) {
+    return undefined;
+  }
+  return [...roots][0];
+}
+
+function ensureSingleInputRoot(mgr: SessionManager, policy: PathPolicy): boolean {
+  const session = mgr.active();
+  if (!session || session.files.length === 0) {
+    return true;
+  }
+  const roots = [...new Set(session.files.map((file) => path.dirname(path.resolve(policy.workspaceRoot, file.relativePath))))];
+  if (roots.length <= 1) {
+    return true;
+  }
+  void vscode.window.showErrorMessage(
+    "Active session contains PDFs from multiple folders. For now, each session must use a single input root.",
+  );
+  return false;
 }
 
 /** Try to obtain the interpreter path from the Microsoft Python extension. */
@@ -92,33 +525,6 @@ async function resolvePython(wsRoot: string): Promise<string> {
   return userPython || "python3";
 }
 
-/** Check whether the cortexmark package is importable by the given Python. */
-function checkCortexmark(python: string): Promise<boolean> {
-  return new Promise((resolve) => {
-    cp.execFile(python, ["-c", "import cortexmark"], { timeout: 15_000 }, (err) => {
-      resolve(!err);
-    });
-  });
-}
-
-/** Show a warning with an Install button when cortexmark is missing. */
-async function promptCortexmarkInstall(python: string): Promise<void> {
-  const action = await vscode.window.showWarningMessage(
-    "CortexMark Python backend is not installed. Pipeline commands will not work until it is installed.",
-    "Install with pip",
-    "Show Instructions",
-  );
-  if (action === "Install with pip") {
-    const terminal = vscode.window.createTerminal("CortexMark Setup");
-    terminal.show();
-    terminal.sendText(`"${python}" -m pip install cortexmark`);
-  } else if (action === "Show Instructions") {
-    void vscode.env.openExternal(
-      vscode.Uri.parse("https://github.com/PhiniteLab/pdf-to-markdown-pipeline#installation"),
-    );
-  }
-}
-
 function requireActiveSession(mgr: SessionManager): Session | undefined {
   const session = mgr.active();
   if (!session) {
@@ -135,61 +541,67 @@ function requireActiveSession(mgr: SessionManager): Session | undefined {
 export function activate(context: vscode.ExtensionContext): void {
   const wsRoot = root();
   if (!wsRoot) return;
+  const policy = resolvePathPolicy(wsRoot);
 
-  // ── Check Python backend availability (non-blocking) ───────────────────
-  void (async () => {
-    const python = await resolvePython(wsRoot);
-    const ok = await checkCortexmark(python);
-    if (!ok) {
-      await promptCortexmarkInstall(python);
-    }
-  })();
+  // ── Gentle startup guidance (non-blocking, once per day per workspace) ──
+  void maybeShowStartupEnvironmentGuidance(context, policy);
 
   // ── Core services ──────────────────────────────────────────────────────
-  const sessions = new SessionManager(wsRoot);
+  const sessions = new SessionManager(policy);
   const runner = new PipelineRunner();
-  const preview = new PreviewPanel(context.extensionUri);
-  const dashboard = new DashboardPanel(context.extensionUri, wsRoot, sessions);
+  const preview = new PreviewPanel(context.extensionUri, policy, sessions);
+  const dashboard = new DashboardPanel(context.extensionUri, policy, sessions);
   const chat = new ChatViewProvider(context.extensionUri);
 
   // ── Tree view ──────────────────────────────────────────────────────────
-  const tree = new SessionTreeProvider(sessions, wsRoot);
+  const tree = new SessionTreeProvider(sessions, policy);
   sessions.onDidChange(() => {
     tree.refresh();
     dashboard.refresh();
   });
 
-  // ── File watcher — auto-detect PDFs ────────────────────────────────────
-  const watcher = vscode.workspace.createFileSystemWatcher(
-    new vscode.RelativePattern(wsRoot, "data/raw/**/*.pdf"),
-  );
-  watcher.onDidCreate((uri) => {
-    const active = sessions.active();
-    if (!active) return;
-    const relPath = path.relative(wsRoot, uri.fsPath);
-    const name = path.basename(uri.fsPath);
-    const added = sessions.addFile(active.id, name, relPath);
-    if (!added) return;
-
-    if (cfg<boolean>("autoProcess")) {
-      void processActiveSession(sessions, runner, wsRoot);
+  let activeWatchers: vscode.Disposable[] = [];
+  const rebuildPathWatchers = (): void => {
+    for (const disposable of activeWatchers) {
+      disposable.dispose();
     }
-  });
+    activeWatchers = [];
 
-  // ── Output watcher — auto-refresh tree on output changes ─────────────
-  const outWatcher = vscode.workspace.createFileSystemWatcher(
-    new vscode.RelativePattern(wsRoot, "outputs/**"),
-  );
-  outWatcher.onDidCreate(() => tree.refresh());
-  outWatcher.onDidDelete(() => tree.refresh());
+    const watcher = vscode.workspace.createFileSystemWatcher(
+      new vscode.RelativePattern(vscode.Uri.file(policy.dataRoot), "**/*.pdf"),
+    );
+    watcher.onDidCreate((uri) => {
+      const active = sessions.active();
+      if (!active) return;
+      const relPath = path.relative(wsRoot, uri.fsPath);
+      const name = path.basename(uri.fsPath);
+      const added = sessions.addFile(active.id, name, relPath);
+      if (!added) return;
+
+      if (cfg<boolean>("autoProcess")) {
+        void processActiveSession(context, sessions, runner, policy);
+      }
+    });
+
+    const outWatchers = Object.values(policy.outputRoots).map((rootPath) => {
+      const outWatcher = vscode.workspace.createFileSystemWatcher(
+        new vscode.RelativePattern(vscode.Uri.file(rootPath), "**"),
+      );
+      outWatcher.onDidCreate(() => tree.refresh());
+      outWatcher.onDidDelete(() => tree.refresh());
+      return outWatcher;
+    });
+
+    activeWatchers = [watcher, ...outWatchers];
+  };
+  rebuildPathWatchers();
 
   // ── Register everything ────────────────────────────────────────────────
   context.subscriptions.push(
     vscode.window.registerTreeDataProvider("cortexmarkPanel", tree),
     vscode.window.registerWebviewViewProvider(DashboardPanel.viewId, dashboard),
     vscode.window.registerWebviewViewProvider(ChatViewProvider.viewType, chat),
-    watcher,
-    outWatcher,
+    { dispose: () => activeWatchers.forEach((watcher) => watcher.dispose()) },
     sessions,
     runner,
     preview,
@@ -201,25 +613,27 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
     vscode.commands.registerCommand("cortexmark.newSession", () => cmdNewSession(sessions)),
     vscode.commands.registerCommand("cortexmark.deleteSession", (item?: PipelineItem) =>
-      cmdDeleteSession(sessions, wsRoot, item),
+      cmdDeleteSession(sessions, policy, item),
     ),
     vscode.commands.registerCommand("cortexmark.setActiveSession", (item?: PipelineItem) =>
       cmdSetActive(sessions, item),
     ),
-    vscode.commands.registerCommand("cortexmark.processSession", () =>
-      processActiveSession(sessions, runner, wsRoot),
+      vscode.commands.registerCommand("cortexmark.processSession", () =>
+      processActiveSession(context, sessions, runner, policy),
     ),
-    vscode.commands.registerCommand("cortexmark.addPdf", () => cmdAddPdf(sessions, wsRoot)),
-    vscode.commands.registerCommand("cortexmark.addFolder", () => cmdAddFolder(sessions, wsRoot)),
+    vscode.commands.registerCommand("cortexmark.addPdf", () => cmdAddPdf(sessions, policy)),
+    vscode.commands.registerCommand("cortexmark.addFolder", () => cmdAddFolder(sessions, policy)),
 
     // Pipeline commands (use spawn runner)
-    vscode.commands.registerCommand("cortexmark.runFull", () => cmdRunFull(runner, wsRoot, sessions)),
-    vscode.commands.registerCommand("cortexmark.runConvert", () => cmdRunConvert(runner, wsRoot, sessions)),
-    vscode.commands.registerCommand("cortexmark.runQA", () => cmdRunQA(runner, wsRoot, sessions, dashboard)),
-    vscode.commands.registerCommand("cortexmark.runDiff", () => cmdRunDiff(runner, wsRoot, sessions)),
-    vscode.commands.registerCommand("cortexmark.openConfig", () => cmdOpenConfig(wsRoot)),
+    vscode.commands.registerCommand("cortexmark.runFull", () => cmdRunFull(context, runner, policy, sessions)),
+    vscode.commands.registerCommand("cortexmark.runConvert", () => cmdRunConvert(context, runner, policy, sessions)),
+    vscode.commands.registerCommand("cortexmark.runQA", () => cmdRunQA(context, runner, policy, sessions, dashboard)),
+    vscode.commands.registerCommand("cortexmark.runDiff", () => cmdRunDiff(context, runner, policy, sessions)),
+    vscode.commands.registerCommand("cortexmark.checkEnvironment", () => cmdEnvironmentDoctor(context, policy)),
+    vscode.commands.registerCommand("cortexmark.setupWizard", () => cmdRunSetupWizard(context, policy)),
+    vscode.commands.registerCommand("cortexmark.openConfig", () => cmdOpenConfig(policy)),
     vscode.commands.registerCommand("cortexmark.openOutput", (arg?: string | PipelineItem) =>
-      cmdOpenOutput(wsRoot, arg),
+      cmdOpenOutput(policy, arg),
     ),
     vscode.commands.registerCommand("cortexmark.deleteOutput", (item?: PipelineItem) =>
       cmdDeleteOutput(item, tree),
@@ -227,27 +641,40 @@ export function activate(context: vscode.ExtensionContext): void {
 
     // Analysis commands
     vscode.commands.registerCommand("cortexmark.runCrossRef", () =>
-      cmdRunAnalysis(runner, wsRoot, sessions, "crossRef", dashboard),
+      cmdRunAnalysis(context, runner, policy, sessions, "crossRef", dashboard),
     ),
     vscode.commands.registerCommand("cortexmark.runAlgorithm", () =>
-      cmdRunAnalysis(runner, wsRoot, sessions, "algorithm", dashboard),
+      cmdRunAnalysis(context, runner, policy, sessions, "algorithm", dashboard),
     ),
     vscode.commands.registerCommand("cortexmark.runNotation", () =>
-      cmdRunAnalysis(runner, wsRoot, sessions, "notation", dashboard),
+      cmdRunAnalysis(context, runner, policy, sessions, "notation", dashboard),
     ),
     vscode.commands.registerCommand("cortexmark.runSemanticChunk", () =>
-      cmdRunAnalysis(runner, wsRoot, sessions, "semanticChunk", dashboard),
+      cmdRunAnalysis(context, runner, policy, sessions, "semanticChunk", dashboard),
     ),
     vscode.commands.registerCommand("cortexmark.runAllAnalysis", () =>
-      cmdRunAllAnalysis(runner, wsRoot, sessions, dashboard),
+      cmdRunAllAnalysis(context, runner, policy, sessions, dashboard),
     ),
 
     // Preview commands
     vscode.commands.registerCommand("cortexmark.previewFile", (arg?: string | PipelineItem) =>
-      cmdPreview(preview, wsRoot, arg),
+      cmdPreview(preview, policy, arg),
     ),
     vscode.commands.registerCommand("cortexmark.refreshPreview", () => preview.refresh()),
     vscode.commands.registerCommand("cortexmark.refreshDashboard", () => dashboard.refresh()),
+    vscode.workspace.onDidChangeConfiguration((event) => {
+      if (
+        event.affectsConfiguration("cortexmark.configPath") ||
+        event.affectsConfiguration("cortexmark.dataRoot") ||
+        event.affectsConfiguration("cortexmark.outputRoot") ||
+        event.affectsConfiguration("cortexmark.sessionStorePath")
+      ) {
+        Object.assign(policy, resolvePathPolicy(wsRoot));
+        rebuildPathWatchers();
+        tree.refresh();
+        dashboard.refresh();
+      }
+    }),
   );
 }
 
@@ -270,7 +697,7 @@ async function cmdNewSession(mgr: SessionManager): Promise<void> {
   void vscode.window.showInformationMessage(`Session "${s.name}" created and set as active.`);
 }
 
-async function cmdDeleteSession(mgr: SessionManager, wsRoot: string, item?: PipelineItem): Promise<void> {
+async function cmdDeleteSession(mgr: SessionManager, policy: PathPolicy, item?: PipelineItem): Promise<void> {
   const id = item?.sessionId;
   if (!id) return;
   const session = mgr.get(id);
@@ -281,31 +708,34 @@ async function cmdDeleteSession(mgr: SessionManager, wsRoot: string, item?: Pipe
     "Delete",
   );
   if (answer === "Delete") {
-    cleanSessionOutputs(session, wsRoot);
+    cleanSessionOutputs(session, policy);
     mgr.delete(id);
   }
 }
 
 /** Remove output files generated from the session's PDFs. */
-function cleanSessionOutputs(session: { name: string; files: { relativePath: string }[] }, wsRoot: string): void {
+function cleanSessionOutputs(
+  session: { name: string; files: { relativePath: string }[] },
+  policy: PathPolicy,
+): void {
   const outputDirs = [
-    "outputs/raw_md",
-    "outputs/cleaned_md",
-    "outputs/chunks",
-    "outputs/quality",
-    "outputs/semantic_chunks",
+    policy.outputRoots.rawMd,
+    policy.outputRoots.cleanedMd,
+    policy.outputRoots.chunks,
+    policy.outputRoots.quality,
+    policy.outputRoots.semanticChunks,
   ];
 
   // Remove session-scoped output directories
   for (const outDir of outputDirs) {
-    const sessionDir = path.join(wsRoot, outDir, session.name);
+    const sessionDir = path.join(outDir, session.name);
     if (fs.existsSync(sessionDir)) {
       fs.rmSync(sessionDir, { recursive: true, force: true });
     }
   }
 
   // Remove session-specific manifest
-  const sessionManifest = path.join(wsRoot, "outputs", `.manifest-${session.name}.json`);
+  const sessionManifest = path.join(path.dirname(policy.outputRoots.quality), `.manifest-${session.name}.json`);
   if (fs.existsSync(sessionManifest)) {
     fs.rmSync(sessionManifest, { force: true });
   }
@@ -318,7 +748,7 @@ function cmdSetActive(mgr: SessionManager, item?: PipelineItem): void {
   }
 }
 
-async function cmdAddPdf(mgr: SessionManager, wsRoot: string): Promise<void> {
+async function cmdAddPdf(mgr: SessionManager, policy: PathPolicy): Promise<void> {
   const active = mgr.active();
   if (!active) {
     void vscode.window.showWarningMessage("Create a session first.");
@@ -329,17 +759,17 @@ async function cmdAddPdf(mgr: SessionManager, wsRoot: string): Promise<void> {
     canSelectFiles: true,
     canSelectFolders: false,
     filters: { "PDF Files": ["pdf"] },
-    defaultUri: vscode.Uri.file(path.join(wsRoot, "data", "raw")),
+    defaultUri: vscode.Uri.file(policy.dataRoot),
     title: "Select PDF files to add",
   });
   if (!uris?.length) return;
-  const count = addPdfUris(mgr, active.id, uris, wsRoot);
+  const count = addPdfUris(mgr, active.id, uris, policy);
   if (count > 0) {
     void vscode.window.showInformationMessage(`Added ${count} PDF(s) to "${active.name}".`);
   }
 }
 
-async function cmdAddFolder(mgr: SessionManager, wsRoot: string): Promise<void> {
+async function cmdAddFolder(mgr: SessionManager, policy: PathPolicy): Promise<void> {
   const active = mgr.active();
   if (!active) {
     void vscode.window.showWarningMessage("Create a session first.");
@@ -349,7 +779,7 @@ async function cmdAddFolder(mgr: SessionManager, wsRoot: string): Promise<void> 
     canSelectMany: false,
     canSelectFiles: false,
     canSelectFolders: true,
-    defaultUri: vscode.Uri.file(path.join(wsRoot, "data", "raw")),
+    defaultUri: vscode.Uri.file(policy.dataRoot),
     title: "Select a folder containing PDFs",
   });
   if (!uris?.length) return;
@@ -360,20 +790,36 @@ async function cmdAddFolder(mgr: SessionManager, wsRoot: string): Promise<void> 
     void vscode.window.showWarningMessage("No PDF files found in the selected folder.");
     return;
   }
-  const count = addPdfUris(mgr, active.id, pdfUris, wsRoot);
+  const count = addPdfUris(mgr, active.id, pdfUris, policy);
   if (count > 0) {
     void vscode.window.showInformationMessage(`Added ${count} PDF(s) from folder to "${active.name}".`);
   }
 }
 
-function addPdfUris(mgr: SessionManager, sessionId: string, uris: readonly vscode.Uri[], wsRoot: string): number {
+function addPdfUris(mgr: SessionManager, sessionId: string, uris: readonly vscode.Uri[], policy: PathPolicy): number {
+  const session = mgr.get(sessionId);
+  let currentRoot = session?.files[0]
+    ? path.dirname(path.resolve(policy.workspaceRoot, session.files[0].relativePath))
+    : undefined;
   let count = 0;
+  let skippedDifferentRoot = 0;
   for (const uri of uris) {
-    const rel = path.relative(wsRoot, uri.fsPath);
+    const nextRoot = path.dirname(uri.fsPath);
+    if (currentRoot && path.resolve(currentRoot) !== path.resolve(nextRoot)) {
+      skippedDifferentRoot++;
+      continue;
+    }
+    const rel = path.relative(policy.workspaceRoot, uri.fsPath);
     const name = path.basename(uri.fsPath);
     if (mgr.addFile(sessionId, name, rel)) {
+      currentRoot = currentRoot ?? nextRoot;
       count++;
     }
+  }
+  if (skippedDifferentRoot > 0) {
+    void vscode.window.showWarningMessage(
+      `${skippedDifferentRoot} PDF skipped. Active session currently supports a single input folder root.`,
+    );
   }
   return count;
 }
@@ -383,11 +829,12 @@ function addPdfUris(mgr: SessionManager, sessionId: string, uris: readonly vscod
 // ═══════════════════════════════════════════════════════════════════════════
 
 async function processActiveSession(
+  context: vscode.ExtensionContext,
   mgr: SessionManager,
   runner: PipelineRunner,
-  wsRoot: string,
+  policy: PathPolicy,
 ): Promise<void> {
-  if (!need(wsRoot)) return;
+  if (!need(policy.workspaceRoot)) return;
   const session = mgr.active();
   if (!session) {
     void vscode.window.showWarningMessage("No active session.");
@@ -397,16 +844,22 @@ async function processActiveSession(
     void vscode.window.showWarningMessage("Pipeline is already running.");
     return;
   }
+  if (!(await checkAndGuideBeforeRun(context, policy))) {
+    return;
+  }
+  if (!ensureSingleInputRoot(mgr, policy)) {
+    return;
+  }
 
   // Mark queued files as processing
   mgr.bulkUpdate(session.id, "queued", "processing");
 
-  const inputDir = sessionInputDir(mgr, wsRoot);
+  const inputDir = sessionInputDir(mgr, policy);
   const result = await runner.runPipeline(
     {
-      python: await resolvePython(wsRoot),
-      root: wsRoot,
-      config: cfg<string>("configPath"),
+      python: await resolvePython(policy.workspaceRoot),
+      root: policy.workspaceRoot,
+      config: policy.configPath,
       engine: cfg<string>("defaultEngine"),
       input: inputDir,
       sessionName: session.name,
@@ -426,107 +879,146 @@ async function processActiveSession(
 // Pipeline action commands (spawn-based)
 // ═══════════════════════════════════════════════════════════════════════════
 
-async function cmdRunFull(runner: PipelineRunner, wsRoot: string, mgr: SessionManager): Promise<void> {
-  if (!need(wsRoot) || runner.busy) return;
+async function cmdRunFull(
+  context: vscode.ExtensionContext,
+  runner: PipelineRunner,
+  policy: PathPolicy,
+  mgr: SessionManager,
+): Promise<void> {
+  if (!need(policy.workspaceRoot) || runner.busy) return;
   const session = requireActiveSession(mgr);
   if (!session) return;
+  if (!(await checkAndGuideBeforeRun(context, policy))) return;
+  if (!ensureSingleInputRoot(mgr, policy)) return;
   await runner.runPipeline({
-    python: await resolvePython(wsRoot),
-    root: wsRoot,
-    config: cfg<string>("configPath"),
+    python: await resolvePython(policy.workspaceRoot),
+    root: policy.workspaceRoot,
+    config: policy.configPath,
     engine: cfg<string>("defaultEngine"),
-    input: sessionInputDir(mgr, wsRoot),
+    input: sessionInputDir(mgr, policy),
     sessionName: session?.name,
   });
 }
 
-async function cmdRunConvert(runner: PipelineRunner, wsRoot: string, mgr: SessionManager): Promise<void> {
-  if (!need(wsRoot) || runner.busy) return;
+async function cmdRunConvert(
+  context: vscode.ExtensionContext,
+  runner: PipelineRunner,
+  policy: PathPolicy,
+  mgr: SessionManager,
+): Promise<void> {
+  if (!need(policy.workspaceRoot) || runner.busy) return;
   const session = requireActiveSession(mgr);
   if (!session) return;
+  if (!(await checkAndGuideBeforeRun(context, policy))) return;
+  if (!ensureSingleInputRoot(mgr, policy)) return;
   await runner.runPipeline({
-    python: await resolvePython(wsRoot),
-    root: wsRoot,
-    config: cfg<string>("configPath"),
+    python: await resolvePython(policy.workspaceRoot),
+    root: policy.workspaceRoot,
+    config: policy.configPath,
     engine: cfg<string>("defaultEngine"),
     stages: ["convert"],
-    input: sessionInputDir(mgr, wsRoot),
+    input: sessionInputDir(mgr, policy),
     sessionName: session?.name,
   });
 }
 
 async function cmdRunQA(
+  context: vscode.ExtensionContext,
   runner: PipelineRunner,
-  wsRoot: string,
+  policy: PathPolicy,
   mgr: SessionManager,
   dashboard: DashboardPanel,
 ): Promise<void> {
-  if (!need(wsRoot) || runner.busy) return;
+  if (!need(policy.workspaceRoot) || runner.busy) return;
   const session = requireActiveSession(mgr);
   if (!session) return;
+  if (!(await checkAndGuideBeforeRun(context, policy))) return;
   const sessionPaths = mgr.pathsFor(session);
   if (!fs.existsSync(sessionPaths.cleanedDir)) {
     void vscode.window.showWarningMessage("No cleaned Markdown output found for the active session. Run the pipeline first.");
     return;
   }
   await runner.runQA({
-    python: await resolvePython(wsRoot),
-    root: wsRoot,
-    config: cfg<string>("configPath"),
+    python: await resolvePython(policy.workspaceRoot),
+    root: policy.workspaceRoot,
+    config: policy.configPath,
     input: sessionPaths.cleanedDir,
     output: mgr.reportPath(session, "qa_report.json"),
   });
   dashboard.refresh();
 }
 
-async function cmdRunDiff(runner: PipelineRunner, wsRoot: string, mgr: SessionManager): Promise<void> {
-  if (!need(wsRoot) || runner.busy) return;
+async function cmdRunDiff(
+  context: vscode.ExtensionContext,
+  runner: PipelineRunner,
+  policy: PathPolicy,
+  mgr: SessionManager,
+): Promise<void> {
+  if (!need(policy.workspaceRoot) || runner.busy) return;
+  if (!(await checkAndGuideBeforeRun(context, policy))) return;
 
   const oldDir = await vscode.window.showInputBox({
     title: "Old folder",
     prompt: "Path to old output folder",
-    value: path.resolve(wsRoot, "outputs/cleaned_md"),
+    value: policy.outputRoots.cleanedMd,
   });
   if (!oldDir) return;
   const newDir = await vscode.window.showInputBox({
     title: "New folder",
     prompt: "Path to new output folder",
-    value: path.resolve(wsRoot, "outputs/raw_md"),
+    value: policy.outputRoots.rawMd,
   });
   if (!newDir) return;
 
   const session = mgr.active();
   const diffOutput = session
     ? mgr.reportPath(session, "diff_report.json")
-    : path.resolve(wsRoot, "outputs/quality/diff_report.json");
+    : path.join(policy.outputRoots.quality, "diff_report.json");
 
   await runner.runDiff({
-    python: await resolvePython(wsRoot),
-    root: wsRoot,
-    config: cfg<string>("configPath"),
+    python: await resolvePython(policy.workspaceRoot),
+    root: policy.workspaceRoot,
+    config: policy.configPath,
     oldDir,
     newDir,
     output: diffOutput,
   });
 }
 
-async function cmdOpenConfig(wsRoot: string): Promise<void> {
+async function cmdOpenConfig(policy: PathPolicy): Promise<void> {
+  const wsRoot = policy.workspaceRoot;
   if (!need(wsRoot)) return;
-  const p = path.resolve(wsRoot, cfg<string>("configPath"));
+  const p = policy.configPath;
+  if (!fs.existsSync(p)) {
+    const action = await vscode.window.showWarningMessage(
+      `Config not found: ${p}`,
+      "Open Settings",
+      "Open Setup Guide",
+    );
+    if (action === "Open Settings") {
+      await vscode.commands.executeCommand("workbench.action.openSettings", "cortexmark.configPath");
+    } else if (action === "Open Setup Guide") {
+      await openDocs();
+    }
+    return;
+  }
   const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(p));
   await vscode.window.showTextDocument(doc, { preview: false });
 }
 
-async function cmdOpenOutput(wsRoot: string, arg?: string | PipelineItem): Promise<void> {
-  if (!need(wsRoot)) return;
+async function cmdOpenOutput(policy: PathPolicy, arg?: string | PipelineItem): Promise<void> {
+  if (!need(policy.workspaceRoot)) return;
   let rel: string | undefined;
   if (typeof arg === "string") {
     rel = arg;
+  } else if (arg instanceof PipelineItem && arg.fsPath) {
+    rel = arg.fsPath;
   } else if (arg instanceof PipelineItem && arg.command?.arguments?.[0]) {
     rel = arg.command.arguments[0] as string;
   }
   if (!rel) return;
-  await vscode.commands.executeCommand("revealInExplorer", vscode.Uri.file(path.resolve(wsRoot, rel)));
+  const absPath = path.isAbsolute(rel) ? rel : path.resolve(policy.workspaceRoot, rel);
+  await vscode.commands.executeCommand("revealInExplorer", vscode.Uri.file(absPath));
 }
 
 async function cmdDeleteOutput(item: PipelineItem | undefined, tree: SessionTreeProvider): Promise<void> {
@@ -550,15 +1042,17 @@ async function cmdDeleteOutput(item: PipelineItem | undefined, tree: SessionTree
 type AnalysisKind = "crossRef" | "algorithm" | "notation" | "semanticChunk";
 
 async function cmdRunAnalysis(
+  context: vscode.ExtensionContext,
   runner: PipelineRunner,
-  wsRoot: string,
+  policy: PathPolicy,
   mgr: SessionManager,
   kind: AnalysisKind,
   dashboard: DashboardPanel,
 ): Promise<void> {
-  if (!need(wsRoot) || runner.busy) return;
+  if (!need(policy.workspaceRoot) || runner.busy) return;
   const session = requireActiveSession(mgr);
   if (!session) return;
+  if (!(await checkAndGuideBeforeRun(context, policy))) return;
   const sessionPaths = mgr.pathsFor(session);
 
   const inputDir = sessionPaths.cleanedDir;
@@ -567,14 +1061,14 @@ async function cmdRunAnalysis(
     return;
   }
 
-  const python = await resolvePython(wsRoot);
+  const python = await resolvePython(policy.workspaceRoot);
 
   let result;
   switch (kind) {
     case "crossRef":
       result = await runner.runCrossRef({
         python,
-        root: wsRoot,
+        root: policy.workspaceRoot,
         input: inputDir,
         output: mgr.reportPath(session, "crossref_report.json"),
       });
@@ -582,7 +1076,7 @@ async function cmdRunAnalysis(
     case "algorithm":
       result = await runner.runAlgorithmExtract({
         python,
-        root: wsRoot,
+        root: policy.workspaceRoot,
         input: inputDir,
         output: mgr.reportPath(session, "algorithm_report.json"),
       });
@@ -590,7 +1084,7 @@ async function cmdRunAnalysis(
     case "notation":
       result = await runner.runNotationGlossary({
         python,
-        root: wsRoot,
+        root: policy.workspaceRoot,
         input: inputDir,
         output: mgr.reportPath(session, "notation_report.json"),
       });
@@ -598,7 +1092,7 @@ async function cmdRunAnalysis(
     case "semanticChunk":
       result = await runner.runSemanticChunk({
         python,
-        root: wsRoot,
+        root: policy.workspaceRoot,
         input: inputDir,
         outputDir: sessionPaths.semanticDir,
       });
@@ -615,14 +1109,16 @@ async function cmdRunAnalysis(
 }
 
 async function cmdRunAllAnalysis(
+  context: vscode.ExtensionContext,
   runner: PipelineRunner,
-  wsRoot: string,
+  policy: PathPolicy,
   mgr: SessionManager,
   dashboard: DashboardPanel,
 ): Promise<void> {
-  if (!need(wsRoot) || runner.busy) return;
+  if (!need(policy.workspaceRoot) || runner.busy) return;
   const session = requireActiveSession(mgr);
   if (!session) return;
+  if (!(await checkAndGuideBeforeRun(context, policy))) return;
   const sessionPaths = mgr.pathsFor(session);
 
   const inputDir = sessionPaths.cleanedDir;
@@ -631,41 +1127,41 @@ async function cmdRunAllAnalysis(
     return;
   }
 
-  const python = await resolvePython(wsRoot);
+  const python = await resolvePython(policy.workspaceRoot);
 
   const analyses: [string, () => Promise<import("./pipelineRunner").RunResult>][] = [
     [
       "Cross References",
-      () => runner.runCrossRef({
+        () => runner.runCrossRef({
         python,
-        root: wsRoot,
+        root: policy.workspaceRoot,
         input: inputDir,
         output: mgr.reportPath(session, "crossref_report.json"),
       }),
     ],
     [
       "Algorithm Extraction",
-      () => runner.runAlgorithmExtract({
+        () => runner.runAlgorithmExtract({
         python,
-        root: wsRoot,
+        root: policy.workspaceRoot,
         input: inputDir,
         output: mgr.reportPath(session, "algorithm_report.json"),
       }),
     ],
     [
       "Notation Glossary",
-      () => runner.runNotationGlossary({
+        () => runner.runNotationGlossary({
         python,
-        root: wsRoot,
+        root: policy.workspaceRoot,
         input: inputDir,
         output: mgr.reportPath(session, "notation_report.json"),
       }),
     ],
     [
       "Semantic Chunking",
-      () => runner.runSemanticChunk({
+        () => runner.runSemanticChunk({
         python,
-        root: wsRoot,
+        root: policy.workspaceRoot,
         input: inputDir,
         outputDir: sessionPaths.semanticDir,
       }),
@@ -694,13 +1190,13 @@ async function cmdRunAllAnalysis(
 // Preview command
 // ═══════════════════════════════════════════════════════════════════════════
 
-function cmdPreview(preview: PreviewPanel, wsRoot: string, arg?: string | PipelineItem): void {
-  if (!need(wsRoot)) return;
+function cmdPreview(preview: PreviewPanel, policy: PathPolicy, arg?: string | PipelineItem): void {
+  if (!need(policy.workspaceRoot)) return;
 
   let filePath: string | undefined;
 
   if (typeof arg === "string") {
-    filePath = path.isAbsolute(arg) ? arg : path.resolve(wsRoot, arg);
+    filePath = path.isAbsolute(arg) ? arg : path.resolve(policy.workspaceRoot, arg);
   } else if (arg instanceof PipelineItem && arg.fsPath) {
     filePath = arg.fsPath;
   }

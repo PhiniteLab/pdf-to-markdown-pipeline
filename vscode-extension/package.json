@@ -50,6 +50,8 @@
     },
     "commands": [
       { "command": "cortexmark.refresh",             "title": "Refresh",                   "icon": "$(refresh)" },
+      { "command": "cortexmark.checkEnvironment",    "title": "Environment Doctor",          "icon": "$(server-environment)" },
+      { "command": "cortexmark.setupWizard",         "title": "Setup Wizard",               "icon": "$(tools)" },
       { "command": "cortexmark.newSession",           "title": "New Session",               "icon": "$(add)" },
       { "command": "cortexmark.deleteSession",        "title": "Delete Session",            "icon": "$(trash)" },
       { "command": "cortexmark.setActiveSession",     "title": "Set as Active",             "icon": "$(star-empty)" },
@@ -75,6 +77,8 @@
     "menus": {
       "view/title": [
         { "command": "cortexmark.refresh",       "when": "view == cortexmarkPanel", "group": "navigation" },
+        { "command": "cortexmark.checkEnvironment", "when": "view == cortexmarkPanel", "group": "navigation" },
+        { "command": "cortexmark.setupWizard",    "when": "view == cortexmarkPanel", "group": "navigation" },
         { "command": "cortexmark.newSession",    "when": "view == cortexmarkPanel", "group": "navigation" },
         { "command": "cortexmark.addPdf",        "when": "view == cortexmarkPanel", "group": "navigation" },
         { "command": "cortexmark.addFolder",     "when": "view == cortexmarkPanel", "group": "navigation" },
@@ -112,6 +116,21 @@
           "type": "string",
           "default": "configs/pipeline.yaml",
           "description": "Pipeline config file path relative to workspace root."
+        },
+        "cortexmark.dataRoot": {
+          "type": "string",
+          "default": "",
+          "description": "Optional override for the PDF input root. Relative values are resolved from the workspace root."
+        },
+        "cortexmark.outputRoot": {
+          "type": "string",
+          "default": "",
+          "description": "Optional override for the shared output root. Relative values are resolved from the workspace root."
+        },
+        "cortexmark.sessionStorePath": {
+          "type": "string",
+          "default": "",
+          "description": "Optional override for the session store JSON path. Relative values are resolved from the workspace root."
         },
         "cortexmark.defaultEngine": {
           "type": "string",

@@ -2,6 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
 import type { SessionManager } from "./sessionManager";
+import type { PathPolicy } from "./pathPolicy";
 
 /**
  * Dashboard panel that displays pipeline metrics, quality badges,
@@ -14,7 +15,7 @@ export class DashboardPanel implements vscode.WebviewViewProvider {
 
   constructor(
     private readonly extensionUri: vscode.Uri,
-    private readonly wsRoot: string,
+    private readonly pathPolicy: PathPolicy,
     private readonly sessions: SessionManager,
   ) {}
 
@@ -57,14 +58,14 @@ export class DashboardPanel implements vscode.WebviewViewProvider {
     if (activeSession) {
       metrics.fileCount = activeSession.files.length;
     } else {
-      const rawDir = path.join(this.wsRoot, "data", "raw");
+      const rawDir = this.pathPolicy.dataRoot;
       if (fs.existsSync(rawDir)) {
         metrics.fileCount = countFiles(rawDir, ".pdf");
       }
     }
 
     // Count output MDs
-    const cleanedDir = sessionPaths?.cleanedDir ?? path.join(this.wsRoot, "outputs", "cleaned_md");
+    const cleanedDir = sessionPaths?.cleanedDir ?? this.pathPolicy.outputRoots.cleanedMd;
     if (fs.existsSync(cleanedDir)) {
       metrics.outputCount = countFiles(cleanedDir, ".md");
     }
@@ -73,7 +74,7 @@ export class DashboardPanel implements vscode.WebviewViewProvider {
     metrics.qa = loadReportSummary<QASummary>(
       sessionPaths?.qualityDir
         ? path.join(sessionPaths.qualityDir, "qa_report.json")
-        : path.join(this.wsRoot, "outputs", "quality", "qa_report.json"),
+        : path.join(this.pathPolicy.outputRoots.quality, "qa_report.json"),
       parseQASummary,
     );
 
@@ -81,7 +82,7 @@ export class DashboardPanel implements vscode.WebviewViewProvider {
     metrics.crossRefStats = loadReportSummary<CrossRefStats>(
       sessionPaths?.qualityDir
         ? path.join(sessionPaths.qualityDir, "crossref_report.json")
-        : path.join(this.wsRoot, "outputs", "quality", "crossref_report.json"),
+        : path.join(this.pathPolicy.outputRoots.quality, "crossref_report.json"),
       parseCrossRefStats,
     );
 
@@ -89,7 +90,7 @@ export class DashboardPanel implements vscode.WebviewViewProvider {
     metrics.algorithmStats = loadReportSummary<AlgorithmStats>(
       sessionPaths?.qualityDir
         ? path.join(sessionPaths.qualityDir, "algorithm_report.json")
-        : path.join(this.wsRoot, "outputs", "quality", "algorithm_report.json"),
+        : path.join(this.pathPolicy.outputRoots.quality, "algorithm_report.json"),
       parseAlgorithmStats,
     );
 
@@ -97,7 +98,7 @@ export class DashboardPanel implements vscode.WebviewViewProvider {
     metrics.notationStats = loadReportSummary<NotationStats>(
       sessionPaths?.qualityDir
         ? path.join(sessionPaths.qualityDir, "notation_report.json")
-        : path.join(this.wsRoot, "outputs", "quality", "notation_report.json"),
+        : path.join(this.pathPolicy.outputRoots.quality, "notation_report.json"),
       parseNotationStats,
     );
 
