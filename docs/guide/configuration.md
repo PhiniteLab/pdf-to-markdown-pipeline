@@ -1,20 +1,31 @@
 # Configuration
 
-The pipeline is configured via `configs/pipeline.yaml`.
+The pipeline is configured via `configs/pipeline.yaml`, but runtime path resolution now follows a portable precedence order:
+
+1. CLI arguments
+2. Environment variables
+3. `.env` in the project root
+4. `configs/pipeline.yaml`
+5. Repo-relative defaults
 
 ## VS Code extension path resolution (first patch)
 
 For the VS Code extension, effective paths are resolved with a small policy layer:
 
-- `cortexmark.configPath` (workspace setting) points to the config file.
-- `data_raw`/`output_*` entries inside the config define input/output roots.
-- `cortexmark.sessionStorePath` (optional) can move the session metadata file.
+- explicit `cortexmark.*` settings are highest priority
+- environment variables are checked next
+- workspace `.env` is checked after environment variables
+- `data_raw` / `output_*` entries inside the selected config provide config-level defaults
+- `cortexmark.sessionStorePath` (or env equivalent) can move the session metadata file
 
 Resolution rules:
 
-1. Absolute paths are used as-is.
-2. Relative paths support `${workspaceFolder}` / `${workspaceFolderBasename}` tokens.
-3. Safe fallbacks are always applied:
+1. Precedence is: explicit setting → env vars → workspace `.env` → config file → safe default.
+2. Absolute paths are used as-is.
+3. Relative settings and env values support `${workspaceFolder}` / `${workspaceFolderBasename}` tokens.
+4. Relative settings and env values resolve from the workspace root.
+5. Relative `paths:` values inside `pipeline.yaml` resolve from the config file directory.
+6. Safe fallbacks are always applied:
    - `configs/pipeline.yaml`
    - `data/raw`
    - `outputs/raw_md`
@@ -22,6 +33,15 @@ Resolution rules:
    - `outputs/chunks`
    - `outputs/quality`
    - `outputs/semantic_chunks`
+
+Python interpreter resolution in the VS Code extension follows:
+
+1. explicit `cortexmark.pythonPath`
+2. `CORTEXMARK_PYTHON_PATH` / `CORTEXMARK_PYTHON` / `PIPELINE_PYTHON`
+3. `VIRTUAL_ENV`
+4. workspace `.venv` / `venv`
+5. Microsoft Python extension interpreter
+6. `python3` (or `python` on Windows)
 
 ## Full Configuration Reference
 
@@ -72,8 +92,36 @@ idempotency:
 
 | Variable | Overrides | Example |
 |----------|-----------|---------|
-| `PIPELINE_CONFIG` | default config path (`--config` still wins) | `export PIPELINE_CONFIG=configs/prod.yaml` |
+| `CORTEXMARK_CONFIG` / `PIPELINE_CONFIG` | default config path (`--config` still wins) | `export CORTEXMARK_CONFIG=configs/prod.yaml` |
 | `PIPELINE_ENGINE` | convert engine (`--engine` still wins) | `export PIPELINE_ENGINE=docling` |
+| `PROJECT_ROOT` | project root discovery | `export PROJECT_ROOT=/srv/cortexmark` |
+| `DATA_DIR` | shared data root | `export DATA_DIR=/mnt/pdfs` |
+| `OUTPUT_DIR` | shared output root (`raw_md`, `cleaned_md`, `chunks`, `quality`, `semantic_chunks`) | `export OUTPUT_DIR=/tmp/cortexmark-output` |
+| `REPORT_DIR` | quality/report directory | `export REPORT_DIR=/tmp/cortexmark-output/quality` |
+| `LOG_DIR` | log directory | `export LOG_DIR=/var/log/cortexmark` |
+| `CHECKPOINT_DIR` | checkpoints/artifacts | `export CHECKPOINT_DIR=/mnt/checkpoints` |
+| `CACHE_DIR` | cache directory | `export CACHE_DIR=/tmp/cortexmark-cache` |
+| `MODEL_DIR` | model/artifact directory | `export MODEL_DIR=/opt/models` |
+| `EXTERNAL_BIN_DIR` | directory searched before `PATH` for external tools | `export EXTERNAL_BIN_DIR=/opt/cortexmark/bin` |
+| `RAW_DATA_DIR`, `OUTPUT_RAW_MD`, `OUTPUT_CLEANED_MD`, `OUTPUT_CHUNKS`, `OUTPUT_SEMANTIC_CHUNKS`, `MANIFEST_FILE` | direct path overrides for specific pipeline locations | `export OUTPUT_CLEANED_MD=/mnt/run-42/cleaned` |
+
+### VS Code extension environment overrides
+
+These can be exported in the shell or placed in the workspace `.env`:
+
+| Variable | Purpose |
+|----------|---------|
+| `CORTEXMARK_CONFIG_PATH` / `PIPELINE_CONFIG` | extension config path override |
+| `CORTEXMARK_PYTHON_PATH` / `CORTEXMARK_PYTHON` / `PIPELINE_PYTHON` | extension Python executable override |
+| `VIRTUAL_ENV` | virtualenv root used to derive the interpreter |
+| `CORTEXMARK_DATA_ROOT` | extension input root override |
+| `CORTEXMARK_OUTPUT_ROOT` | shared extension output root override |
+| `CORTEXMARK_OUTPUT_RAW_MD` | raw Markdown output override |
+| `CORTEXMARK_OUTPUT_CLEANED_MD` | cleaned Markdown output override |
+| `CORTEXMARK_OUTPUT_CHUNKS` | chunk output override |
+| `CORTEXMARK_OUTPUT_QUALITY` | quality-report output override |
+| `CORTEXMARK_OUTPUT_SEMANTIC_CHUNKS` | semantic chunk output override |
+| `CORTEXMARK_SESSION_STORE_PATH` / `CORTEXMARK_SESSION_STORE` | extension session metadata path override |
 
 ## Per-Module Configuration
 

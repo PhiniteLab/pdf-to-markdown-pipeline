@@ -18,7 +18,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
-from cortexmark.common import load_config, resolve_path, setup_logging
+from cortexmark.common import load_config, resolve_quality_report_path, setup_logging
 
 # ── Data structures ──────────────────────────────────────────────────────────
 
@@ -197,7 +197,7 @@ def main() -> int:
 
     old_path = args.old.resolve()
     new_path = args.new.resolve()
-    output_path = (args.output or resolve_path("outputs/quality/diff_report.json")).resolve()
+    output_path = (args.output or resolve_quality_report_path(cfg, "diff_report.json")).resolve()
 
     try:
         if old_path.is_dir() and new_path.is_dir():

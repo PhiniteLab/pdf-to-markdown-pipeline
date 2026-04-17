@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import os
 import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -13,7 +12,8 @@ from cortexmark.common import (
     load_config,
     mirror_directory_tree,
     resolve_configured_path,
-    resolve_path,
+    resolve_manifest_path,
+    runtime_env_value,
     setup_logging,
 )
 
@@ -352,12 +352,16 @@ def main() -> int:
     source_id = get_source_id(cfg)
     input_path = (args.input or resolve_configured_path(cfg, "data_raw", "data/raw") / source_id).resolve()
     output_dir = (args.output_dir or resolve_configured_path(cfg, "output_raw_md", "outputs/raw_md")).resolve()
-    engine = args.engine or os.getenv("PIPELINE_ENGINE") or cfg.get("convert", {}).get("engine", "dual")
+    engine = (
+        args.engine
+        or runtime_env_value("PIPELINE_ENGINE", "CORTEXMARK_ENGINE", cfg=cfg)
+        or cfg.get("convert", {}).get("engine", "dual")
+    )
 
     manifest = None
     idem_cfg = cfg.get("idempotency", {})
     if idem_cfg.get("enabled", True) and not args.no_manifest:
-        manifest = Manifest(resolve_path(idem_cfg.get("manifest_file", "outputs/.manifest.json")))
+        manifest = Manifest(resolve_manifest_path(cfg))
 
     try:
         if input_path.is_dir():

@@ -29,6 +29,27 @@ The extension display name and package ID changed, but the current shipped manif
 - **Auto-detection**: finds workspace `.venv` for Python execution
 - **File watchers**: detect new PDFs in `data/raw/` (optional auto-processing)
 
+## Portability policy
+
+The extension now resolves runtime paths with a portable precedence order:
+
+1. explicit VS Code setting (`cortexmark.*`)
+2. environment variables from the current VS Code process
+3. workspace-root `.env`
+4. `paths:` entries inside the selected pipeline config
+5. workspace-relative safe defaults
+
+For Python execution, the extension uses:
+
+1. explicit `cortexmark.pythonPath`
+2. `CORTEXMARK_PYTHON_PATH` / `CORTEXMARK_PYTHON` / `PIPELINE_PYTHON`
+3. `VIRTUAL_ENV`
+4. workspace `.venv` / `venv`
+5. the interpreter selected by the Microsoft Python extension
+6. `python3` (or `python` on Windows)
+
+Relative values from settings, environment variables, and `.env` are resolved from the workspace root. Paths coming from `configs/pipeline.yaml` still resolve relative to the config file directory.
+
 ## Sidebar Tree Structure
 
 ```
@@ -115,10 +136,33 @@ CortexMark
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `cortexmark.pythonPath` | `python3` | Python executable. Leave empty for workspace `.venv` auto-detection. |
+| `cortexmark.pythonPath` | `python3` | Python executable override. Leave empty or keep `python3` to allow portable discovery fallbacks. |
 | `cortexmark.configPath` | `configs/pipeline.yaml` | Pipeline config file path relative to workspace root. |
+| `cortexmark.dataRoot` | `` | Optional input root override. Relative values resolve from the workspace root. |
+| `cortexmark.outputRoot` | `` | Optional shared output root override. When set, `raw_md`, `cleaned_md`, `chunks`, `quality`, and `semantic_chunks` live under this directory. |
+| `cortexmark.sessionStorePath` | `` | Optional extension session metadata JSON override. Relative values resolve from the workspace root. |
 | `cortexmark.defaultEngine` | `dual` | Default conversion engine (`docling`, `markitdown`, or `dual`). |
 | `cortexmark.autoProcess` | `false` | Automatically run the pipeline when new PDFs are detected. |
+
+### Optional environment variables / `.env`
+
+You can keep machines portable by setting overrides in the shell or in a workspace `.env` file:
+
+```dotenv
+PIPELINE_CONFIG=configs/pipeline.yaml
+CORTEXMARK_PYTHON_PATH=.venv/bin/python
+CORTEXMARK_DATA_ROOT=data/raw
+CORTEXMARK_OUTPUT_ROOT=outputs
+CORTEXMARK_SESSION_STORE_PATH=.cortexmark/sessions.json
+```
+
+Also supported for finer-grained output overrides:
+
+- `CORTEXMARK_OUTPUT_RAW_MD`
+- `CORTEXMARK_OUTPUT_CLEANED_MD`
+- `CORTEXMARK_OUTPUT_CHUNKS`
+- `CORTEXMARK_OUTPUT_QUALITY`
+- `CORTEXMARK_OUTPUT_SEMANTIC_CHUNKS`
 
 ## Architecture
 

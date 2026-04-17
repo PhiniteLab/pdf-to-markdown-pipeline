@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import os
 import time
 from pathlib import Path
 
@@ -12,8 +11,9 @@ from cortexmark.common import (
     get_source_id,
     load_config,
     resolve_configured_path,
-    resolve_path,
+    resolve_manifest_path,
     resolve_quality_dir,
+    runtime_env_value,
     setup_logging,
 )
 
@@ -74,14 +74,13 @@ def main() -> int:
     manifest = None
     idem_cfg = cfg.get("idempotency", {})
     if idem_cfg.get("enabled", True) and not args.no_manifest:
-        manifest_base = resolve_path(idem_cfg.get("manifest_file", "outputs/.manifest.json"))
-        if args.session_name:
-            manifest_path = manifest_base.parent / f".manifest-{args.session_name}.json"
-        else:
-            manifest_path = manifest_base
-        manifest = Manifest(manifest_path)
+        manifest = Manifest(resolve_manifest_path(cfg, session_name=args.session_name))
 
-    engine = args.engine or os.getenv("PIPELINE_ENGINE") or cfg.get("convert", {}).get("engine", "dual")
+    engine = (
+        args.engine
+        or runtime_env_value("PIPELINE_ENGINE", "CORTEXMARK_ENGINE", cfg=cfg)
+        or cfg.get("convert", {}).get("engine", "dual")
+    )
     stages = args.stages
     start = time.monotonic()
 

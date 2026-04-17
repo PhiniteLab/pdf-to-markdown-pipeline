@@ -69,6 +69,22 @@ pre-commit install
 pre-commit install --hook-type commit-msg
 ```
 
+## Portable path overrides
+
+CortexMark can be relocated to another user account, machine, workspace path, CI runner, or container without code edits.
+Use CLI arguments first, then environment variables or a `.env` file, and fall back to `configs/pipeline.yaml` only when you want a checked-in project default.
+
+Common overrides:
+
+```bash
+cp .env.example .env
+# edit values as needed
+export OUTPUT_DIR=/tmp/cortexmark-output
+export CACHE_DIR=/tmp/cortexmark-cache
+```
+
+Useful variables: `PROJECT_ROOT`, `DATA_DIR`, `OUTPUT_DIR`, `REPORT_DIR`, `LOG_DIR`, `CHECKPOINT_DIR`, `CACHE_DIR`, `MODEL_DIR`, `EXTERNAL_BIN_DIR`.
+
 ## Docker
 
 ```bash

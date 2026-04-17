@@ -66,6 +66,7 @@ from cortexmark.common import (
     Manifest,
     detect_device,
     file_hash,
+    find_project_root,
     get_source_id,
     load_config,
     mirror_directory_tree,
@@ -340,6 +341,8 @@ from cortexmark.topics import (
 )
 
 # ── Fixtures ─────────────────────────────────────────────────────────────────
+
+REPO_ROOT = find_project_root(Path(__file__).parent)
 
 
 class DummyFormula:
@@ -3036,43 +3039,43 @@ class TestParallelCLI:
 
 class TestDockerfiles:
     def test_dockerfile_exists(self) -> None:
-        dockerfile = Path(__file__).resolve().parent.parent / "Dockerfile"
+        dockerfile = REPO_ROOT / "Dockerfile"
         assert dockerfile.exists(), "Dockerfile should exist at project root"
 
     def test_dockerfile_has_python(self) -> None:
-        dockerfile = Path(__file__).resolve().parent.parent / "Dockerfile"
+        dockerfile = REPO_ROOT / "Dockerfile"
         content = dockerfile.read_text(encoding="utf-8")
         assert "python:3.12" in content
 
     def test_dockerfile_has_entrypoint(self) -> None:
-        dockerfile = Path(__file__).resolve().parent.parent / "Dockerfile"
+        dockerfile = REPO_ROOT / "Dockerfile"
         content = dockerfile.read_text(encoding="utf-8")
         assert "ENTRYPOINT" in content
 
     def test_dockerfile_copies_requirements(self) -> None:
-        dockerfile = Path(__file__).resolve().parent.parent / "Dockerfile"
+        dockerfile = REPO_ROOT / "Dockerfile"
         content = dockerfile.read_text(encoding="utf-8")
         assert "requirements.txt" in content
 
     def test_docker_compose_exists(self) -> None:
-        dc = Path(__file__).resolve().parent.parent / "docker-compose.yml"
+        dc = REPO_ROOT / "docker-compose.yml"
         assert dc.exists(), "docker-compose.yml should exist at project root"
 
     def test_docker_compose_services(self) -> None:
         import yaml
 
-        dc = Path(__file__).resolve().parent.parent / "docker-compose.yml"
+        dc = REPO_ROOT / "docker-compose.yml"
         data = yaml.safe_load(dc.read_text(encoding="utf-8"))
         assert "services" in data
         assert "pipeline" in data["services"]
         assert "test" in data["services"]
 
     def test_dockerignore_exists(self) -> None:
-        di = Path(__file__).resolve().parent.parent / ".dockerignore"
+        di = REPO_ROOT / ".dockerignore"
         assert di.exists(), ".dockerignore should exist at project root"
 
     def test_dockerignore_excludes_venv(self) -> None:
-        di = Path(__file__).resolve().parent.parent / ".dockerignore"
+        di = REPO_ROOT / ".dockerignore"
         content = di.read_text(encoding="utf-8")
         assert ".venv" in content
 
@@ -4839,15 +4842,15 @@ class TestNotationFileOps:
 
 class TestPyTyped:
     def test_py_typed_exists(self) -> None:
-        marker = Path(__file__).resolve().parent.parent / "cortexmark" / "py.typed"
+        marker = REPO_ROOT / "cortexmark" / "py.typed"
         assert marker.exists(), "py.typed marker should exist in cortexmark/"
 
     def test_pyrightconfig_exists(self) -> None:
-        cfg = Path(__file__).resolve().parent.parent / "pyrightconfig.json"
+        cfg = REPO_ROOT / "pyrightconfig.json"
         assert cfg.exists()
 
     def test_pyrightconfig_has_standard(self) -> None:
-        cfg = Path(__file__).resolve().parent.parent / "pyrightconfig.json"
+        cfg = REPO_ROOT / "pyrightconfig.json"
         data = json.loads(cfg.read_text(encoding="utf-8"))
         assert data.get("typeCheckingMode") == "standard"
 
@@ -4856,7 +4859,7 @@ class TestPyTyped:
 # Phase 3: VS Code Extension Enhancement
 # ═══════════════════════════════════════════════════════════════════════════════
 
-EXT_DIR = Path(__file__).resolve().parent.parent / "vscode-extension"
+EXT_DIR = REPO_ROOT / "vscode-extension"
 EXT_SRC = EXT_DIR / "src"
 
 

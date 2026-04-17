@@ -21,7 +21,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
-from cortexmark.common import load_config, resolve_path, setup_logging
+from cortexmark.common import load_config, resolve_plugin_dir, setup_logging
 
 # ── Hook names ───────────────────────────────────────────────────────────────
 
@@ -238,7 +238,7 @@ def main() -> int:
     cfg = load_config(args.config)
     log = setup_logging("plugins", cfg)
 
-    plugin_dir = (args.plugin_dir or resolve_path("plugins")).resolve()
+    plugin_dir = (args.plugin_dir or resolve_plugin_dir(cfg)).resolve()
 
     registry = PluginRegistry()
     infos = registry.discover(plugin_dir)

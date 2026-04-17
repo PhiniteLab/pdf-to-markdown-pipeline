@@ -1,6 +1,7 @@
 import * as cp from "child_process";
 import * as path from "path";
 import * as vscode from "vscode";
+import { resolveWorkspaceProcessEnv } from "./pathPolicy";
 
 export interface RunResult {
   exitCode: number;
@@ -47,7 +48,7 @@ export class PipelineRunner implements vscode.Disposable {
     this.output.appendLine("\u2500".repeat(60));
 
     return new Promise<RunResult>((resolve) => {
-      const child = cp.spawn(python, args, { cwd, env: { ...process.env } });
+      const child = cp.spawn(python, args, { cwd, env: resolveWorkspaceProcessEnv(cwd) });
       this.proc = child;
       let stdout = "";
       let stderr = "";

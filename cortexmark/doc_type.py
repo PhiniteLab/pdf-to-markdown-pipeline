@@ -23,7 +23,13 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
-from cortexmark.common import load_config, resolve_path, setup_logging
+from cortexmark.common import (
+    get_path_settings,
+    load_config,
+    resolve_configured_path,
+    resolve_quality_report_path,
+    setup_logging,
+)
 
 # ── Document types ───────────────────────────────────────────────────────────
 
@@ -363,14 +369,14 @@ def main() -> int:
     if args.scaffold:
         template = get_template(args.scaffold)
         scaffold = render_template_scaffold(template)
-        out_path = args.output or resolve_path(f"outputs/templates/{args.scaffold}_scaffold.md")
+        out_path = args.output or get_path_settings(cfg).outputs_dir / "templates" / f"{args.scaffold}_scaffold.md"
         out_path.parent.mkdir(parents=True, exist_ok=True)
         out_path.write_text(scaffold, encoding="utf-8")
         log.info("wrote scaffold for %s → %s", args.scaffold, out_path)
         return 0
 
-    input_path = (args.input or resolve_path(cfg["paths"]["output_cleaned_md"])).resolve()
-    output_path = (args.output or resolve_path("outputs/quality/doctype_report.json")).resolve()
+    input_path = (args.input or resolve_configured_path(cfg, "output_cleaned_md", "outputs/cleaned_md")).resolve()
+    output_path = (args.output or resolve_quality_report_path(cfg, "doctype_report.json")).resolve()
 
     try:
         results = detect_tree(input_path) if input_path.is_dir() else [detect_file(input_path)]

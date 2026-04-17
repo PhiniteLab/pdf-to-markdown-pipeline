@@ -1,8 +1,10 @@
 import * as fs from "fs";
+import * as os from "os";
 import * as path from "path";
 import * as vscode from "vscode";
 
 const DEFAULT_CONFIG_FILE = "configs/pipeline.yaml";
+const WORKSPACE_DOTENV_FILE = ".env";
 const DEFAULT_PATHS = {
   dataRaw: "data/raw",
   outputRawMd: "outputs/raw_md",
@@ -11,6 +13,15 @@ const DEFAULT_PATHS = {
   outputQuality: "outputs/quality",
   outputSemanticChunks: "outputs/semantic_chunks",
 };
+const CONFIG_PATH_ENV_KEYS = ["CORTEXMARK_CONFIG_PATH", "PIPELINE_CONFIG"];
+const DATA_ROOT_ENV_KEYS = ["CORTEXMARK_DATA_ROOT", "PIPELINE_DATA_ROOT"];
+const OUTPUT_ROOT_ENV_KEYS = ["CORTEXMARK_OUTPUT_ROOT", "PIPELINE_OUTPUT_ROOT"];
+const OUTPUT_RAW_MD_ENV_KEYS = ["CORTEXMARK_OUTPUT_RAW_MD"];
+const OUTPUT_CLEANED_MD_ENV_KEYS = ["CORTEXMARK_OUTPUT_CLEANED_MD"];
+const OUTPUT_CHUNKS_ENV_KEYS = ["CORTEXMARK_OUTPUT_CHUNKS"];
+const OUTPUT_QUALITY_ENV_KEYS = ["CORTEXMARK_OUTPUT_QUALITY"];
+const OUTPUT_SEMANTIC_CHUNKS_ENV_KEYS = ["CORTEXMARK_OUTPUT_SEMANTIC_CHUNKS"];
+const SESSION_STORE_ENV_KEYS = ["CORTEXMARK_SESSION_STORE_PATH", "CORTEXMARK_SESSION_STORE"];
 
 interface RawConfiguredPaths {
   dataRaw?: string;
@@ -70,6 +81,11 @@ export type EffectivePaths = Omit<PathPolicy, "configNotes" | "sessionOutputs"> 
   semanticChunksRoot: string;
 };
 
+interface SettingInspection<T> {
+  explicit?: T;
+  effective: T;
+}
+
 function trimQuotes(raw: string): string {
   const trimmed = raw.trim();
   if ((trimmed.startsWith("\"") && trimmed.endsWith("\"")) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
@@ -78,16 +94,45 @@ function trimQuotes(raw: string): string {
   return trimmed;
 }
 
+function expandHomeDirectory(raw: string): string {
+  if (raw === "~") {
+    return os.homedir();
+  }
+  if (raw.startsWith("~/") || raw.startsWith("~\\")) {
+    return path.join(os.homedir(), raw.slice(2));
+  }
+  return raw;
+}
+
 function replaceWorkspaceTokens(raw: string, workspaceRoot: string): string {
-  return raw
+  return expandHomeDirectory(raw)
     .replace(/\$\{workspaceFolder\}/g, workspaceRoot)
     .replace(/\$\{workspaceFolderBasename\}/g, path.basename(workspaceRoot));
+}
+
+function isNonEmptyString(raw: unknown): raw is string {
+  return typeof raw === "string" && trimQuotes(raw).trim().length > 0;
+}
+
+function looksLikePath(raw: string): boolean {
+  return raw.startsWith(".") || raw.startsWith("~") || raw.includes("/") || raw.includes("\\") || /^[A-Za-z]:/.test(raw);
 }
 
 function resolveConfiguredPath(raw: string | undefined, workspaceRoot: string, fallback: string, baseDir = workspaceRoot): string {
   const expanded = raw ? replaceWorkspaceTokens(trimQuotes(raw), workspaceRoot) : "";
   if (!expanded) return path.resolve(baseDir, fallback);
   return path.isAbsolute(expanded) ? path.resolve(expanded) : path.resolve(baseDir, expanded);
+}
+
+export function resolveExecutableOverride(raw: string, workspaceRoot: string): string {
+  const expanded = replaceWorkspaceTokens(trimQuotes(raw), workspaceRoot);
+  if (!expanded) {
+    return "";
+  }
+  if (looksLikePath(expanded)) {
+    return path.isAbsolute(expanded) ? path.resolve(expanded) : path.resolve(workspaceRoot, expanded);
+  }
+  return expanded;
 }
 
 function resolveConfiguredOrFallback(
@@ -168,8 +213,93 @@ function parseYamlPathOverrides(configPath: string): ParsedConfigPaths {
   }
 }
 
-function getWorkspaceSetting<T>(key: string, fallback: T): T {
-  return vscode.workspace.getConfiguration("cortexmark").get<T>(key) ?? fallback;
+function stripInlineComment(raw: string): string {
+  let inSingle = false;
+  let inDouble = false;
+
+  for (let index = 0; index < raw.length; index += 1) {
+    const char = raw[index];
+    if (char === "'" && !inDouble) {
+      inSingle = !inSingle;
+      continue;
+    }
+    if (char === "\"" && !inSingle) {
+      inDouble = !inDouble;
+      continue;
+    }
+    if (char === "#" && !inSingle && !inDouble) {
+      const prev = index > 0 ? raw[index - 1] : "";
+      if (!prev || /\s/.test(prev)) {
+        return raw.slice(0, index).trimEnd();
+      }
+    }
+  }
+  return raw.trim();
+}
+
+function readWorkspaceDotEnv(workspaceRoot: string): Record<string, string> {
+  const filePath = path.join(workspaceRoot, WORKSPACE_DOTENV_FILE);
+  if (!fs.existsSync(filePath)) {
+    return {};
+  }
+
+  const parsed: Record<string, string> = {};
+  try {
+    const raw = fs.readFileSync(filePath, "utf-8");
+    for (const line of raw.split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) {
+        continue;
+      }
+      const candidate = trimmed.startsWith("export ") ? trimmed.slice("export ".length).trim() : trimmed;
+      const match = candidate.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/);
+      if (!match) {
+        continue;
+      }
+      const key = match[1];
+      const value = trimQuotes(stripInlineComment(match[2] ?? ""));
+      parsed[key] = value;
+    }
+  } catch {
+    return {};
+  }
+  return parsed;
+}
+
+function inspectSetting<T>(key: string, fallback: T): SettingInspection<T> {
+  const inspected = vscode.workspace.getConfiguration("cortexmark").inspect<T>(key);
+  const explicit = inspected?.workspaceFolderValue ?? inspected?.workspaceValue ?? inspected?.globalValue;
+  const effective = explicit ?? inspected?.defaultValue ?? fallback;
+  return { explicit, effective };
+}
+
+export function getExplicitStringSetting(key: string): string | undefined {
+  const inspected = inspectSetting<string | undefined>(key, undefined);
+  return isNonEmptyString(inspected.explicit) ? inspected.explicit : undefined;
+}
+
+export function resolveWorkspaceEnvValue(workspaceRoot: string, keys: readonly string[]): string | undefined {
+  for (const key of keys) {
+    const value = process.env[key];
+    if (isNonEmptyString(value)) {
+      return value;
+    }
+  }
+  const dotEnv = readWorkspaceDotEnv(workspaceRoot);
+  for (const key of keys) {
+    const value = dotEnv[key];
+    if (isNonEmptyString(value)) {
+      return value;
+    }
+  }
+  return undefined;
+}
+
+export function resolveWorkspaceProcessEnv(workspaceRoot: string): NodeJS.ProcessEnv {
+  return {
+    ...readWorkspaceDotEnv(workspaceRoot),
+    ...process.env,
+  };
 }
 
 function resolvePathConfig(configPath: string): { configFound: boolean; configNotes: string[]; configured: ParsedConfigPaths } {
@@ -198,20 +328,27 @@ function resolveOutputsForSession(baseRoots: PathPolicy["outputRoots"], manifest
 }
 
 export function resolveConfigPath(workspaceRoot: string): string {
-  const configured = (getWorkspaceSetting("configPath", DEFAULT_CONFIG_FILE) || DEFAULT_CONFIG_FILE) as string;
-  return path.isAbsolute(configured) ? configured : path.resolve(workspaceRoot, configured);
+  const configuredSetting = getExplicitStringSetting("configPath");
+  const envConfigured = resolveWorkspaceEnvValue(workspaceRoot, CONFIG_PATH_ENV_KEYS);
+  const rawConfigPath = configuredSetting || envConfigured || DEFAULT_CONFIG_FILE;
+  return resolveConfiguredPath(rawConfigPath, workspaceRoot, DEFAULT_CONFIG_FILE);
 }
 
 export function resolvePathPolicy(workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath): PathPolicy {
   const wsRoot = workspaceRoot ?? process.cwd();
-  const rawConfigPath = getWorkspaceSetting<string>("configPath", DEFAULT_CONFIG_FILE);
+  const rawConfigPath = getExplicitStringSetting("configPath")
+    || resolveWorkspaceEnvValue(wsRoot, CONFIG_PATH_ENV_KEYS)
+    || DEFAULT_CONFIG_FILE;
   const configPath = resolveConfiguredPath(rawConfigPath, wsRoot, DEFAULT_CONFIG_FILE);
   const configDir = path.dirname(configPath);
   const configState = resolvePathConfig(configPath);
 
-  const dataRootSetting = getWorkspaceSetting("dataRoot", "");
+  const dataRootSetting = getExplicitStringSetting("dataRoot");
+  const dataRootEnv = resolveWorkspaceEnvValue(wsRoot, DATA_ROOT_ENV_KEYS);
   const dataRoot = dataRootSetting
     ? resolveConfiguredPath(dataRootSetting, wsRoot, DEFAULT_PATHS.dataRaw, wsRoot)
+    : dataRootEnv
+      ? resolveConfiguredPath(dataRootEnv, wsRoot, DEFAULT_PATHS.dataRaw, wsRoot)
     : resolveConfiguredOrFallback(
       configState.configured.dataRaw,
       wsRoot,
@@ -220,8 +357,14 @@ export function resolvePathPolicy(workspaceRoot = vscode.workspace.workspaceFold
       wsRoot,
     );
 
-  const outputRoot = getWorkspaceSetting("outputRoot", "");
+  const outputRoot = getExplicitStringSetting("outputRoot") || resolveWorkspaceEnvValue(wsRoot, OUTPUT_ROOT_ENV_KEYS);
   const outputRootAbs = outputRoot ? resolveConfiguredPath(outputRoot, wsRoot, "outputs") : "";
+
+  const rawMdEnv = resolveWorkspaceEnvValue(wsRoot, OUTPUT_RAW_MD_ENV_KEYS);
+  const cleanedMdEnv = resolveWorkspaceEnvValue(wsRoot, OUTPUT_CLEANED_MD_ENV_KEYS);
+  const chunksEnv = resolveWorkspaceEnvValue(wsRoot, OUTPUT_CHUNKS_ENV_KEYS);
+  const qualityEnv = resolveWorkspaceEnvValue(wsRoot, OUTPUT_QUALITY_ENV_KEYS);
+  const semanticEnv = resolveWorkspaceEnvValue(wsRoot, OUTPUT_SEMANTIC_CHUNKS_ENV_KEYS);
 
   const rawMdConfigured = resolveConfiguredOrFallback(
     configState.configured.outputRawMd,
@@ -259,17 +402,38 @@ export function resolvePathPolicy(workspaceRoot = vscode.workspace.workspaceFold
     wsRoot,
   );
 
-  const rawMd = outputRootAbs ? path.join(outputRootAbs, "raw_md") : rawMdConfigured;
-  const cleanedMd = outputRootAbs ? path.join(outputRootAbs, "cleaned_md") : cleanedMdConfigured;
-  const chunks = outputRootAbs ? path.join(outputRootAbs, "chunks") : chunksConfigured;
-  const quality = outputRootAbs ? path.join(outputRootAbs, "quality") : qualityConfigured;
-  const semanticChunks = outputRootAbs ? path.join(outputRootAbs, "semantic_chunks") : semanticConfigured;
+  const rawMd = outputRootAbs
+    ? path.join(outputRootAbs, "raw_md")
+    : rawMdEnv
+      ? resolveConfiguredPath(rawMdEnv, wsRoot, DEFAULT_PATHS.outputRawMd, wsRoot)
+      : rawMdConfigured;
+  const cleanedMd = outputRootAbs
+    ? path.join(outputRootAbs, "cleaned_md")
+    : cleanedMdEnv
+      ? resolveConfiguredPath(cleanedMdEnv, wsRoot, DEFAULT_PATHS.outputCleanedMd, wsRoot)
+      : cleanedMdConfigured;
+  const chunks = outputRootAbs
+    ? path.join(outputRootAbs, "chunks")
+    : chunksEnv
+      ? resolveConfiguredPath(chunksEnv, wsRoot, DEFAULT_PATHS.outputChunks, wsRoot)
+      : chunksConfigured;
+  const quality = outputRootAbs
+    ? path.join(outputRootAbs, "quality")
+    : qualityEnv
+      ? resolveConfiguredPath(qualityEnv, wsRoot, DEFAULT_PATHS.outputQuality, wsRoot)
+      : qualityConfigured;
+  const semanticChunks = outputRootAbs
+    ? path.join(outputRootAbs, "semantic_chunks")
+    : semanticEnv
+      ? resolveConfiguredPath(semanticEnv, wsRoot, DEFAULT_PATHS.outputSemanticChunks, wsRoot)
+      : semanticConfigured;
 
   const manifestPath = outputRootAbs
     ? path.join(outputRootAbs, ".manifest.json")
     : path.join(path.dirname(quality), ".manifest.json");
 
-  const sessionStoreOverride = getWorkspaceSetting("sessionStorePath", "");
+  const sessionStoreOverride = getExplicitStringSetting("sessionStorePath")
+    || resolveWorkspaceEnvValue(wsRoot, SESSION_STORE_ENV_KEYS);
   const sessionStorePath = sessionStoreOverride
     ? resolveConfiguredPath(sessionStoreOverride, wsRoot, ".cortexmark/sessions.json")
     : path.join(wsRoot, ".cortexmark", "sessions.json");

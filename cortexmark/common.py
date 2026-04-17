@@ -7,14 +7,33 @@ import json
 import logging
 import os
 import sys
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
 import yaml
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
+from cortexmark.paths import (
+    CONFIG_ENV_KEYS,
+    MANIFEST_ENV_KEYS,
+    SOURCE_ID_ENV_KEYS,
+    PathSettings,
+    build_path_settings,
+    find_project_root,
+    first_present,
+    load_dotenv_values,
+    merged_runtime_env,
+    resolve_binary,
+    resolve_manifest_file,
+    resolve_portable_path,
+)
+
+PROJECT_ROOT = find_project_root()
 DEFAULT_CONFIG_PATH = PROJECT_ROOT / "configs" / "pipeline.yaml"
 DEFAULT_SOURCE_ID = "default"
+ENGINE_ENV_KEYS: tuple[str, ...] = ("PIPELINE_ENGINE", "CORTEXMARK_ENGINE")
+
+_CONFIG_CACHE: dict[str, Any] | None = None
 
 
 def detect_device() -> str:
@@ -27,20 +46,49 @@ def detect_device() -> str:
         return "cpu"
 
 
-_config_cache: dict[str, Any] | None = None
+# ── Configuration and path settings ─────────────────────────────────────────
 
 
-# ── Configuration ────────────────────────────────────────────────────────────
+def runtime_environ(cfg: Mapping[str, Any] | None = None) -> dict[str, str]:
+    """Return merged runtime env (process env overrides .env) for the active project root."""
+    project_root = (
+        Path(str(cfg.get("__project_root__"))).resolve()
+        if cfg and cfg.get("__project_root__")
+        else find_project_root(start=Path.cwd())
+    )
+    return merged_runtime_env(project_root)
+
+
+def runtime_env_value(*keys: str, cfg: Mapping[str, Any] | None = None) -> str | None:
+    """Return the first configured runtime env value across process env and .env."""
+    return first_present(runtime_environ(cfg), keys)
+
+
+def _resolve_config_path(path: Path | None = None) -> tuple[Path, Path]:
+    project_root = find_project_root(start=Path.cwd())
+    merged_env = merged_runtime_env(project_root)
+
+    if path is not None:
+        config_path = resolve_portable_path(path, project_root=project_root, base_dir=Path.cwd(), environ=merged_env)
+        return config_path, project_root
+
+    env_value = first_present(merged_env, CONFIG_ENV_KEYS)
+    if env_value:
+        config_path = resolve_portable_path(
+            env_value, project_root=project_root, base_dir=project_root, environ=merged_env
+        )
+        return config_path, project_root
+
+    return (project_root / "configs" / "pipeline.yaml").resolve(), project_root
 
 
 def load_config(path: Path | None = None) -> dict[str, Any]:
     """Load and cache the pipeline YAML configuration."""
-    global _config_cache
-    if _config_cache is not None and path is None:
-        return _config_cache
-    env_path = os.getenv("PIPELINE_CONFIG")
-    raw_config = path or (Path(env_path) if env_path else DEFAULT_CONFIG_PATH)
-    config_path = raw_config if raw_config.is_absolute() else resolve_path(str(raw_config))
+    global _CONFIG_CACHE
+    if _CONFIG_CACHE is not None and path is None:
+        return _CONFIG_CACHE
+
+    config_path, project_root = _resolve_config_path(path)
     if not config_path.exists():
         raise FileNotFoundError(f"Config file not found: {config_path}")
     with config_path.open(encoding="utf-8") as fh:
@@ -49,76 +97,115 @@ def load_config(path: Path | None = None) -> dict[str, Any]:
         raise ValueError(f"Config must be a YAML mapping, got {type(cfg).__name__}")
     cfg.setdefault("__config_file__", str(config_path))
     cfg.setdefault("__config_dir__", str(config_path.parent))
+    cfg.setdefault("__project_root__", str(project_root))
     if path is None:
-        _config_cache = cfg
+        _CONFIG_CACHE = cfg
     return cfg
 
 
 def reset_config_cache() -> None:
     """Clear cached config (useful for tests)."""
-    global _config_cache
-    _config_cache = None
+    global _CONFIG_CACHE
+    _CONFIG_CACHE = None
 
 
-def resolve_path(raw: str) -> Path:
-    """Resolve a config path relative to the project root."""
-    p = Path(raw)
-    if p.is_absolute():
-        return p
-    return PROJECT_ROOT / p
+def get_path_settings(cfg: Mapping[str, Any] | None = None) -> PathSettings:
+    """Return the central path settings object for the current runtime."""
+    project_root = Path(str(cfg.get("__project_root__"))).resolve() if cfg and cfg.get("__project_root__") else None
+    return build_path_settings(cfg, project_root=project_root)
 
 
-def resolve_relative_path(raw: str, base_dir: Path | str | None = None) -> Path:
+def resolve_path(raw: str | Path, *, base_dir: Path | str | None = None) -> Path:
+    """Resolve a path relative to *base_dir* or the discovered project root."""
+    settings = get_path_settings()
+    return resolve_portable_path(
+        raw, project_root=settings.project_root, base_dir=Path(base_dir) if base_dir is not None else None
+    )
+
+
+def resolve_relative_path(raw: str | Path, base_dir: Path | str | None = None) -> Path:
     """Resolve *raw* relative to *base_dir* when given, otherwise project root."""
-    p = Path(raw)
-    if p.is_absolute():
-        return p
-    if base_dir is not None:
-        return Path(base_dir) / p
-    return resolve_path(raw)
+    return resolve_path(raw, base_dir=Path(base_dir) if base_dir is not None else None)
 
 
-def config_base_dir(cfg: dict[str, Any]) -> Path:
+def config_base_dir(cfg: Mapping[str, Any]) -> Path:
     """Return the directory of the loaded config when known."""
     raw = cfg.get("__config_dir__")
     if raw:
-        return Path(str(raw))
-    return PROJECT_ROOT
+        return Path(str(raw)).resolve()
+    return get_path_settings(cfg).config_dir
 
 
-def get_source_id(cfg: dict[str, Any], *, default: str = DEFAULT_SOURCE_ID) -> str:
+def get_source_id(cfg: Mapping[str, Any], *, default: str = DEFAULT_SOURCE_ID) -> str:
     """Return the generic source identifier used for default input/output scoping."""
+    project_root = Path(str(cfg.get("__project_root__"))).resolve() if cfg.get("__project_root__") else None
+    dotenv = load_dotenv_values(project_root or find_project_root())
+    merged_env = {**dotenv, **os.environ}
+    env_source = first_present(merged_env, SOURCE_ID_ENV_KEYS)
+    if env_source:
+        return env_source
     source_id = cfg.get("source_id")
     if source_id:
         return str(source_id)
     return default
 
 
-def resolve_configured_path(cfg: dict[str, Any], key: str, fallback: str) -> Path:
-    """Resolve a named entry from the ``paths`` config mapping with a stable fallback."""
+def resolve_configured_path(cfg: Mapping[str, Any], key: str, fallback: str) -> Path:
+    """Resolve a named config path using env/.env/config/default precedence."""
+    settings = get_path_settings(cfg)
+    mapping = {
+        "data_raw": settings.raw_data_dir,
+        "output_raw_md": settings.raw_md_dir,
+        "output_cleaned_md": settings.cleaned_md_dir,
+        "output_chunks": settings.chunks_dir,
+        "output_quality": settings.quality_dir,
+        "output_semantic_chunks": settings.semantic_chunks_dir,
+    }
+    if key in mapping:
+        return mapping[key]
+
     paths = cfg.get("paths", {})
-    if key in paths:
-        raw = paths[key]
-        return resolve_relative_path(str(raw), config_base_dir(cfg))
-    return resolve_path(fallback)
+    raw = paths.get(key) if isinstance(paths, Mapping) else None
+    if raw:
+        return resolve_relative_path(str(raw), base_dir=config_base_dir(cfg))
+    return resolve_relative_path(fallback, base_dir=settings.project_root)
 
 
-def resolve_quality_dir(cfg: dict[str, Any], *, session_name: str | None = None) -> Path:
+def resolve_output_subdir(cfg: Mapping[str, Any], *parts: str) -> Path:
+    """Resolve a path under the portable outputs root."""
+    settings = get_path_settings(cfg)
+    return (settings.outputs_dir.joinpath(*parts)).resolve()
+
+
+def resolve_manifest_path(cfg: Mapping[str, Any], *, session_name: str | None = None) -> Path:
+    """Return the manifest path with optional session scoping."""
+    manifest_path = resolve_manifest_file(cfg, project_root=get_path_settings(cfg).project_root)
+    if session_name:
+        return (manifest_path.parent / f".manifest-{session_name}.json").resolve()
+    return manifest_path.resolve()
+
+
+def resolve_quality_dir(cfg: Mapping[str, Any], *, session_name: str | None = None) -> Path:
     """Return output quality directory, optionally scoped by session."""
-    quality_dir = resolve_configured_path(cfg, "output_quality", "outputs/quality")
+    quality_dir = get_path_settings(cfg).quality_dir
     if session_name:
         quality_dir = quality_dir / session_name
     return quality_dir.resolve()
 
 
 def resolve_quality_report_path(
-    cfg: dict[str, Any],
+    cfg: Mapping[str, Any],
     filename: str,
     *,
     session_name: str | None = None,
 ) -> Path:
     """Return a quality report output path with optional session scoping."""
     return (resolve_quality_dir(cfg, session_name=session_name) / filename).resolve()
+
+
+def resolve_plugin_dir(cfg: Mapping[str, Any] | None = None) -> Path:
+    """Return the plugin discovery directory."""
+    return get_path_settings(cfg).plugin_dir.resolve()
 
 
 # ── Logging ──────────────────────────────────────────────────────────────────
@@ -194,3 +281,39 @@ class Manifest:
         with self.path.open("w", encoding="utf-8") as fh:
             json.dump(self._data, fh, indent=2, sort_keys=True)
             fh.write("\n")
+
+
+__all__ = [
+    "CONFIG_ENV_KEYS",
+    "DEFAULT_CONFIG_PATH",
+    "DEFAULT_SOURCE_ID",
+    "ENGINE_ENV_KEYS",
+    "MANIFEST_ENV_KEYS",
+    "PROJECT_ROOT",
+    "Manifest",
+    "PathSettings",
+    "config_base_dir",
+    "detect_device",
+    "file_hash",
+    "find_project_root",
+    "get_path_settings",
+    "get_source_id",
+    "load_config",
+    "load_dotenv_values",
+    "merged_runtime_env",
+    "mirror_directory_tree",
+    "reset_config_cache",
+    "resolve_binary",
+    "resolve_configured_path",
+    "resolve_manifest_path",
+    "resolve_output_subdir",
+    "resolve_path",
+    "resolve_plugin_dir",
+    "resolve_portable_path",
+    "resolve_quality_dir",
+    "resolve_quality_report_path",
+    "resolve_relative_path",
+    "runtime_env_value",
+    "runtime_environ",
+    "setup_logging",
+]

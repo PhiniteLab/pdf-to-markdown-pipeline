@@ -18,7 +18,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from cortexmark.common import load_config, resolve_path, setup_logging
+from cortexmark.common import get_path_settings, load_config, resolve_configured_path, setup_logging
 from cortexmark.multi_format import DEFAULT_CSS, md_to_html
 
 # ── Site generation ──────────────────────────────────────────────────────────
@@ -213,8 +213,8 @@ def main() -> int:
     cfg = load_config(args.config)
     log = setup_logging("ghpages", cfg)
 
-    input_path = (args.input or resolve_path(cfg["paths"]["output_cleaned_md"])).resolve()
-    output_dir = (args.output_dir or resolve_path("outputs/site")).resolve()
+    input_path = (args.input or resolve_configured_path(cfg, "output_cleaned_md", "outputs/cleaned_md")).resolve()
+    output_dir = (args.output_dir or (get_path_settings(cfg).outputs_dir / "site")).resolve()
 
     try:
         written = generate_site(

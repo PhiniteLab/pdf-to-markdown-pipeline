@@ -11,7 +11,7 @@ from cortexmark.common import (
     load_config,
     mirror_directory_tree,
     resolve_configured_path,
-    resolve_path,
+    resolve_manifest_path,
     setup_logging,
 )
 
@@ -164,7 +164,7 @@ def main() -> int:
     manifest = None
     idem_cfg = cfg.get("idempotency", {})
     if idem_cfg.get("enabled", True) and not args.no_manifest:
-        manifest = Manifest(resolve_path(idem_cfg.get("manifest_file", "outputs/.manifest.json")))
+        manifest = Manifest(resolve_manifest_path(cfg))
 
     try:
         if input_path.is_dir():

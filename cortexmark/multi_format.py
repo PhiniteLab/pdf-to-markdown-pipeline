@@ -18,7 +18,7 @@ from typing import Any
 
 import yaml
 
-from cortexmark.common import load_config, resolve_path, setup_logging
+from cortexmark.common import get_path_settings, load_config, resolve_configured_path, setup_logging
 
 # ── Markdown → HTML (lightweight, no external dependency) ────────────────────
 
@@ -337,8 +337,8 @@ def main() -> int:
     cfg = load_config(args.config)
     log = setup_logging("multi_format", cfg)
 
-    input_path = (args.input or resolve_path(cfg["paths"]["output_cleaned_md"])).resolve()
-    output_dir = (args.output_dir or resolve_path(f"outputs/{args.format}")).resolve()
+    input_path = (args.input or resolve_configured_path(cfg, "output_cleaned_md", "outputs/cleaned_md")).resolve()
+    output_dir = (args.output_dir or (get_path_settings(cfg).outputs_dir / args.format)).resolve()
 
     try:
         if input_path.is_dir():

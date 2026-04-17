@@ -19,7 +19,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
-from cortexmark.common import load_config, resolve_path, setup_logging
+from cortexmark.common import get_path_settings, load_config, resolve_configured_path, setup_logging
 from cortexmark.semantic_chunk import (
     ENTITY_NARRATIVE,
     extract_cross_refs,
@@ -206,9 +206,9 @@ def main() -> int:
     cfg = load_config(args.config)
     log = setup_logging("rag_export", cfg)
 
-    input_path = (args.input or resolve_path(cfg["paths"]["output_chunks"])).resolve()
+    input_path = (args.input or resolve_configured_path(cfg, "output_chunks", "outputs/chunks")).resolve()
     default_ext = ".jsonl" if args.format == "jsonl" else ".json"
-    output_path = (args.output or resolve_path(f"outputs/rag/chunks{default_ext}")).resolve()
+    output_path = (args.output or (get_path_settings(cfg).outputs_dir / "rag" / f"chunks{default_ext}")).resolve()
 
     normalize = not args.no_normalize
 

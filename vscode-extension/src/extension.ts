@@ -9,7 +9,14 @@ import { PreviewPanel } from "./previewPanel";
 import { SessionManager } from "./sessionManager";
 import { PipelineItem, SessionTreeProvider } from "./sessionTree";
 import type { Session } from "./types";
-import { resolvePathPolicy, type PathPolicy } from "./pathPolicy";
+import {
+  getExplicitStringSetting,
+  resolveExecutableOverride,
+  resolvePathPolicy,
+  resolveWorkspaceEnvValue,
+  resolveWorkspaceProcessEnv,
+  type PathPolicy,
+} from "./pathPolicy";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Helpers
@@ -48,6 +55,7 @@ const STARTUP_DOCTOR_KEY_PREFIX = "cortexmark.startupDoctorLastChecked";
 const PYTHON_MIN_MINOR = 11;
 const MIN_PYTHON_VERSION = `3.${PYTHON_MIN_MINOR}`;
 const DOCTOR_CHANNEL_NAME = "CortexMark Environment";
+const PYTHON_PATH_ENV_KEYS = ["CORTEXMARK_PYTHON_PATH", "CORTEXMARK_PYTHON", "PIPELINE_PYTHON"];
 const doctorChannel: vscode.OutputChannel = vscode.window.createOutputChannel(DOCTOR_CHANNEL_NAME);
 
 function root(): string | undefined {
@@ -68,13 +76,14 @@ function need(r: string | undefined): r is string {
 async function runPythonCheck(
   python: string,
   code: string,
+  env: NodeJS.ProcessEnv,
   timeoutMs = 12_000,
 ): Promise<{ ok: boolean; stdout: string; stderr: string }> {
   return await new Promise((resolve) => {
     cp.execFile(
       python,
       ["-c", code],
-      { timeout: timeoutMs },
+      { timeout: timeoutMs, env },
       (err, stdout, stderr) => {
         resolve({
           ok: !err,
@@ -114,6 +123,7 @@ async function runEnvironmentDoctor(policy: PathPolicy): Promise<EnvironmentDoct
   const now = new Date().toLocaleString();
   const engine = (cfg<string>("defaultEngine") || "dual") as string;
   const python = await resolvePython(policy.workspaceRoot);
+  const runtimeEnv = resolveWorkspaceProcessEnv(policy.workspaceRoot);
   const pythonExecutable = pythonExecutableLabel(python);
   let pythonRunnable = false;
   let pythonVersion = "unknown";
@@ -142,6 +152,7 @@ async function runEnvironmentDoctor(policy: PathPolicy): Promise<EnvironmentDoct
     const pythonProbe = await runPythonCheck(
       python,
       "import sys; print(f\"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}\")",
+      runtimeEnv,
     );
     if (!pythonProbe.ok) {
       pushCheck(reportChecks, "error", "Python executable", `${pythonExecutable} cannot run python code.`, [
@@ -161,7 +172,7 @@ async function runEnvironmentDoctor(policy: PathPolicy): Promise<EnvironmentDoct
         pushCheck(reportChecks, "ok", "Python executable", `${pythonExecutable} (Python ${pythonVersion})`);
       }
 
-      const backend = await runPythonCheck(python, "import cortexmark; print('ok')");
+      const backend = await runPythonCheck(python, "import cortexmark; print('ok')", runtimeEnv);
       if (backend.ok) {
         pushCheck(
           reportChecks,
@@ -190,6 +201,7 @@ async function runEnvironmentDoctor(policy: PathPolicy): Promise<EnvironmentDoct
         const docling = await runPythonCheck(
           python,
           "import importlib.util; print('yes' if importlib.util.find_spec('docling') else 'no')",
+          runtimeEnv,
         );
         if (docling.ok && docling.stdout === "yes") {
           pushCheck(
@@ -216,7 +228,12 @@ async function runEnvironmentDoctor(policy: PathPolicy): Promise<EnvironmentDoct
 
       const systemDeps = await runPythonCheck(
         python,
-        "import shutil; print('pdftotext=' + str(bool(shutil.which('pdftotext')))); print('tesseract=' + str(bool(shutil.which('tesseract'))))",
+        [
+          "from cortexmark.paths import resolve_binary",
+          "print('pdftotext=' + str(bool(resolve_binary(\"pdftotext\"))))",
+          "print('tesseract=' + str(bool(resolve_binary(\"tesseract\"))))",
+        ].join("; "),
+        runtimeEnv,
       );
       const [pdfokLine, tesseractLine] = systemDeps.stdout.split("\n").map((line) => line.trim());
       const hasPdf = pdfokLine?.includes("True");
@@ -497,13 +514,37 @@ async function getPythonFromExtension(): Promise<string | undefined> {
   return undefined;
 }
 
-/** Resolve the Python executable: user setting → venv → Python extension → python3. */
-async function resolvePython(wsRoot: string): Promise<string> {
-  const userPython = cfg<string>("pythonPath");
-  // If user explicitly set an absolute path, honour it.
-  if (userPython && path.isAbsolute(userPython)) {
-    return userPython;
+function resolveVirtualEnvPython(venvRoot: string | undefined, workspaceRoot: string): string | undefined {
+  if (!venvRoot) {
+    return undefined;
   }
+  const resolvedRoot = resolveExecutableOverride(venvRoot, workspaceRoot);
+  const candidates = [
+    path.join(resolvedRoot, "bin", "python"),
+    path.join(resolvedRoot, "bin", "python3"),
+    path.join(resolvedRoot, "Scripts", "python.exe"),
+  ];
+  return candidates.find((candidate) => fs.existsSync(candidate));
+}
+
+/** Resolve the Python executable: explicit setting → env/.env → venv discovery → Python extension → safe executables. */
+async function resolvePython(wsRoot: string): Promise<string> {
+  const configuredPython = getExplicitStringSetting("pythonPath");
+  const normalizedConfigured = configuredPython ? resolveExecutableOverride(configuredPython, wsRoot) : "";
+  if (normalizedConfigured && normalizedConfigured !== "python3") {
+    return normalizedConfigured;
+  }
+
+  const envPython = resolveWorkspaceEnvValue(wsRoot, PYTHON_PATH_ENV_KEYS);
+  if (envPython) {
+    return resolveExecutableOverride(envPython, wsRoot);
+  }
+
+  const activatedVirtualEnv = resolveVirtualEnvPython(resolveWorkspaceEnvValue(wsRoot, ["VIRTUAL_ENV"]), wsRoot);
+  if (activatedVirtualEnv) {
+    return activatedVirtualEnv;
+  }
+
   // Auto-detect workspace venv
   const candidates = [
     path.join(wsRoot, ".venv", "bin", "python"),
@@ -518,11 +559,16 @@ async function resolvePython(wsRoot: string): Promise<string> {
       return c;
     }
   }
+
   // Try the Microsoft Python extension's selected interpreter
   const extPython = await getPythonFromExtension();
   if (extPython) return extPython;
-  // Fallback to user setting or python3
-  return userPython || "python3";
+
+  // Backward-compatible fallbacks for empty/default settings.
+  if (normalizedConfigured) {
+    return normalizedConfigured;
+  }
+  return process.platform === "win32" ? "python" : "python3";
 }
 
 function requireActiveSession(mgr: SessionManager): Session | undefined {

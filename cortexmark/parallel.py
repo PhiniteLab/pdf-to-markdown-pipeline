@@ -24,7 +24,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, TypeVar
 
-from cortexmark.common import load_config, resolve_path, setup_logging
+from cortexmark.common import load_config, resolve_configured_path, setup_logging
 
 T = TypeVar("T")
 
@@ -224,7 +224,7 @@ def main() -> int:
     cfg = load_config(args.config)
     log = setup_logging("parallel", cfg)
 
-    input_path = (args.input or resolve_path(cfg["paths"]["output_raw_md"])).resolve()
+    input_path = (args.input or resolve_configured_path(cfg, "output_raw_md", "outputs/raw_md")).resolve()
 
     pcfg = ParallelConfig(workers=args.workers, pool_type=args.pool)
 

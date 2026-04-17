@@ -19,7 +19,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
-from cortexmark.common import load_config, resolve_path, setup_logging
+from cortexmark.common import load_config, resolve_configured_path, resolve_quality_report_path, setup_logging
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -543,8 +543,8 @@ def main() -> int:
     cfg = load_config(args.config)
     log = setup_logging("formula_validate", cfg)
 
-    input_path = Path(args.input) if args.input else resolve_path(cfg["paths"]["output_cleaned_md"])
-    output_path = Path(args.output) if args.output else resolve_path("outputs/quality/formula_validation.json")
+    input_path = (args.input or resolve_configured_path(cfg, "output_cleaned_md", "outputs/cleaned_md")).resolve()
+    output_path = (args.output or resolve_quality_report_path(cfg, "formula_validation.json")).resolve()
 
     log.info("validating formulas in %s", input_path)
     validations = validate_tree(input_path)

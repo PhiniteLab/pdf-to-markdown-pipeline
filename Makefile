@@ -1,6 +1,6 @@
 .PHONY: all convert clean chunk render analyze validate lint format typecheck test docker-build clean-outputs help
 
-PYTHON ?= python
+PYTHON ?= $(shell if [ -x .venv/bin/python ]; then printf %s .venv/bin/python; elif command -v python3 >/dev/null 2>&1; then command -v python3; else command -v python; fi)
 CONFIG ?= configs/pipeline.yaml
 
 help: ## Show this help
@@ -46,4 +46,4 @@ docker-build: ## Build Docker image
 	docker build -t cortexmark .
 
 clean-outputs: ## Remove all generated outputs (use with caution)
-	rm -rf outputs/raw_md outputs/cleaned_md outputs/chunks outputs/quality outputs/.manifest.json
+	$(PYTHON) -c "from shutil import rmtree; from cortexmark.common import load_config, resolve_configured_path, resolve_manifest_path; cfg = load_config(); [rmtree(target, ignore_errors=True) for target in (resolve_configured_path(cfg, 'output_raw_md', 'outputs/raw_md'), resolve_configured_path(cfg, 'output_cleaned_md', 'outputs/cleaned_md'), resolve_configured_path(cfg, 'output_chunks', 'outputs/chunks'), resolve_configured_path(cfg, 'output_quality', 'outputs/quality'), resolve_configured_path(cfg, 'output_semantic_chunks', 'outputs/semantic_chunks'))]; manifest = resolve_manifest_path(cfg); manifest.exists() and manifest.unlink()"

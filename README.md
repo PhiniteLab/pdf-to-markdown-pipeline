@@ -130,6 +130,20 @@ pip install -e ".[dev]"
 
 This installs the runtime dependencies together with Docling and the development toolchain, including pytest, pytest-cov, Ruff, Pyright, and pre-commit.
 
+## Portable path and environment configuration
+
+CortexMark now resolves runtime paths with a consistent precedence order:
+
+1. **CLI arguments** (`--config`, `--input`, `--output`, `--output-dir`, `--session-name`)
+2. **Environment variables**
+3. **`.env` file** in the project root
+4. **`configs/pipeline.yaml`**
+5. **Repo-relative defaults**
+
+Supported overrides include `PROJECT_ROOT`, `DATA_DIR`, `OUTPUT_DIR`, `REPORT_DIR`, `LOG_DIR`, `CHECKPOINT_DIR`, `CACHE_DIR`, `MODEL_DIR`, `EXTERNAL_BIN_DIR`, plus direct overrides such as `RAW_DATA_DIR`, `OUTPUT_RAW_MD`, `OUTPUT_CLEANED_MD`, `OUTPUT_CHUNKS`, `OUTPUT_SEMANTIC_CHUNKS`, and `MANIFEST_FILE`.
+
+A ready-to-copy template is included at [`.env.example`](.env.example). Relative values in `.env` or config files are resolved safely from the project root or config directory, so the repo can move across machines, users, and working directories without editing code.
+
 ### Install with Docker
 
 ```bash
