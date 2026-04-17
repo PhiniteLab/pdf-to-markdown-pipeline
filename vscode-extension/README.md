@@ -140,7 +140,7 @@ CortexMark
 | `cortexmark.configPath` | `configs/pipeline.yaml` | Pipeline config file path relative to workspace root. |
 | `cortexmark.dataRoot` | `` | Optional input root override. Relative values resolve from the workspace root. |
 | `cortexmark.outputRoot` | `` | Optional shared output root override. When set, `raw_md`, `cleaned_md`, `chunks`, `quality`, and `semantic_chunks` live under this directory. |
-| `cortexmark.sessionStorePath` | `` | Optional extension session metadata JSON override. Relative values resolve from the workspace root. |
+| `cortexmark.sessionStorePath` | `` | Optional extension session metadata JSON override. Relative values resolve from the workspace root. Session inputs/outputs live under `sessions/<session>/...`. |
 | `cortexmark.defaultEngine` | `dual` | Default conversion engine (`docling`, `markitdown`, or `dual`). |
 | `cortexmark.autoProcess` | `false` | Automatically run the pipeline when new PDFs are detected. |
 

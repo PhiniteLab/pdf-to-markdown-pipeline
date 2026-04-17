@@ -135,12 +135,13 @@ split_levels = chunk_cfg.get("split_levels", [1, 2])
 
 ## Session-Aware Outputs
 
-When you run the orchestrator with `--session-name`, stage outputs are scoped by session:
+When you run the orchestrator with `--session-name`, the pipeline creates an isolated session tree under the repo root:
 
-- `outputs/raw_md/<session>/<source_id>/...`
-- `outputs/cleaned_md/<session>/<source_id>/...`
-- `outputs/chunks/<session>/<source_id>/...`
-- `outputs/quality/<session>/*.json`
+- `sessions/<session>/data/raw/<per-pdf-dir>/<file>.pdf`
+- `sessions/<session>/outputs/raw_md/<per-pdf-dir>/...`
+- `sessions/<session>/outputs/cleaned_md/<per-pdf-dir>/...`
+- `sessions/<session>/outputs/chunks/<per-pdf-dir>/...`
+- `sessions/<session>/outputs/quality/*.json`
 
 Without `--session-name`, outputs remain under the non-session base directories.
 

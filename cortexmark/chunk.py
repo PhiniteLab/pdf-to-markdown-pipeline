@@ -115,6 +115,7 @@ def chunk_tree(
     *,
     manifest: Manifest | None = None,
     split_levels: list[int] | None = None,
+    include_input_root_name: bool = True,
 ) -> list[Path]:
     markdown_files = sorted(p for p in input_root.rglob("*.md") if p.is_file())
     if not markdown_files:
@@ -126,7 +127,8 @@ def chunk_tree(
         if manifest and not manifest.needs_update(markdown_path):
             continue
         relative = markdown_path.relative_to(input_root)
-        target_dir = output_root / input_root.name / relative.parent / markdown_path.stem
+        base_output = output_root / input_root.name if include_input_root_name else output_root
+        target_dir = base_output / relative.parent / markdown_path.stem
         written.extend(chunk_file(markdown_path, target_dir, split_levels=split_levels))
         if manifest:
             manifest.record(markdown_path)

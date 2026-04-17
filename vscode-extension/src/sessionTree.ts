@@ -70,6 +70,7 @@ const OUTPUTS: Array<{ label: string; desc: string; key: keyof PathPolicy["outpu
   { label: "cleaned_md", desc: "cleaned outputs", key: "cleanedMd" },
   { label: "chunks", desc: "chunked outputs", key: "chunks" },
   { label: "quality", desc: "QA & diff reports", key: "quality" },
+  { label: "semantic_chunks", desc: "semantic chunk outputs", key: "semanticChunks" },
 ];
 
 // ── Tree Data Provider ───────────────────────────────────────────────────
@@ -147,7 +148,7 @@ export class SessionTreeProvider implements vscode.TreeDataProvider<PipelineItem
       const session = this.mgr.get(el.sessionId!);
       if (!session || session.files.length === 0) {
         return [
-          new PipelineItem(`Drop PDFs into ${path.basename(this.policy.dataRoot)}/`, vscode.TreeItemCollapsibleState.None, "hint", {
+          new PipelineItem("Use Add PDFs... to copy files into this session.", vscode.TreeItemCollapsibleState.None, "hint", {
             icon: new vscode.ThemeIcon("info"),
           }),
         ];
@@ -155,12 +156,19 @@ export class SessionTreeProvider implements vscode.TreeDataProvider<PipelineItem
       return session.files.map((f) => {
         const si = STATUS_ICON[f.status];
         const absPath = path.resolve(this.policy.workspaceRoot, f.relativePath);
+        const exists = fs.existsSync(absPath);
+        const tooltip = f.errorMessage
+          ? `${f.name}\n${f.errorMessage}`
+          : exists
+            ? absPath
+            : `${f.name}\nMissing staged PDF: ${absPath}`;
         return new PipelineItem(f.name, vscode.TreeItemCollapsibleState.None, `sessionFile.${f.status}`, {
-          icon: new vscode.ThemeIcon(si.id, new vscode.ThemeColor(si.color)),
-          desc: f.status,
+          icon: new vscode.ThemeIcon(exists ? si.id : "warning", new vscode.ThemeColor(exists ? si.color : "testing.iconFailed")),
+          desc: exists ? f.status : "missing",
           sessionId: session.id,
           fileId: f.id,
-          cmd: { title: "Open File", command: "vscode.open", arguments: [vscode.Uri.file(absPath)] },
+          tooltip,
+          cmd: exists ? { title: "Open File", command: "vscode.open", arguments: [vscode.Uri.file(absPath)] } : undefined,
         });
       });
     }
@@ -192,7 +200,14 @@ export class SessionTreeProvider implements vscode.TreeDataProvider<PipelineItem
     // ── Outputs group ──────────────────────────────────────────────────
     if (el.contextValue === "group.outputs") {
       const activeSession = this.mgr.active();
-      const sessionPaths = activeSession ? this.mgr.pathsFor(activeSession) : undefined;
+      if (!activeSession) {
+        return [
+          new PipelineItem("Select an active session to browse outputs.", vscode.TreeItemCollapsibleState.None, "hint", {
+            icon: new vscode.ThemeIcon("info"),
+          }),
+        ];
+      }
+      const sessionPaths = this.mgr.pathsFor(activeSession);
       return OUTPUTS.map(
         (o) => {
           const fsPath = resolveOutputPath(o.key, this.policy, sessionPaths);
@@ -252,7 +267,11 @@ export class SessionTreeProvider implements vscode.TreeDataProvider<PipelineItem
 function resolveOutputPath(
   key: keyof PathPolicy["outputRoots"],
   policy: PathPolicy,
-  sessionPaths?: {
+  sessionPaths: {
+    sessionRoot: string;
+    dataDir: string;
+    inputDir: string;
+    outputsDir: string;
     rawDir: string;
     cleanedDir: string;
     chunksDir: string;
@@ -261,22 +280,12 @@ function resolveOutputPath(
     manifestPath: string;
   },
 ): string {
-  if (sessionPaths) {
-    const sessionMap: Record<keyof PathPolicy["outputRoots"], string> = {
-      rawMd: sessionPaths.rawDir,
-      cleanedMd: sessionPaths.cleanedDir,
-      chunks: sessionPaths.chunksDir,
-      quality: sessionPaths.qualityDir,
-      semanticChunks: sessionPaths.semanticDir,
-    };
-    return sessionMap[key] ?? path.resolve(policy.workspaceRoot, `outputs/${key}`);
-  }
-
-  return {
-    rawMd: policy.outputRoots.rawMd,
-    cleanedMd: policy.outputRoots.cleanedMd,
-    chunks: policy.outputRoots.chunks,
-    quality: policy.outputRoots.quality,
-    semanticChunks: policy.outputRoots.semanticChunks,
-  }[key];
+  const sessionMap: Record<keyof PathPolicy["outputRoots"], string> = {
+    rawMd: sessionPaths.rawDir,
+    cleanedMd: sessionPaths.cleanedDir,
+    chunks: sessionPaths.chunksDir,
+    quality: sessionPaths.qualityDir,
+    semanticChunks: sessionPaths.semanticDir,
+  };
+  return sessionMap[key] ?? path.resolve(policy.workspaceRoot, `outputs/${key}`);
 }

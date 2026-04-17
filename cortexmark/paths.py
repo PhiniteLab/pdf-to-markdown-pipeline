@@ -21,6 +21,7 @@ CLEANED_MD_ENV_KEYS: tuple[str, ...] = ("CORTEXMARK_OUTPUT_CLEANED_MD", "OUTPUT_
 CHUNKS_ENV_KEYS: tuple[str, ...] = ("CORTEXMARK_OUTPUT_CHUNKS", "OUTPUT_CHUNKS")
 REPORTS_ENV_KEYS: tuple[str, ...] = ("CORTEXMARK_REPORT_DIR", "REPORT_DIR")
 SEMANTIC_ENV_KEYS: tuple[str, ...] = ("CORTEXMARK_OUTPUT_SEMANTIC_CHUNKS", "OUTPUT_SEMANTIC_CHUNKS")
+SESSIONS_DIR_ENV_KEYS: tuple[str, ...] = ("CORTEXMARK_SESSIONS_DIR", "SESSIONS_DIR")
 LOG_DIR_ENV_KEYS: tuple[str, ...] = ("CORTEXMARK_LOG_DIR", "LOG_DIR")
 CHECKPOINT_ENV_KEYS: tuple[str, ...] = ("CORTEXMARK_CHECKPOINT_DIR", "CHECKPOINT_DIR")
 CACHE_DIR_ENV_KEYS: tuple[str, ...] = ("CORTEXMARK_CACHE_DIR", "CACHE_DIR")
@@ -55,6 +56,7 @@ class PathSettings:
     reports_dir: Path
     quality_dir: Path
     semantic_chunks_dir: Path
+    sessions_dir: Path
     logs_dir: Path
     checkpoints_dir: Path
     cache_dir: Path
@@ -68,6 +70,39 @@ class PathSettings:
         """Create the supplied directories when they are missing."""
         for path in paths:
             path.mkdir(parents=True, exist_ok=True)
+
+
+@dataclass(frozen=True)
+class SessionPathSettings:
+    """Resolved per-session directory layout rooted under ``sessions/<session_name>``."""
+
+    session_name: str
+    session_dir_name: str
+    session_root: Path
+    data_dir: Path
+    raw_data_dir: Path
+    outputs_dir: Path
+    raw_md_dir: Path
+    cleaned_md_dir: Path
+    chunks_dir: Path
+    quality_dir: Path
+    semantic_chunks_dir: Path
+    manifest_path: Path
+
+    def ensure_directories(self) -> None:
+        """Create the per-session directories when they do not exist."""
+        for directory in (
+            self.session_root,
+            self.data_dir,
+            self.raw_data_dir,
+            self.outputs_dir,
+            self.raw_md_dir,
+            self.cleaned_md_dir,
+            self.chunks_dir,
+            self.quality_dir,
+            self.semantic_chunks_dir,
+        ):
+            directory.mkdir(parents=True, exist_ok=True)
 
 
 def first_present(mapping: Mapping[str, str], keys: Iterable[str]) -> str | None:
@@ -158,6 +193,13 @@ def expand_runtime_tokens(raw: str, variables: Mapping[str, str]) -> str:
 
     expanded = _PATH_TOKEN_RE.sub(repl, raw)
     return os.path.expanduser(expanded)
+
+
+def sanitize_session_name(name: str, *, default: str = "session") -> str:
+    """Return a cross-platform-safe directory name derived from a session name."""
+    collapsed = " ".join(name.strip().split())
+    sanitized = re.sub(r'[<>:"/\\|?*\x00-\x1f]+', "-", collapsed).rstrip(" .")
+    return sanitized or default
 
 
 def resolve_portable_path(
@@ -314,6 +356,13 @@ def build_path_settings(
         parent_default=outputs_dir,
         environ=environ,
     )
+    sessions_dir = _select_configured_path(
+        direct_env_keys=SESSIONS_DIR_ENV_KEYS,
+        config_base_dir=config_dir,
+        project_root=effective_root,
+        default_relative="sessions",
+        environ=environ,
+    )
     logs_dir = _select_configured_path(
         direct_env_keys=LOG_DIR_ENV_KEYS,
         root_env_keys=OUTPUT_DIR_ENV_KEYS,
@@ -394,6 +443,7 @@ def build_path_settings(
         reports_dir=reports_dir,
         quality_dir=reports_dir,
         semantic_chunks_dir=semantic_chunks_dir,
+        sessions_dir=sessions_dir,
         logs_dir=logs_dir,
         checkpoints_dir=checkpoints_dir,
         cache_dir=cache_dir,
@@ -402,6 +452,35 @@ def build_path_settings(
         external_bin_dir=external_bin_dir,
         plugin_dir=plugin_dir,
         tests_resources_dir=tests_resources_dir,
+    )
+
+
+def resolve_session_settings(
+    session_name: str,
+    cfg: Mapping[str, object] | None = None,
+    *,
+    project_root: Path | None = None,
+    environ: Mapping[str, str] | None = None,
+) -> SessionPathSettings:
+    """Resolve the portable directory layout for a named session."""
+    settings = build_path_settings(cfg, project_root=project_root, environ=environ)
+    session_dir_name = sanitize_session_name(session_name)
+    session_root = (settings.sessions_dir / session_dir_name).resolve()
+    outputs_dir = (session_root / "outputs").resolve()
+    quality_dir = (outputs_dir / "quality").resolve()
+    return SessionPathSettings(
+        session_name=session_name,
+        session_dir_name=session_dir_name,
+        session_root=session_root,
+        data_dir=(session_root / "data").resolve(),
+        raw_data_dir=(session_root / "data" / "raw").resolve(),
+        outputs_dir=outputs_dir,
+        raw_md_dir=(outputs_dir / "raw_md").resolve(),
+        cleaned_md_dir=(outputs_dir / "cleaned_md").resolve(),
+        chunks_dir=(outputs_dir / "chunks").resolve(),
+        quality_dir=quality_dir,
+        semantic_chunks_dir=(outputs_dir / "semantic_chunks").resolve(),
+        manifest_path=(outputs_dir / ".manifest.json").resolve(),
     )
 
 

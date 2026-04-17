@@ -46,7 +46,7 @@ cortexmark --config configs/pipeline.yaml --input /path/to/my/docs/
 
 ## Session Support
 
-Name sessions to scope output directories:
+Name sessions to create an isolated session workspace under `sessions/<session>/...`:
 
 ```bash
 cortexmark --config configs/pipeline.yaml --session-name experiment-1

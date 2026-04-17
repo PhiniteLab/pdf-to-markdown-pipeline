@@ -8,6 +8,7 @@ from pathlib import Path
 
 from cortexmark.common import (
     Manifest,
+    get_session_path_settings,
     get_source_id,
     load_config,
     resolve_configured_path,
@@ -45,31 +46,47 @@ def main() -> int:
     log = setup_logging("pipeline", cfg)
 
     source_id = get_source_id(cfg)
-    data_raw = resolve_configured_path(cfg, "data_raw", "data/raw")
-    raw_md = resolve_configured_path(cfg, "output_raw_md", "outputs/raw_md")
-    cleaned_md = resolve_configured_path(cfg, "output_cleaned_md", "outputs/cleaned_md")
-    chunks_dir = resolve_configured_path(cfg, "output_chunks", "outputs/chunks")
+    session_paths = get_session_path_settings(cfg, args.session_name) if args.session_name else None
+    if session_paths:
+        session_paths.ensure_directories()
 
-    # --session-name scopes output directories under session sub-folder
-    if args.session_name:
-        raw_md = raw_md / args.session_name
-        cleaned_md = cleaned_md / args.session_name
-        chunks_dir = chunks_dir / args.session_name
+    data_raw = session_paths.raw_data_dir if session_paths else resolve_configured_path(cfg, "data_raw", "data/raw")
+    raw_md = (
+        session_paths.raw_md_dir if session_paths else resolve_configured_path(cfg, "output_raw_md", "outputs/raw_md")
+    )
+    cleaned_md = (
+        session_paths.cleaned_md_dir
+        if session_paths
+        else resolve_configured_path(cfg, "output_cleaned_md", "outputs/cleaned_md")
+    )
+    chunks_dir = (
+        session_paths.chunks_dir if session_paths else resolve_configured_path(cfg, "output_chunks", "outputs/chunks")
+    )
+    semantic_chunks_dir = (
+        session_paths.semantic_chunks_dir
+        if session_paths
+        else resolve_configured_path(cfg, "output_semantic_chunks", "outputs/semantic_chunks")
+    )
+    session_mode = session_paths is not None
 
     # --input overrides the default data_raw/source_id path
     if args.input:
         custom_input = Path(args.input).resolve()
         convert_input_root = custom_input.parent if custom_input.is_file() else custom_input
-        # Derive a relative label from input path for output sub-directories
-        try:
-            rel_label = str(custom_input.relative_to(data_raw.resolve()))
-            if custom_input.is_file():
-                rel_label = str(custom_input.parent.relative_to(data_raw.resolve()))
-        except ValueError:
-            rel_label = custom_input.stem if custom_input.is_file() else custom_input.name
+        rel_label = ""
+        if not session_mode:
+            try:
+                rel_label = str(custom_input.relative_to(data_raw.resolve()))
+                if custom_input.is_file():
+                    rel_label = str(custom_input.parent.relative_to(data_raw.resolve()))
+            except ValueError:
+                rel_label = custom_input.stem if custom_input.is_file() else custom_input.name
     else:
-        convert_input_root = (data_raw / source_id).resolve()
-        rel_label = source_id
+        convert_input_root = data_raw.resolve() if session_mode else (data_raw / source_id).resolve()
+        rel_label = "" if session_mode else source_id
+
+    raw_stage_root = raw_md.resolve() if session_mode else (raw_md / rel_label).resolve()
+    cleaned_stage_root = cleaned_md.resolve() if session_mode else (cleaned_md / rel_label).resolve()
 
     manifest = None
     idem_cfg = cfg.get("idempotency", {})
@@ -89,15 +106,27 @@ def main() -> int:
             from cortexmark.convert import convert_tree
 
             log.info("── stage: convert [engine=%s] ──", engine)
-            written = convert_tree(convert_input_root, raw_md.resolve(), engine=engine, cfg=cfg, manifest=manifest)
+            written = convert_tree(
+                convert_input_root,
+                raw_md.resolve(),
+                engine=engine,
+                cfg=cfg,
+                manifest=manifest,
+                include_input_root_name=not session_mode,
+            )
             log.info("converted %d file(s)", len(written))
 
         if "clean" in stages:
             from cortexmark.clean import clean_tree
 
             log.info("── stage: clean ──")
-            input_root = (raw_md / rel_label).resolve()
-            written = clean_tree(input_root, cleaned_md.resolve(), cfg=cfg, manifest=manifest)
+            written = clean_tree(
+                raw_stage_root,
+                cleaned_md.resolve(),
+                cfg=cfg,
+                manifest=manifest,
+                include_input_root_name=not session_mode,
+            )
             log.info("cleaned %d file(s)", len(written))
 
         if "chunk" in stages:
@@ -106,8 +135,13 @@ def main() -> int:
             log.info("── stage: chunk ──")
             chunk_cfg = cfg.get("chunk", {})
             split_levels = chunk_cfg.get("split_levels", DEFAULT_SPLIT_LEVELS)
-            input_root = (cleaned_md / rel_label).resolve()
-            written = chunk_tree(input_root, chunks_dir.resolve(), manifest=manifest, split_levels=split_levels)
+            written = chunk_tree(
+                cleaned_stage_root,
+                chunks_dir.resolve(),
+                manifest=manifest,
+                split_levels=split_levels,
+                include_input_root_name=not session_mode,
+            )
             log.info("wrote %d chunk(s)", len(written))
 
         if "render" in stages:
@@ -123,9 +157,9 @@ def main() -> int:
                 )
 
                 log.info("── stage: render_templates ──")
-                source_root = (data_raw / rel_label).resolve()
-                raw_root = (raw_md / rel_label).resolve()
-                cleaned_root = (cleaned_md / rel_label).resolve()
+                source_root = data_raw.resolve() if session_mode else (data_raw / rel_label).resolve()
+                raw_root = raw_stage_root
+                cleaned_root = cleaned_stage_root
                 outline_text = ""
                 section_entries: dict[int, dict[str, list[str] | str]] = {}
                 outline_path = resolve_outline_path(raw_root, cfg=cfg)
@@ -145,8 +179,8 @@ def main() -> int:
                 log.info("populated %d template(s)", len(written_list))
 
         if "analyze" in stages:
-            analysis_input = (cleaned_md / rel_label).resolve()
-            if args.session_name and not analysis_input.exists():
+            analysis_input = cleaned_stage_root
+            if args.session_name and not session_mode and not analysis_input.exists():
                 fallback_input = (
                     resolve_configured_path(cfg, "output_cleaned_md", "outputs/cleaned_md") / rel_label
                 ).resolve()
@@ -162,10 +196,12 @@ def main() -> int:
             from cortexmark.semantic_chunk import chunk_tree as semantic_chunk_tree
 
             log.info("── stage: analyze / semantic-chunk ──")
-            sem_out = resolve_configured_path(cfg, "output_semantic_chunks", "outputs/semantic_chunks")
-            if args.session_name:
-                sem_out = sem_out / args.session_name
-            sem_written = semantic_chunk_tree(analysis_input, sem_out.resolve(), manifest=manifest)
+            sem_written = semantic_chunk_tree(
+                analysis_input,
+                semantic_chunks_dir.resolve(),
+                manifest=manifest,
+                include_input_root_name=not session_mode,
+            )
             log.info("wrote %d semantic chunk(s)", len(sem_written))
 
             from cortexmark.cross_ref import analyze_tree as crossref_tree
@@ -208,8 +244,8 @@ def main() -> int:
             )
 
         if "validate" in stages:
-            validate_input = (cleaned_md / rel_label).resolve()
-            if args.session_name and not validate_input.exists():
+            validate_input = cleaned_stage_root
+            if args.session_name and not session_mode and not validate_input.exists():
                 fallback_input = (
                     resolve_configured_path(cfg, "output_cleaned_md", "outputs/cleaned_md") / rel_label
                 ).resolve()

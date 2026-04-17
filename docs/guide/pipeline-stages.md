@@ -57,5 +57,5 @@ Run with `--stages validate`.
 | Scientific QA | `scientific_qa` | `outputs/quality/scientific_qa.json` |
 | Citation Context | `citation_context` | `outputs/quality/citation_context.json` |
 
-When you pass `--session-name`, quality outputs are written under
-`outputs/quality/<session-name>/`.
+When you pass `--session-name`, PDFs are staged under `sessions/<session-name>/data/raw/` and quality outputs are written under
+`sessions/<session-name>/outputs/quality/`.

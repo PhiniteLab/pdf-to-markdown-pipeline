@@ -2,9 +2,11 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 import * as vscode from "vscode";
+import { buildSessionWorkspacePaths } from "./sessionLayout";
 
 const DEFAULT_CONFIG_FILE = "configs/pipeline.yaml";
 const WORKSPACE_DOTENV_FILE = ".env";
+const DEFAULT_SESSIONS_ROOT = "sessions";
 const DEFAULT_PATHS = {
   dataRaw: "data/raw",
   outputRawMd: "outputs/raw_md",
@@ -21,6 +23,7 @@ const OUTPUT_CLEANED_MD_ENV_KEYS = ["CORTEXMARK_OUTPUT_CLEANED_MD"];
 const OUTPUT_CHUNKS_ENV_KEYS = ["CORTEXMARK_OUTPUT_CHUNKS"];
 const OUTPUT_QUALITY_ENV_KEYS = ["CORTEXMARK_OUTPUT_QUALITY"];
 const OUTPUT_SEMANTIC_CHUNKS_ENV_KEYS = ["CORTEXMARK_OUTPUT_SEMANTIC_CHUNKS"];
+const SESSIONS_ROOT_ENV_KEYS = ["CORTEXMARK_SESSIONS_DIR", "SESSIONS_DIR"];
 const SESSION_STORE_ENV_KEYS = ["CORTEXMARK_SESSION_STORE_PATH", "CORTEXMARK_SESSION_STORE"];
 
 interface RawConfiguredPaths {
@@ -33,6 +36,10 @@ interface RawConfiguredPaths {
 }
 
 export interface SessionOutputPaths {
+  sessionRoot: string;
+  dataDir: string;
+  inputDir: string;
+  outputsDir: string;
   rawDir: string;
   cleanedDir: string;
   chunksDir: string;
@@ -49,6 +56,7 @@ export interface PathPolicy {
   configFound: boolean;
   configNotes: string[];
   dataRoot: string;
+  sessionsRoot: string;
   outputRoots: {
     rawMd: string;
     cleanedMd: string;
@@ -312,17 +320,21 @@ function resolvePathConfig(configPath: string): { configFound: boolean; configNo
   return { configFound: true, configNotes: [], configured: parseYamlPathOverrides(configPath) };
 }
 
-function resolveOutputsForSession(baseRoots: PathPolicy["outputRoots"], manifestPath: string, sessionName: string): SessionOutputPaths {
-  const safeSession = sessionName || "default";
+function resolveOutputsForSession(sessionsRoot: string, sessionName: string): SessionOutputPaths {
+  const workspace = buildSessionWorkspacePaths(sessionsRoot, sessionName);
   return {
-    rawDir: path.join(baseRoots.rawMd, safeSession),
-    cleanedDir: path.join(baseRoots.cleanedMd, safeSession),
-    chunksDir: path.join(baseRoots.chunks, safeSession),
-    qualityDir: path.join(baseRoots.quality, safeSession),
-    semanticDir: path.join(baseRoots.semanticChunks, safeSession),
-    manifestPath: path.join(path.dirname(manifestPath), `.manifest-${safeSession}.json`),
+    sessionRoot: workspace.sessionRoot,
+    dataDir: workspace.dataDir,
+    inputDir: workspace.inputDir,
+    outputsDir: workspace.outputsDir,
+    rawDir: workspace.rawDir,
+    cleanedDir: workspace.cleanedDir,
+    chunksDir: workspace.chunksDir,
+    qualityDir: workspace.qualityDir,
+    semanticDir: workspace.semanticDir,
+    manifestPath: workspace.manifestPath,
     reportPath(fileName: string): string {
-      return path.join(baseRoots.quality, safeSession, fileName);
+      return path.join(workspace.qualityDir, fileName);
     },
   };
 }
@@ -438,6 +450,10 @@ export function resolvePathPolicy(workspaceRoot = vscode.workspace.workspaceFold
     ? resolveConfiguredPath(sessionStoreOverride, wsRoot, ".cortexmark/sessions.json")
     : path.join(wsRoot, ".cortexmark", "sessions.json");
   const legacySessionStorePath = path.join(wsRoot, ".phinitelab-pdf-pipeline", "sessions.json");
+  const sessionsRootOverride = resolveWorkspaceEnvValue(wsRoot, SESSIONS_ROOT_ENV_KEYS);
+  const sessionsRoot = sessionsRootOverride
+    ? resolveConfiguredPath(sessionsRootOverride, wsRoot, DEFAULT_SESSIONS_ROOT)
+    : path.join(wsRoot, DEFAULT_SESSIONS_ROOT);
 
   const outputRoots = {
     rawMd,
@@ -454,12 +470,13 @@ export function resolvePathPolicy(workspaceRoot = vscode.workspace.workspaceFold
     configFound: configState.configFound,
     configNotes: configState.configNotes,
     dataRoot,
+    sessionsRoot,
     outputRoots,
     manifestPath,
     sessionStorePath,
     legacySessionStorePath,
     sessionOutputs(sessionName: string): SessionOutputPaths {
-      return resolveOutputsForSession(outputRoots, manifestPath, sessionName);
+      return resolveOutputsForSession(sessionsRoot, sessionName);
     },
   };
 }

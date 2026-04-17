@@ -298,9 +298,16 @@ def convert_pdf(
 # ── Tree conversion ─────────────────────────────────────────────────────────
 
 
-def derive_output_path(input_path: Path, input_root: Path, output_root: Path) -> Path:
+def derive_output_path(
+    input_path: Path,
+    input_root: Path,
+    output_root: Path,
+    *,
+    include_input_root_name: bool = True,
+) -> Path:
     relative = input_path.relative_to(input_root)
-    return output_root / input_root.name / relative.with_suffix(".md")
+    base = output_root / input_root.name if include_input_root_name else output_root
+    return base / relative.with_suffix(".md")
 
 
 def convert_tree(
@@ -310,6 +317,7 @@ def convert_tree(
     engine: str = "dual",
     cfg: dict[str, Any] | None = None,
     manifest: Manifest | None = None,
+    include_input_root_name: bool = True,
 ) -> list[Path]:
     pdf_files = sorted(p for p in input_root.rglob("*.pdf") if p.is_file())
     if not pdf_files:
@@ -321,7 +329,12 @@ def convert_tree(
     for pdf_path in pdf_files:
         if manifest and not manifest.needs_update(pdf_path):
             continue
-        output_path = derive_output_path(pdf_path, input_root, output_root)
+        output_path = derive_output_path(
+            pdf_path,
+            input_root,
+            output_root,
+            include_input_root_name=include_input_root_name,
+        )
         written.append(convert_pdf(pdf_path, output_path, converter=converter, engine=engine, cfg=cfg))
         if manifest:
             manifest.record(pdf_path)

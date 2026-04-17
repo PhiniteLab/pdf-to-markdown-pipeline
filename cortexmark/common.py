@@ -18,6 +18,7 @@ from cortexmark.paths import (
     MANIFEST_ENV_KEYS,
     SOURCE_ID_ENV_KEYS,
     PathSettings,
+    SessionPathSettings,
     build_path_settings,
     find_project_root,
     first_present,
@@ -26,6 +27,7 @@ from cortexmark.paths import (
     resolve_binary,
     resolve_manifest_file,
     resolve_portable_path,
+    resolve_session_settings,
 )
 
 PROJECT_ROOT = find_project_root()
@@ -177,19 +179,25 @@ def resolve_output_subdir(cfg: Mapping[str, Any], *parts: str) -> Path:
     return (settings.outputs_dir.joinpath(*parts)).resolve()
 
 
+def get_session_path_settings(cfg: Mapping[str, Any], session_name: str) -> SessionPathSettings:
+    """Return the resolved directory layout for ``session_name``."""
+    project_root = Path(str(cfg.get("__project_root__"))).resolve() if cfg and cfg.get("__project_root__") else None
+    return resolve_session_settings(session_name, cfg, project_root=project_root)
+
+
 def resolve_manifest_path(cfg: Mapping[str, Any], *, session_name: str | None = None) -> Path:
     """Return the manifest path with optional session scoping."""
-    manifest_path = resolve_manifest_file(cfg, project_root=get_path_settings(cfg).project_root)
     if session_name:
-        return (manifest_path.parent / f".manifest-{session_name}.json").resolve()
+        return get_session_path_settings(cfg, session_name).manifest_path
+    manifest_path = resolve_manifest_file(cfg, project_root=get_path_settings(cfg).project_root)
     return manifest_path.resolve()
 
 
 def resolve_quality_dir(cfg: Mapping[str, Any], *, session_name: str | None = None) -> Path:
     """Return output quality directory, optionally scoped by session."""
-    quality_dir = get_path_settings(cfg).quality_dir
     if session_name:
-        quality_dir = quality_dir / session_name
+        return get_session_path_settings(cfg, session_name).quality_dir
+    quality_dir = get_path_settings(cfg).quality_dir
     return quality_dir.resolve()
 
 
@@ -297,6 +305,7 @@ __all__ = [
     "file_hash",
     "find_project_root",
     "get_path_settings",
+    "get_session_path_settings",
     "get_source_id",
     "load_config",
     "load_dotenv_values",

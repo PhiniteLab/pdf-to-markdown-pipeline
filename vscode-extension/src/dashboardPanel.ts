@@ -57,50 +57,33 @@ export class DashboardPanel implements vscode.WebviewViewProvider {
     // Count input PDFs
     if (activeSession) {
       metrics.fileCount = activeSession.files.length;
-    } else {
-      const rawDir = this.pathPolicy.dataRoot;
-      if (fs.existsSync(rawDir)) {
-        metrics.fileCount = countFiles(rawDir, ".pdf");
-      }
     }
 
     // Count output MDs
-    const cleanedDir = sessionPaths?.cleanedDir ?? this.pathPolicy.outputRoots.cleanedMd;
-    if (fs.existsSync(cleanedDir)) {
+    const cleanedDir = sessionPaths?.cleanedDir;
+    if (cleanedDir && fs.existsSync(cleanedDir)) {
       metrics.outputCount = countFiles(cleanedDir, ".md");
     }
 
     // Load QA report summary
-    metrics.qa = loadReportSummary<QASummary>(
-      sessionPaths?.qualityDir
-        ? path.join(sessionPaths.qualityDir, "qa_report.json")
-        : path.join(this.pathPolicy.outputRoots.quality, "qa_report.json"),
-      parseQASummary,
-    );
+    metrics.qa = sessionPaths
+      ? loadReportSummary<QASummary>(path.join(sessionPaths.qualityDir, "qa_report.json"), parseQASummary)
+      : undefined;
 
     // Load cross-ref report
-    metrics.crossRefStats = loadReportSummary<CrossRefStats>(
-      sessionPaths?.qualityDir
-        ? path.join(sessionPaths.qualityDir, "crossref_report.json")
-        : path.join(this.pathPolicy.outputRoots.quality, "crossref_report.json"),
-      parseCrossRefStats,
-    );
+    metrics.crossRefStats = sessionPaths
+      ? loadReportSummary<CrossRefStats>(path.join(sessionPaths.qualityDir, "crossref_report.json"), parseCrossRefStats)
+      : undefined;
 
     // Load algorithm report
-    metrics.algorithmStats = loadReportSummary<AlgorithmStats>(
-      sessionPaths?.qualityDir
-        ? path.join(sessionPaths.qualityDir, "algorithm_report.json")
-        : path.join(this.pathPolicy.outputRoots.quality, "algorithm_report.json"),
-      parseAlgorithmStats,
-    );
+    metrics.algorithmStats = sessionPaths
+      ? loadReportSummary<AlgorithmStats>(path.join(sessionPaths.qualityDir, "algorithm_report.json"), parseAlgorithmStats)
+      : undefined;
 
     // Load notation report
-    metrics.notationStats = loadReportSummary<NotationStats>(
-      sessionPaths?.qualityDir
-        ? path.join(sessionPaths.qualityDir, "notation_report.json")
-        : path.join(this.pathPolicy.outputRoots.quality, "notation_report.json"),
-      parseNotationStats,
-    );
+    metrics.notationStats = sessionPaths
+      ? loadReportSummary<NotationStats>(path.join(sessionPaths.qualityDir, "notation_report.json"), parseNotationStats)
+      : undefined;
 
     return metrics;
   }

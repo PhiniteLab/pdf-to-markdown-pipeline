@@ -256,7 +256,7 @@ PDF files
 3. **chunk**: splits cleaned Markdown into logical sections based on heading levels (default: H1 and H2). Files are numbered (e.g., `chunk_001_Introduction.md`).
 4. **render** *(optional)*: fills source profile and section template files deterministically from outline/content metadata.
 5. **analyze** *(optional)*: runs semantic chunking, cross-reference analysis, algorithm extraction, and notation glossary on cleaned Markdown.
-6. **validate** *(optional)*: runs formula validation, scientific QA checks, and citation context analysis. Produces quality reports under `outputs/quality/` (or `outputs/quality/<session-name>/` when session-scoped).
+6. **validate** *(optional)*: runs formula validation, scientific QA checks, and citation context analysis. Produces quality reports under `outputs/quality/` (or `sessions/<session-name>/outputs/quality/` when session-scoped).
 
 ### Optional Analysis Modules
 

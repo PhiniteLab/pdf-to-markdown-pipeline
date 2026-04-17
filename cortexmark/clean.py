@@ -246,6 +246,7 @@ def clean_tree(
     *,
     cfg: dict[str, Any] | None = None,
     manifest: Manifest | None = None,
+    include_input_root_name: bool = True,
 ) -> list[Path]:
     markdown_files = sorted(p for p in input_root.rglob("*.md") if p.is_file())
     if not markdown_files:
@@ -257,7 +258,8 @@ def clean_tree(
         if manifest and not manifest.needs_update(markdown_path):
             continue
         relative = markdown_path.relative_to(input_root)
-        output_path = output_root / input_root.name / relative
+        base_output = output_root / input_root.name if include_input_root_name else output_root
+        output_path = base_output / relative
         written.append(clean_file(markdown_path, output_path, cfg=cfg))
         if manifest:
             manifest.record(markdown_path)

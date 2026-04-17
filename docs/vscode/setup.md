@@ -132,5 +132,6 @@ The extension adds a **CortexMark** activity bar icon with three views:
 | **Dashboard** | Webview showing run statistics and output summaries |
 | **Chat** | Webview chat panel for interactive Q&A about documents |
 
-When a pipeline run uses a session name, quality artifacts are expected under
-`outputs/quality/<session-name>/`.
+When a pipeline run uses a session name, the extension stages PDFs into
+`sessions/<session-name>/data/raw/` and reads quality artifacts from
+`sessions/<session-name>/outputs/quality/`.

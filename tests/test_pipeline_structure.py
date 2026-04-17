@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -383,7 +384,7 @@ class TestConfig:
         )
         assert (
             resolve_quality_report_path(cfg, "scientific_qa.json", session_name="s1")
-            == (resolve_path("outputs/quality/s1/scientific_qa.json")).resolve()
+            == (resolve_path("sessions/s1/outputs/quality/scientific_qa.json")).resolve()
         )
 
     def test_load_config_missing_raises(self, tmp_path: Path) -> None:
@@ -1169,6 +1170,13 @@ class TestDeriveOutputPath:
         output_root = tmp_path / "outputs" / "raw_md"
         result = derive_output_path(input_path, input_root, output_root)
         assert result == output_root / "books" / "ch1" / "intro.md"
+
+    def test_without_root_prefix(self, tmp_path: Path) -> None:
+        input_root = tmp_path / "sessions" / "demo" / "data" / "raw"
+        input_path = input_root / "paper-a" / "paper.pdf"
+        output_root = tmp_path / "sessions" / "demo" / "outputs" / "raw_md"
+        result = derive_output_path(input_path, input_root, output_root, include_input_root_name=False)
+        assert result == output_root / "paper-a" / "paper.md"
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -3939,7 +3947,9 @@ class TestRunPipelineCLI:
 
     def test_cli_validate_stage_writes_session_quality(self, tmp_path: Path) -> None:
         cfg = self._write_config(tmp_path)
-        (tmp_path / "cleaned_md" / "test" / "doc.md").write_text("# Intro\n\nBody text.\n", encoding="utf-8")
+        session_cleaned = tmp_path / "sessions" / "sess-1" / "outputs" / "cleaned_md"
+        session_cleaned.mkdir(parents=True)
+        (session_cleaned / "doc.md").write_text("# Intro\n\nBody text.\n", encoding="utf-8")
         result = subprocess.run(
             [
                 sys.executable,
@@ -3955,15 +3965,19 @@ class TestRunPipelineCLI:
             ],
             capture_output=True,
             text=True,
+            env={**os.environ, "PROJECT_ROOT": str(tmp_path)},
         )
         assert result.returncode == 0
-        assert (tmp_path / "quality" / "sess-1" / "formula_validation.json").exists()
-        assert (tmp_path / "quality" / "sess-1" / "scientific_qa.json").exists()
-        assert (tmp_path / "quality" / "sess-1" / "citation_context.json").exists()
+        quality_dir = tmp_path / "sessions" / "sess-1" / "outputs" / "quality"
+        assert (quality_dir / "formula_validation.json").exists()
+        assert (quality_dir / "scientific_qa.json").exists()
+        assert (quality_dir / "citation_context.json").exists()
 
     def test_cli_analyze_stage_writes_session_quality(self, tmp_path: Path) -> None:
         cfg = self._write_config(tmp_path)
-        (tmp_path / "cleaned_md" / "test" / "doc.md").write_text(
+        session_cleaned = tmp_path / "sessions" / "sess-2" / "outputs" / "cleaned_md"
+        session_cleaned.mkdir(parents=True)
+        (session_cleaned / "doc.md").write_text(
             "# Intro\n\nAlgorithm 1: Demo\n\nInput: x\nOutput: y\n",
             encoding="utf-8",
         )
@@ -3982,11 +3996,13 @@ class TestRunPipelineCLI:
             ],
             capture_output=True,
             text=True,
+            env={**os.environ, "PROJECT_ROOT": str(tmp_path)},
         )
         assert result.returncode == 0
-        assert (tmp_path / "quality" / "sess-2" / "crossref_report.json").exists()
-        assert (tmp_path / "quality" / "sess-2" / "algorithm_report.json").exists()
-        assert (tmp_path / "quality" / "sess-2" / "notation_report.json").exists()
+        quality_dir = tmp_path / "sessions" / "sess-2" / "outputs" / "quality"
+        assert (quality_dir / "crossref_report.json").exists()
+        assert (quality_dir / "algorithm_report.json").exists()
+        assert (quality_dir / "notation_report.json").exists()
 
     def test_cli_files(self, tmp_path: Path) -> None:
         old = tmp_path / "old.md"
@@ -7299,6 +7315,15 @@ class TestChunkTreeDeep:
         written = chunk_tree(input_root, output_root)
         assert len(written) >= 2
 
+    def test_chunk_tree_without_root_prefix(self, tmp_path: Path) -> None:
+        input_root = tmp_path / "session" / "cleaned"
+        input_root.mkdir(parents=True)
+        (input_root / "doc.md").write_text("# Section\n\nContent.\n", encoding="utf-8")
+        output_root = tmp_path / "session" / "chunks"
+        output_root.mkdir(parents=True)
+        written = chunk_tree(input_root, output_root, include_input_root_name=False)
+        assert any((output_root / "doc").exists() or p.parent == output_root / "doc" for p in written)
+
     def test_chunk_tree_empty(self, tmp_path: Path) -> None:
         empty = tmp_path / "empty"
         empty.mkdir()
@@ -7531,6 +7556,16 @@ class TestCleanTreeFunc:
         written = clean_tree(input_root, output_root)
         assert len(written) == 2
         assert all(p.exists() for p in written)
+
+    def test_clean_tree_without_root_prefix(self, tmp_path: Path) -> None:
+        input_root = tmp_path / "session" / "raw_md"
+        input_root.mkdir(parents=True)
+        (input_root / "doc.md").write_text("# Doc\n\nContent.\n", encoding="utf-8")
+        output_root = tmp_path / "session" / "cleaned_md"
+        output_root.mkdir(parents=True)
+        written = clean_tree(input_root, output_root, include_input_root_name=False)
+        assert written == [output_root / "doc.md"]
+        assert written[0].exists()
 
     def test_clean_tree_empty(self, tmp_path: Path) -> None:
         empty = tmp_path / "empty"

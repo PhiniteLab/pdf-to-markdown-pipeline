@@ -34,6 +34,7 @@ export class PipelineRunner implements vscode.Disposable {
     cwd: string,
     label: string,
     onLine?: (line: string) => void,
+    envOverrides?: NodeJS.ProcessEnv,
   ): Promise<RunResult> {
     if (this.proc) {
       void vscode.window.showWarningMessage("A pipeline process is already running.");
@@ -48,7 +49,15 @@ export class PipelineRunner implements vscode.Disposable {
     this.output.appendLine("\u2500".repeat(60));
 
     return new Promise<RunResult>((resolve) => {
-      const child = cp.spawn(python, args, { cwd, env: resolveWorkspaceProcessEnv(cwd) });
+      const child = cp.spawn(python, args, {
+        cwd,
+        env: {
+          ...resolveWorkspaceProcessEnv(cwd),
+          ...Object.fromEntries(
+            Object.entries(envOverrides ?? {}).filter(([, value]) => value !== undefined),
+          ),
+        },
+      });
       this.proc = child;
       let stdout = "";
       let stderr = "";
@@ -92,7 +101,16 @@ export class PipelineRunner implements vscode.Disposable {
   // ── High-level commands ──────────────────────────────────────────────
 
   runPipeline(
-    opts: { python: string; root: string; config: string; engine: string; stages?: string[]; input?: string; sessionName?: string },
+    opts: {
+      python: string;
+      root: string;
+      config: string;
+      engine: string;
+      stages?: string[];
+      input?: string;
+      sessionName?: string;
+      env?: NodeJS.ProcessEnv;
+    },
     onLine?: (line: string) => void,
   ): Promise<RunResult> {
     const configArg = this.resolveConfigArg(opts.root, opts.config);
@@ -113,11 +131,11 @@ export class PipelineRunner implements vscode.Disposable {
     const label = opts.stages?.length
       ? `Pipeline [${opts.stages.join(", ")}]`
       : "Full Pipeline";
-    return this.execWithProgress(opts.python, args, opts.root, label);
+    return this.execWithProgress(opts.python, args, opts.root, label, opts.env);
   }
 
   runQA(opts: {
-    python: string; root: string; config: string; input: string; output: string;
+    python: string; root: string; config: string; input: string; output: string; env?: NodeJS.ProcessEnv;
   }): Promise<RunResult> {
     const configArg = this.resolveConfigArg(opts.root, opts.config);
     return this.exec(
@@ -131,11 +149,13 @@ export class PipelineRunner implements vscode.Disposable {
       ],
       opts.root,
       "QA Report",
+      undefined,
+      opts.env,
     );
   }
 
   runDiff(opts: {
-    python: string; root: string; config: string; oldDir: string; newDir: string; output: string;
+    python: string; root: string; config: string; oldDir: string; newDir: string; output: string; env?: NodeJS.ProcessEnv;
   }): Promise<RunResult> {
     const configArg = this.resolveConfigArg(opts.root, opts.config);
     return this.exec(
@@ -149,52 +169,58 @@ export class PipelineRunner implements vscode.Disposable {
       ],
       opts.root,
       "Diff Report",
+      undefined,
+      opts.env,
     );
   }
 
   // ── Analysis module commands ─────────────────────────────────────────
 
   runCrossRef(opts: {
-    python: string; root: string; input: string; output: string;
+    python: string; root: string; input: string; output: string; env?: NodeJS.ProcessEnv;
   }): Promise<RunResult> {
     return this.execWithProgress(
       opts.python,
       ["-m", "cortexmark.cross_ref", "--input", opts.input, "--output", opts.output],
       opts.root,
       "Cross Reference Analysis",
+      opts.env,
     );
   }
 
   runAlgorithmExtract(opts: {
-    python: string; root: string; input: string; output: string;
+    python: string; root: string; input: string; output: string; env?: NodeJS.ProcessEnv;
   }): Promise<RunResult> {
     return this.execWithProgress(
       opts.python,
       ["-m", "cortexmark.algorithm_extract", "--input", opts.input, "--output", opts.output],
       opts.root,
       "Algorithm Extraction",
+      opts.env,
     );
   }
 
   runNotationGlossary(opts: {
-    python: string; root: string; input: string; output: string;
+    python: string; root: string; input: string; output: string; env?: NodeJS.ProcessEnv;
   }): Promise<RunResult> {
     return this.execWithProgress(
       opts.python,
       ["-m", "cortexmark.notation_glossary", "--input", opts.input, "--output", opts.output],
       opts.root,
       "Notation Glossary",
+      opts.env,
     );
   }
 
   runSemanticChunk(opts: {
-    python: string; root: string; input: string; outputDir: string;
+    python: string; root: string; input: string; outputDir: string; env?: NodeJS.ProcessEnv;
   }): Promise<RunResult> {
     return this.execWithProgress(
       opts.python,
       ["-m", "cortexmark.semantic_chunk", "--input", opts.input, "--output-dir", opts.outputDir],
       opts.root,
       "Semantic Chunking",
+      opts.env,
     );
   }
 
@@ -205,6 +231,7 @@ export class PipelineRunner implements vscode.Disposable {
     args: string[],
     cwd: string,
     label: string,
+    envOverrides?: NodeJS.ProcessEnv,
   ): Promise<RunResult> {
     return await vscode.window.withProgress(
       {
@@ -233,7 +260,7 @@ export class PipelineRunner implements vscode.Disposable {
           }
         });
 
-        return this.exec(python, args, cwd, label, onLine);
+        return this.exec(python, args, cwd, label, onLine, envOverrides);
       },
     );
   }

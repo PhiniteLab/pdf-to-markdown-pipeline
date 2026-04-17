@@ -47,10 +47,11 @@ graph TD
   - `outputs/semantic_chunks/`
   - `outputs/quality/*.json`
 - With `--session-name`:
-  - `outputs/raw_md/<session>/<source_id>/...`
-  - `outputs/cleaned_md/<session>/<source_id>/...`
-  - `outputs/chunks/<session>/<source_id>/...`
-  - `outputs/quality/<session>/*.json`
+  - `sessions/<session>/data/raw/<per-pdf-dir>/<file>.pdf`
+  - `sessions/<session>/outputs/raw_md/<per-pdf-dir>/...`
+  - `sessions/<session>/outputs/cleaned_md/<per-pdf-dir>/...`
+  - `sessions/<session>/outputs/chunks/<per-pdf-dir>/...`
+  - `sessions/<session>/outputs/quality/*.json`
 
 ## Directory Layout
 

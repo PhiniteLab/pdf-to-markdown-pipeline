@@ -17,6 +17,7 @@ import {
   resolveWorkspaceProcessEnv,
   type PathPolicy,
 } from "./pathPolicy";
+import { assertWithinRoot } from "./sessionLayout";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Helpers
@@ -41,6 +42,7 @@ interface EnvironmentDoctorReport {
     configFound: boolean;
     configNotes: string[];
     dataRoot: string;
+    sessionsRoot: string;
     outputRoots: PathPolicy["outputRoots"];
     sessionStorePath: string;
   };
@@ -274,6 +276,7 @@ async function runEnvironmentDoctor(policy: PathPolicy): Promise<EnvironmentDoct
       configFound: policy.configFound,
       configNotes: [...policy.configNotes],
       dataRoot: policy.dataRoot,
+      sessionsRoot: policy.sessionsRoot,
       outputRoots: policy.outputRoots,
       sessionStorePath: policy.sessionStorePath,
     },
@@ -296,6 +299,7 @@ function formatDoctorReport(report: EnvironmentDoctorReport): string[] {
   lines.push(`  Config:    ${report.pathPolicy.configPath}${report.pathPolicy.configFound ? "" : " (missing)"}`);
   lines.push(`  Config notes: ${report.pathPolicy.configNotes.join(" | ") || "none"}`);
   lines.push(`  Data root: ${report.pathPolicy.dataRoot}`);
+  lines.push(`  Sessions root: ${report.pathPolicy.sessionsRoot}`);
   lines.push(`  Output raw_md: ${report.pathPolicy.outputRoots.rawMd}`);
   lines.push(`  Output cleaned_md: ${report.pathPolicy.outputRoots.cleanedMd}`);
   lines.push(`  Output chunks: ${report.pathPolicy.outputRoots.chunks}`);
@@ -460,32 +464,40 @@ async function checkAndGuideBeforeRun(context: vscode.ExtensionContext, policy: 
 }
 
 
-/** Derive the input directory from the active session's files. */
-function sessionInputDir(mgr: SessionManager, policy: PathPolicy): string | undefined {
-  const session = mgr.active();
-  if (!session || session.files.length === 0) return undefined;
-  const roots = new Set(
-    session.files.map((file) => path.dirname(path.resolve(policy.workspaceRoot, file.relativePath))),
-  );
-  if (roots.size !== 1) {
-    return undefined;
-  }
-  return [...roots][0];
-}
-
-function ensureSingleInputRoot(mgr: SessionManager, policy: PathPolicy): boolean {
-  const session = mgr.active();
-  if (!session || session.files.length === 0) {
-    return true;
-  }
-  const roots = [...new Set(session.files.map((file) => path.dirname(path.resolve(policy.workspaceRoot, file.relativePath))))];
-  if (roots.length <= 1) {
-    return true;
-  }
-  void vscode.window.showErrorMessage(
-    "Active session contains PDFs from multiple folders. For now, each session must use a single input root.",
-  );
-  return false;
+/** Build backend env overrides so one session stays fully inside its own workspace. */
+function sessionCommandEnv(
+  sessionPaths: {
+    dataDir: string;
+    inputDir: string;
+    outputsDir: string;
+    rawDir: string;
+    cleanedDir: string;
+    chunksDir: string;
+    qualityDir: string;
+    semanticDir: string;
+    manifestPath: string;
+  },
+): NodeJS.ProcessEnv {
+  return {
+    CORTEXMARK_DATA_DIR: sessionPaths.dataDir,
+    DATA_DIR: sessionPaths.dataDir,
+    CORTEXMARK_RAW_DATA_DIR: sessionPaths.inputDir,
+    RAW_DATA_DIR: sessionPaths.inputDir,
+    CORTEXMARK_OUTPUT_DIR: sessionPaths.outputsDir,
+    OUTPUT_DIR: sessionPaths.outputsDir,
+    CORTEXMARK_OUTPUT_RAW_MD: sessionPaths.rawDir,
+    OUTPUT_RAW_MD: sessionPaths.rawDir,
+    CORTEXMARK_OUTPUT_CLEANED_MD: sessionPaths.cleanedDir,
+    OUTPUT_CLEANED_MD: sessionPaths.cleanedDir,
+    CORTEXMARK_OUTPUT_CHUNKS: sessionPaths.chunksDir,
+    OUTPUT_CHUNKS: sessionPaths.chunksDir,
+    CORTEXMARK_REPORT_DIR: sessionPaths.qualityDir,
+    REPORT_DIR: sessionPaths.qualityDir,
+    CORTEXMARK_OUTPUT_SEMANTIC_CHUNKS: sessionPaths.semanticDir,
+    OUTPUT_SEMANTIC_CHUNKS: sessionPaths.semanticDir,
+    CORTEXMARK_MANIFEST_FILE: sessionPaths.manifestPath,
+    MANIFEST_FILE: sessionPaths.manifestPath,
+  };
 }
 
 /** Try to obtain the interpreter path from the Microsoft Python extension. */
@@ -580,6 +592,37 @@ function requireActiveSession(mgr: SessionManager): Session | undefined {
   return session;
 }
 
+function countStagedPdfs(session: Session, policy: PathPolicy): { existing: number; missing: number } {
+  let existing = 0;
+  let missing = 0;
+  for (const file of session.files) {
+    const absolutePath = path.resolve(policy.workspaceRoot, file.relativePath);
+    if (fs.existsSync(absolutePath)) {
+      existing++;
+    } else {
+      missing++;
+    }
+  }
+  return { existing, missing };
+}
+
+function ensureSessionHasRunnableInput(session: Session, policy: PathPolicy): boolean {
+  const { existing, missing } = countStagedPdfs(session, policy);
+  if (existing === 0) {
+    const detail = missing > 0
+      ? ` The session has ${missing} tracked PDF(s), but none exist in the session workspace anymore. Re-add them first.`
+      : " Add at least one PDF to the active session first.";
+    void vscode.window.showWarningMessage(`No runnable PDFs found for "${session.name}".${detail}`);
+    return false;
+  }
+  if (missing > 0) {
+    void vscode.window.showWarningMessage(
+      `${missing} staged PDF(s) are missing from "${session.name}". Existing PDFs will still run, but you should re-add the missing ones.`,
+    );
+  }
+  return true;
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Activation
 // ═══════════════════════════════════════════════════════════════════════════
@@ -613,32 +656,19 @@ export function activate(context: vscode.ExtensionContext): void {
     }
     activeWatchers = [];
 
-    const watcher = vscode.workspace.createFileSystemWatcher(
-      new vscode.RelativePattern(vscode.Uri.file(policy.dataRoot), "**/*.pdf"),
+    fs.mkdirSync(policy.sessionsRoot, { recursive: true });
+    const sessionWatcher = vscode.workspace.createFileSystemWatcher(
+      new vscode.RelativePattern(vscode.Uri.file(policy.sessionsRoot), "**"),
     );
-    watcher.onDidCreate((uri) => {
-      const active = sessions.active();
-      if (!active) return;
-      const relPath = path.relative(wsRoot, uri.fsPath);
-      const name = path.basename(uri.fsPath);
-      const added = sessions.addFile(active.id, name, relPath);
-      if (!added) return;
+    const refreshViews = (): void => {
+      tree.refresh();
+      dashboard.refresh();
+    };
+    sessionWatcher.onDidCreate(refreshViews);
+    sessionWatcher.onDidChange(refreshViews);
+    sessionWatcher.onDidDelete(refreshViews);
 
-      if (cfg<boolean>("autoProcess")) {
-        void processActiveSession(context, sessions, runner, policy);
-      }
-    });
-
-    const outWatchers = Object.values(policy.outputRoots).map((rootPath) => {
-      const outWatcher = vscode.workspace.createFileSystemWatcher(
-        new vscode.RelativePattern(vscode.Uri.file(rootPath), "**"),
-      );
-      outWatcher.onDidCreate(() => tree.refresh());
-      outWatcher.onDidDelete(() => tree.refresh());
-      return outWatcher;
-    });
-
-    activeWatchers = [watcher, ...outWatchers];
+    activeWatchers = [sessionWatcher];
   };
   rebuildPathWatchers();
 
@@ -664,11 +694,11 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("cortexmark.setActiveSession", (item?: PipelineItem) =>
       cmdSetActive(sessions, item),
     ),
-      vscode.commands.registerCommand("cortexmark.processSession", () =>
+    vscode.commands.registerCommand("cortexmark.processSession", () =>
       processActiveSession(context, sessions, runner, policy),
     ),
-    vscode.commands.registerCommand("cortexmark.addPdf", () => cmdAddPdf(sessions, policy)),
-    vscode.commands.registerCommand("cortexmark.addFolder", () => cmdAddFolder(sessions, policy)),
+    vscode.commands.registerCommand("cortexmark.addPdf", () => cmdAddPdf(context, runner, sessions, policy)),
+    vscode.commands.registerCommand("cortexmark.addFolder", () => cmdAddFolder(context, runner, sessions, policy)),
 
     // Pipeline commands (use spawn runner)
     vscode.commands.registerCommand("cortexmark.runFull", () => cmdRunFull(context, runner, policy, sessions)),
@@ -739,6 +769,11 @@ async function cmdNewSession(mgr: SessionManager): Promise<void> {
     placeHolder: "e.g. Research Batch",
   });
   if (!name) return;
+  const requestedRoot = mgr.pathsFor(name).sessionRoot;
+  if (mgr.sessions().some((session) => path.resolve(mgr.pathsFor(session).sessionRoot) === path.resolve(requestedRoot))) {
+    void vscode.window.showWarningMessage(`A session named "${name}" already maps to ${requestedRoot}. Choose a different name.`);
+    return;
+  }
   const s = mgr.create(name);
   void vscode.window.showInformationMessage(`Session "${s.name}" created and set as active.`);
 }
@@ -749,7 +784,7 @@ async function cmdDeleteSession(mgr: SessionManager, policy: PathPolicy, item?: 
   const session = mgr.get(id);
   if (!session) return;
   const answer = await vscode.window.showWarningMessage(
-    `Delete session "${session.name}" and its outputs?`,
+    `Delete session "${session.name}" and its copied inputs/outputs?`,
     { modal: true },
     "Delete",
   );
@@ -759,31 +794,18 @@ async function cmdDeleteSession(mgr: SessionManager, policy: PathPolicy, item?: 
   }
 }
 
-/** Remove output files generated from the session's PDFs. */
+/** Remove the session-local workspace (copied inputs + outputs). */
 function cleanSessionOutputs(
   session: { name: string; files: { relativePath: string }[] },
   policy: PathPolicy,
 ): void {
-  const outputDirs = [
-    policy.outputRoots.rawMd,
-    policy.outputRoots.cleanedMd,
-    policy.outputRoots.chunks,
-    policy.outputRoots.quality,
-    policy.outputRoots.semanticChunks,
-  ];
-
-  // Remove session-scoped output directories
-  for (const outDir of outputDirs) {
-    const sessionDir = path.join(outDir, session.name);
-    if (fs.existsSync(sessionDir)) {
-      fs.rmSync(sessionDir, { recursive: true, force: true });
-    }
-  }
-
-  // Remove session-specific manifest
-  const sessionManifest = path.join(path.dirname(policy.outputRoots.quality), `.manifest-${session.name}.json`);
-  if (fs.existsSync(sessionManifest)) {
-    fs.rmSync(sessionManifest, { force: true });
+  const sessionRoot = assertWithinRoot(
+    policy.sessionsRoot,
+    policy.sessionOutputs(session.name).sessionRoot,
+    "Session workspace",
+  );
+  if (fs.existsSync(sessionRoot)) {
+    fs.rmSync(sessionRoot, { recursive: true, force: true });
   }
 }
 
@@ -794,7 +816,12 @@ function cmdSetActive(mgr: SessionManager, item?: PipelineItem): void {
   }
 }
 
-async function cmdAddPdf(mgr: SessionManager, policy: PathPolicy): Promise<void> {
+async function cmdAddPdf(
+  context: vscode.ExtensionContext,
+  runner: PipelineRunner,
+  mgr: SessionManager,
+  policy: PathPolicy,
+): Promise<void> {
   const active = mgr.active();
   if (!active) {
     void vscode.window.showWarningMessage("Create a session first.");
@@ -809,13 +836,21 @@ async function cmdAddPdf(mgr: SessionManager, policy: PathPolicy): Promise<void>
     title: "Select PDF files to add",
   });
   if (!uris?.length) return;
-  const count = addPdfUris(mgr, active.id, uris, policy);
+  const count = addPdfUris(mgr, active.id, uris);
   if (count > 0) {
     void vscode.window.showInformationMessage(`Added ${count} PDF(s) to "${active.name}".`);
+    if (cfg<boolean>("autoProcess")) {
+      await processActiveSession(context, mgr, runner, policy);
+    }
   }
 }
 
-async function cmdAddFolder(mgr: SessionManager, policy: PathPolicy): Promise<void> {
+async function cmdAddFolder(
+  context: vscode.ExtensionContext,
+  runner: PipelineRunner,
+  mgr: SessionManager,
+  policy: PathPolicy,
+): Promise<void> {
   const active = mgr.active();
   if (!active) {
     void vscode.window.showWarningMessage("Create a session first.");
@@ -836,36 +871,21 @@ async function cmdAddFolder(mgr: SessionManager, policy: PathPolicy): Promise<vo
     void vscode.window.showWarningMessage("No PDF files found in the selected folder.");
     return;
   }
-  const count = addPdfUris(mgr, active.id, pdfUris, policy);
+  const count = addPdfUris(mgr, active.id, pdfUris);
   if (count > 0) {
     void vscode.window.showInformationMessage(`Added ${count} PDF(s) from folder to "${active.name}".`);
+    if (cfg<boolean>("autoProcess")) {
+      await processActiveSession(context, mgr, runner, policy);
+    }
   }
 }
 
-function addPdfUris(mgr: SessionManager, sessionId: string, uris: readonly vscode.Uri[], policy: PathPolicy): number {
-  const session = mgr.get(sessionId);
-  let currentRoot = session?.files[0]
-    ? path.dirname(path.resolve(policy.workspaceRoot, session.files[0].relativePath))
-    : undefined;
+function addPdfUris(mgr: SessionManager, sessionId: string, uris: readonly vscode.Uri[]): number {
   let count = 0;
-  let skippedDifferentRoot = 0;
   for (const uri of uris) {
-    const nextRoot = path.dirname(uri.fsPath);
-    if (currentRoot && path.resolve(currentRoot) !== path.resolve(nextRoot)) {
-      skippedDifferentRoot++;
-      continue;
-    }
-    const rel = path.relative(policy.workspaceRoot, uri.fsPath);
-    const name = path.basename(uri.fsPath);
-    if (mgr.addFile(sessionId, name, rel)) {
-      currentRoot = currentRoot ?? nextRoot;
+    if (mgr.stagePdf(sessionId, uri.fsPath)) {
       count++;
     }
-  }
-  if (skippedDifferentRoot > 0) {
-    void vscode.window.showWarningMessage(
-      `${skippedDifferentRoot} PDF skipped. Active session currently supports a single input folder root.`,
-    );
   }
   return count;
 }
@@ -890,25 +910,25 @@ async function processActiveSession(
     void vscode.window.showWarningMessage("Pipeline is already running.");
     return;
   }
+  if (!ensureSessionHasRunnableInput(session, policy)) {
+    return;
+  }
   if (!(await checkAndGuideBeforeRun(context, policy))) {
     return;
   }
-  if (!ensureSingleInputRoot(mgr, policy)) {
-    return;
-  }
+  const sessionPaths = mgr.pathsFor(session);
 
   // Mark queued files as processing
   mgr.bulkUpdate(session.id, "queued", "processing");
 
-  const inputDir = sessionInputDir(mgr, policy);
   const result = await runner.runPipeline(
     {
       python: await resolvePython(policy.workspaceRoot),
       root: policy.workspaceRoot,
       config: policy.configPath,
       engine: cfg<string>("defaultEngine"),
-      input: inputDir,
-      sessionName: session.name,
+      input: sessionPaths.inputDir,
+      env: sessionCommandEnv(sessionPaths),
     },
   );
 
@@ -934,15 +954,18 @@ async function cmdRunFull(
   if (!need(policy.workspaceRoot) || runner.busy) return;
   const session = requireActiveSession(mgr);
   if (!session) return;
+  if (!ensureSessionHasRunnableInput(session, policy)) {
+    return;
+  }
   if (!(await checkAndGuideBeforeRun(context, policy))) return;
-  if (!ensureSingleInputRoot(mgr, policy)) return;
+  const sessionPaths = mgr.pathsFor(session);
   await runner.runPipeline({
     python: await resolvePython(policy.workspaceRoot),
     root: policy.workspaceRoot,
     config: policy.configPath,
     engine: cfg<string>("defaultEngine"),
-    input: sessionInputDir(mgr, policy),
-    sessionName: session?.name,
+    input: sessionPaths.inputDir,
+    env: sessionCommandEnv(sessionPaths),
   });
 }
 
@@ -955,16 +978,19 @@ async function cmdRunConvert(
   if (!need(policy.workspaceRoot) || runner.busy) return;
   const session = requireActiveSession(mgr);
   if (!session) return;
+  if (!ensureSessionHasRunnableInput(session, policy)) {
+    return;
+  }
   if (!(await checkAndGuideBeforeRun(context, policy))) return;
-  if (!ensureSingleInputRoot(mgr, policy)) return;
+  const sessionPaths = mgr.pathsFor(session);
   await runner.runPipeline({
     python: await resolvePython(policy.workspaceRoot),
     root: policy.workspaceRoot,
     config: policy.configPath,
     engine: cfg<string>("defaultEngine"),
     stages: ["convert"],
-    input: sessionInputDir(mgr, policy),
-    sessionName: session?.name,
+    input: sessionPaths.inputDir,
+    env: sessionCommandEnv(sessionPaths),
   });
 }
 
@@ -990,6 +1016,7 @@ async function cmdRunQA(
     config: policy.configPath,
     input: sessionPaths.cleanedDir,
     output: mgr.reportPath(session, "qa_report.json"),
+    env: sessionCommandEnv(sessionPaths),
   });
   dashboard.refresh();
 }
@@ -1002,21 +1029,23 @@ async function cmdRunDiff(
 ): Promise<void> {
   if (!need(policy.workspaceRoot) || runner.busy) return;
   if (!(await checkAndGuideBeforeRun(context, policy))) return;
+  const activeSession = mgr.active();
+  const activeSessionPaths = activeSession ? mgr.pathsFor(activeSession) : undefined;
 
   const oldDir = await vscode.window.showInputBox({
     title: "Old folder",
     prompt: "Path to old output folder",
-    value: policy.outputRoots.cleanedMd,
+    value: activeSessionPaths?.cleanedDir ?? policy.outputRoots.cleanedMd,
   });
   if (!oldDir) return;
   const newDir = await vscode.window.showInputBox({
     title: "New folder",
     prompt: "Path to new output folder",
-    value: policy.outputRoots.rawMd,
+    value: activeSessionPaths?.rawDir ?? policy.outputRoots.rawMd,
   });
   if (!newDir) return;
 
-  const session = mgr.active();
+  const session = activeSession;
   const diffOutput = session
     ? mgr.reportPath(session, "diff_report.json")
     : path.join(policy.outputRoots.quality, "diff_report.json");
@@ -1028,6 +1057,7 @@ async function cmdRunDiff(
     oldDir,
     newDir,
     output: diffOutput,
+    env: activeSessionPaths ? sessionCommandEnv(activeSessionPaths) : undefined,
   });
 }
 
@@ -1117,6 +1147,7 @@ async function cmdRunAnalysis(
         root: policy.workspaceRoot,
         input: inputDir,
         output: mgr.reportPath(session, "crossref_report.json"),
+        env: sessionCommandEnv(sessionPaths),
       });
       break;
     case "algorithm":
@@ -1125,6 +1156,7 @@ async function cmdRunAnalysis(
         root: policy.workspaceRoot,
         input: inputDir,
         output: mgr.reportPath(session, "algorithm_report.json"),
+        env: sessionCommandEnv(sessionPaths),
       });
       break;
     case "notation":
@@ -1133,6 +1165,7 @@ async function cmdRunAnalysis(
         root: policy.workspaceRoot,
         input: inputDir,
         output: mgr.reportPath(session, "notation_report.json"),
+        env: sessionCommandEnv(sessionPaths),
       });
       break;
     case "semanticChunk":
@@ -1141,6 +1174,7 @@ async function cmdRunAnalysis(
         root: policy.workspaceRoot,
         input: inputDir,
         outputDir: sessionPaths.semanticDir,
+        env: sessionCommandEnv(sessionPaths),
       });
       break;
   }
@@ -1178,38 +1212,42 @@ async function cmdRunAllAnalysis(
   const analyses: [string, () => Promise<import("./pipelineRunner").RunResult>][] = [
     [
       "Cross References",
-        () => runner.runCrossRef({
+      () => runner.runCrossRef({
         python,
         root: policy.workspaceRoot,
         input: inputDir,
         output: mgr.reportPath(session, "crossref_report.json"),
+        env: sessionCommandEnv(sessionPaths),
       }),
     ],
     [
       "Algorithm Extraction",
-        () => runner.runAlgorithmExtract({
+      () => runner.runAlgorithmExtract({
         python,
         root: policy.workspaceRoot,
         input: inputDir,
         output: mgr.reportPath(session, "algorithm_report.json"),
+        env: sessionCommandEnv(sessionPaths),
       }),
     ],
     [
       "Notation Glossary",
-        () => runner.runNotationGlossary({
+      () => runner.runNotationGlossary({
         python,
         root: policy.workspaceRoot,
         input: inputDir,
         output: mgr.reportPath(session, "notation_report.json"),
+        env: sessionCommandEnv(sessionPaths),
       }),
     ],
     [
       "Semantic Chunking",
-        () => runner.runSemanticChunk({
+      () => runner.runSemanticChunk({
         python,
         root: policy.workspaceRoot,
         input: inputDir,
         outputDir: sessionPaths.semanticDir,
+        env: sessionCommandEnv(sessionPaths),
       }),
     ],
   ];

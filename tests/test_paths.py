@@ -9,7 +9,13 @@ from cortexmark.common import (
     resolve_manifest_path,
     runtime_env_value,
 )
-from cortexmark.paths import build_path_settings, find_project_root, resolve_binary, resolve_manifest_file
+from cortexmark.paths import (
+    build_path_settings,
+    find_project_root,
+    resolve_binary,
+    resolve_manifest_file,
+    resolve_session_settings,
+)
 
 
 class TestProjectRootDiscovery:
@@ -137,8 +143,19 @@ class TestManifestAndDirectories:
         manifest = resolve_manifest_file(cfg, project_root=root)
         assert manifest == (root / "portable-output" / ".manifest.json").resolve()
         assert (
-            resolve_manifest_path(cfg, session_name="s1") == (root / "portable-output" / ".manifest-s1.json").resolve()
+            resolve_manifest_path(cfg, session_name="s1")
+            == (root / "sessions" / "s1" / "outputs" / ".manifest.json").resolve()
         )
+
+    def test_session_settings_use_repo_root_sessions_dir(self, tmp_path: Path) -> None:
+        root = tmp_path / "portable-project"
+        root.mkdir(parents=True)
+        (root / "pyproject.toml").write_text("[project]\nname='demo'\n", encoding="utf-8")
+
+        session = resolve_session_settings("Research Batch", project_root=root)
+        assert session.session_root == (root / "sessions" / "Research Batch").resolve()
+        assert session.raw_data_dir == (root / "sessions" / "Research Batch" / "data" / "raw").resolve()
+        assert session.cleaned_md_dir == (root / "sessions" / "Research Batch" / "outputs" / "cleaned_md").resolve()
 
     def test_ensure_directories_creates_portable_targets(self, tmp_path: Path) -> None:
         root = tmp_path / "portable-project"
