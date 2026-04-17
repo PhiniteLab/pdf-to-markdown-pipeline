@@ -99,6 +99,28 @@ export class SessionManager implements vscode.Disposable {
     return path.join(this.pathsFor(sessionOrName).qualityDir, fileName);
   }
 
+  syncSessionInputFolder(sessionId: string): number {
+    const session = this.store.sessions.find((candidate) => candidate.id === sessionId);
+    if (!session) return 0;
+    return this.syncSessionInputFiles(session, true);
+  }
+
+  syncAllSessionInputFolders(): number {
+    let added = 0;
+    let changed = false;
+    for (const session of this.store.sessions) {
+      const before = added;
+      added += this.syncSessionInputFiles(session, false);
+      if (added !== before) {
+        changed = true;
+      }
+    }
+    if (changed) {
+      this.save();
+    }
+    return added;
+  }
+
   stagePdf(sessionId: string, sourcePath: string): PdfFile | undefined {
     const session = this.store.sessions.find((candidate) => candidate.id === sessionId);
     if (!session) return undefined;
@@ -253,6 +275,70 @@ export class SessionManager implements vscode.Disposable {
     if (changed) {
       this.save();
     }
+  }
+
+  private syncSessionInputFiles(session: Session, persist: boolean): number {
+    this.ensureSessionDirectories(session);
+    const inputRoot = this.pathsFor(session).inputDir;
+    const discovered = this.findPdfFiles(inputRoot);
+    let changed = false;
+    let added = 0;
+
+    for (const absolutePath of discovered) {
+      const relativePath = path.relative(this.policy.workspaceRoot, absolutePath);
+      const existing = session.files.find((file) => file.relativePath === relativePath);
+      if (existing) {
+        if (existing.status === "error" && fs.existsSync(absolutePath)) {
+          existing.status = "queued";
+          delete existing.errorMessage;
+          delete existing.completedAt;
+          existing.name = path.basename(relativePath);
+          changed = true;
+        }
+        continue;
+      }
+      session.files.push({
+        id: genId(),
+        name: path.basename(relativePath),
+        relativePath,
+        status: "queued",
+        addedAt: new Date().toISOString(),
+      });
+      added += 1;
+      changed = true;
+    }
+
+    if (changed && persist) {
+      this.save();
+    }
+    return added;
+  }
+
+  private findPdfFiles(rootDir: string): string[] {
+    if (!fs.existsSync(rootDir)) {
+      return [];
+    }
+    const results: string[] = [];
+    const stack = [rootDir];
+    while (stack.length > 0) {
+      const current = stack.pop();
+      if (!current || !fs.existsSync(current)) {
+        continue;
+      }
+      const entries = fs.readdirSync(current, { withFileTypes: true });
+      for (const entry of entries) {
+        const absolutePath = path.join(current, entry.name);
+        if (entry.isDirectory()) {
+          stack.push(absolutePath);
+          continue;
+        }
+        if (entry.isFile() && entry.name.toLowerCase().endsWith(".pdf")) {
+          results.push(absolutePath);
+        }
+      }
+    }
+    results.sort((left, right) => left.localeCompare(right));
+    return results;
   }
 
   private copyPdfIntoSession(session: Session, sourcePath: string): string | undefined {

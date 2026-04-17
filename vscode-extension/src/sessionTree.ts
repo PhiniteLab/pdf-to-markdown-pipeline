@@ -113,6 +113,7 @@ export class SessionTreeProvider implements vscode.TreeDataProvider<PipelineItem
 
     // ── Sessions group ─────────────────────────────────────────────────
     if (el.contextValue === "group.sessions") {
+      this.mgr.syncAllSessionInputFolders();
       const items: PipelineItem[] = [];
       for (const s of this.mgr.sessions()) {
         const done = s.files.filter((f) => f.status === "done").length;
@@ -146,14 +147,26 @@ export class SessionTreeProvider implements vscode.TreeDataProvider<PipelineItem
     // ── Session children → files ───────────────────────────────────────
     if (el.contextValue === "session" || el.contextValue === "session.active") {
       const session = this.mgr.get(el.sessionId!);
+      const inputFolderItem = new PipelineItem("Open this session input folder", vscode.TreeItemCollapsibleState.None, "session.inputFolder", {
+        icon: new vscode.ThemeIcon("folder-opened"),
+        desc: "drag or copy PDFs here",
+        sessionId: el.sessionId,
+        tooltip: "Open the session input folder so you can drag or paste PDFs into it.",
+        cmd: { title: "Open Session Input Folder", command: "cortexmark.openSessionInputFolder", arguments: [{ sessionId: el.sessionId }] },
+      });
       if (!session || session.files.length === 0) {
         return [
-          new PipelineItem("Use Add PDFs... to copy files into this session.", vscode.TreeItemCollapsibleState.None, "hint", {
-            icon: new vscode.ThemeIcon("info"),
+          inputFolderItem,
+          new PipelineItem("Add PDFs to this session...", vscode.TreeItemCollapsibleState.None, "hint", {
+            icon: new vscode.ThemeIcon("file-pdf"),
+            desc: "choose one or more PDFs",
+            sessionId: el.sessionId,
+            tooltip: "Open the multi-file PDF picker and copy the selected PDFs into this session.",
+            cmd: { title: "Add PDFs", command: "cortexmark.addPdf", arguments: [{ sessionId: el.sessionId }] },
           }),
         ];
       }
-      return session.files.map((f) => {
+      return [inputFolderItem, ...session.files.map((f) => {
         const si = STATUS_ICON[f.status];
         const absPath = path.resolve(this.policy.workspaceRoot, f.relativePath);
         const exists = fs.existsSync(absPath);
@@ -170,7 +183,7 @@ export class SessionTreeProvider implements vscode.TreeDataProvider<PipelineItem
           tooltip,
           cmd: exists ? { title: "Open File", command: "vscode.open", arguments: [vscode.Uri.file(absPath)] } : undefined,
         });
-      });
+      })];
     }
 
     // ── Actions group ──────────────────────────────────────────────────

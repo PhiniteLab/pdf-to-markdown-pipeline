@@ -606,18 +606,20 @@ function countStagedPdfs(session: Session, policy: PathPolicy): { existing: numb
   return { existing, missing };
 }
 
-function ensureSessionHasRunnableInput(session: Session, policy: PathPolicy): boolean {
-  const { existing, missing } = countStagedPdfs(session, policy);
+function ensureSessionHasRunnableInput(mgr: SessionManager, session: Session, policy: PathPolicy): boolean {
+  mgr.syncSessionInputFolder(session.id);
+  const refreshed = mgr.get(session.id) ?? session;
+  const { existing, missing } = countStagedPdfs(refreshed, policy);
   if (existing === 0) {
     const detail = missing > 0
       ? ` The session has ${missing} tracked PDF(s), but none exist in the session workspace anymore. Re-add them first.`
       : " Add at least one PDF to the active session first.";
-    void vscode.window.showWarningMessage(`No runnable PDFs found for "${session.name}".${detail}`);
+    void vscode.window.showWarningMessage(`No runnable PDFs found for "${refreshed.name}".${detail}`);
     return false;
   }
   if (missing > 0) {
     void vscode.window.showWarningMessage(
-      `${missing} staged PDF(s) are missing from "${session.name}". Existing PDFs will still run, but you should re-add the missing ones.`,
+      `${missing} staged PDF(s) are missing from "${refreshed.name}". Existing PDFs will still run, but you should re-add the missing ones.`,
     );
   }
   return true;
@@ -697,7 +699,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("cortexmark.processSession", () =>
       processActiveSession(context, sessions, runner, policy),
     ),
-    vscode.commands.registerCommand("cortexmark.addPdf", () => cmdAddPdf(context, runner, sessions, policy)),
+    vscode.commands.registerCommand("cortexmark.addPdf", (item?: PipelineItem) => cmdAddPdf(context, runner, sessions, policy, item)),
     vscode.commands.registerCommand("cortexmark.addFolder", () => cmdAddFolder(context, runner, sessions, policy)),
 
     // Pipeline commands (use spawn runner)
@@ -710,6 +712,9 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("cortexmark.openConfig", () => cmdOpenConfig(policy)),
     vscode.commands.registerCommand("cortexmark.openOutput", (arg?: string | PipelineItem) =>
       cmdOpenOutput(policy, arg),
+    ),
+    vscode.commands.registerCommand("cortexmark.openSessionInputFolder", (item?: PipelineItem) =>
+      cmdOpenSessionInputFolder(sessions, item),
     ),
     vscode.commands.registerCommand("cortexmark.deleteOutput", (item?: PipelineItem) =>
       cmdDeleteOutput(item, tree),
@@ -821,24 +826,28 @@ async function cmdAddPdf(
   runner: PipelineRunner,
   mgr: SessionManager,
   policy: PathPolicy,
+  item?: PipelineItem,
 ): Promise<void> {
-  const active = mgr.active();
-  if (!active) {
-    void vscode.window.showWarningMessage("Create a session first.");
+  const target = item?.sessionId ? mgr.get(item.sessionId) : mgr.active();
+  if (!target) {
+    void vscode.window.showWarningMessage("Create or select a session first.");
     return;
+  }
+  if (!target.isActive) {
+    mgr.setActive(target.id);
   }
   const uris = await vscode.window.showOpenDialog({
     canSelectMany: true,
     canSelectFiles: true,
     canSelectFolders: false,
     filters: { "PDF Files": ["pdf"] },
-    defaultUri: vscode.Uri.file(policy.dataRoot),
+    defaultUri: vscode.Uri.file(mgr.pathsFor(target).inputDir),
     title: "Select PDF files to add",
   });
   if (!uris?.length) return;
-  const count = addPdfUris(mgr, active.id, uris);
+  const count = addPdfUris(mgr, target.id, uris);
   if (count > 0) {
-    void vscode.window.showInformationMessage(`Added ${count} PDF(s) to "${active.name}".`);
+    void vscode.window.showInformationMessage(`Added ${count} PDF(s) to "${target.name}".`);
     if (cfg<boolean>("autoProcess")) {
       await processActiveSession(context, mgr, runner, policy);
     }
@@ -910,7 +919,7 @@ async function processActiveSession(
     void vscode.window.showWarningMessage("Pipeline is already running.");
     return;
   }
-  if (!ensureSessionHasRunnableInput(session, policy)) {
+  if (!ensureSessionHasRunnableInput(mgr, session, policy)) {
     return;
   }
   if (!(await checkAndGuideBeforeRun(context, policy))) {
@@ -954,7 +963,7 @@ async function cmdRunFull(
   if (!need(policy.workspaceRoot) || runner.busy) return;
   const session = requireActiveSession(mgr);
   if (!session) return;
-  if (!ensureSessionHasRunnableInput(session, policy)) {
+  if (!ensureSessionHasRunnableInput(mgr, session, policy)) {
     return;
   }
   if (!(await checkAndGuideBeforeRun(context, policy))) return;
@@ -978,7 +987,7 @@ async function cmdRunConvert(
   if (!need(policy.workspaceRoot) || runner.busy) return;
   const session = requireActiveSession(mgr);
   if (!session) return;
-  if (!ensureSessionHasRunnableInput(session, policy)) {
+  if (!ensureSessionHasRunnableInput(mgr, session, policy)) {
     return;
   }
   if (!(await checkAndGuideBeforeRun(context, policy))) return;
@@ -1082,6 +1091,35 @@ async function cmdOpenConfig(policy: PathPolicy): Promise<void> {
   await vscode.window.showTextDocument(doc, { preview: false });
 }
 
+async function revealFolderForUser(absPath: string): Promise<void> {
+  const folderUri = vscode.Uri.file(absPath);
+  await vscode.commands.executeCommand("revealInExplorer", folderUri);
+
+  const isWsl = Boolean(process.env.WSL_DISTRO_NAME || process.env.WSL_INTEROP);
+  if (isWsl) {
+    const windowsPath = await new Promise<string | undefined>((resolve) => {
+      cp.execFile("wslpath", ["-w", absPath], (error, stdout) => {
+        if (error) {
+          resolve(undefined);
+          return;
+        }
+        const converted = String(stdout || "").trim();
+        resolve(converted || undefined);
+      });
+    });
+    if (windowsPath) {
+      cp.execFile("explorer.exe", [windowsPath], () => undefined);
+      return;
+    }
+  }
+
+  try {
+    await vscode.commands.executeCommand("revealFileInOS", folderUri);
+  } catch {
+    void vscode.env.openExternal(folderUri);
+  }
+}
+
 async function cmdOpenOutput(policy: PathPolicy, arg?: string | PipelineItem): Promise<void> {
   if (!need(policy.workspaceRoot)) return;
   let rel: string | undefined;
@@ -1094,7 +1132,19 @@ async function cmdOpenOutput(policy: PathPolicy, arg?: string | PipelineItem): P
   }
   if (!rel) return;
   const absPath = path.isAbsolute(rel) ? rel : path.resolve(policy.workspaceRoot, rel);
-  await vscode.commands.executeCommand("revealInExplorer", vscode.Uri.file(absPath));
+  await revealFolderForUser(absPath);
+}
+
+async function cmdOpenSessionInputFolder(mgr: SessionManager, item?: PipelineItem): Promise<void> {
+  const target = item?.sessionId ? mgr.get(item.sessionId) : mgr.active();
+  if (!target) {
+    void vscode.window.showWarningMessage("Create or select a session first.");
+    return;
+  }
+  const inputDir = mgr.pathsFor(target).inputDir;
+  fs.mkdirSync(inputDir, { recursive: true });
+  await revealFolderForUser(inputDir);
+  void vscode.window.showInformationMessage(`Opened input folder for "${target.name}". Drop or copy PDFs into this folder.`);
 }
 
 async function cmdDeleteOutput(item: PipelineItem | undefined, tree: SessionTreeProvider): Promise<void> {

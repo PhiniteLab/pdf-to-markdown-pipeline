@@ -5275,8 +5275,8 @@ class TestVSCodeExtensionConsistency:
 
     def test_total_commands_count(self) -> None:
         cmds = self.pkg["contributes"]["commands"]
-        # 14 original + setup/wizard + 5 analysis + 3 preview/dashboard = 24
-        assert len(cmds) == 24, f"Expected 24 commands, got {len(cmds)}"
+        # 14 original + setup/wizard + session input folder + 5 analysis + 3 preview/dashboard = 25
+        assert len(cmds) == 25, f"Expected 25 commands, got {len(cmds)}"
 
 
 # ══════════════════════════════════════════════════════════════════════════════
