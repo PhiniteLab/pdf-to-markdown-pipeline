@@ -163,6 +163,18 @@ class SemanticChunk:
             return f"{self.entity_label}{name_suffix}"
         return self.section or self.chapter or "untitled"
 
+    def opener(self) -> str | None:
+        """Return a normalized opener line that preserves semantic labels."""
+        if self.entity_type == ENTITY_PROOF:
+            if self.parent_label:
+                return f"**Proof of {self.parent_label}.**"
+            return "**Proof.**"
+        if self.entity_label:
+            if self.entity_name:
+                return f"**{self.entity_label} ({self.entity_name}).**"
+            return f"**{self.entity_label}.**"
+        return None
+
     def render(self) -> str:
         parts: list[str] = []
         if self.chapter:
@@ -171,6 +183,11 @@ class SemanticChunk:
             parts.append(f"## {self.section}")
         if parts:
             parts.append("")
+        opener = self.opener()
+        if opener:
+            parts.append(opener)
+            if self.body:
+                parts.append("")
         parts.extend(self.body)
         return "\n".join(parts).strip() + "\n"
 
@@ -217,6 +234,12 @@ def has_qed(line: str) -> bool:
     stripped = line.rstrip()
     lower = stripped.lower()
     return any(lower.endswith(marker) for marker in QED_MARKERS)
+
+
+def normalize_entity_label(label: str) -> str:
+    """Normalize entity labels while preserving dotted numeric identifiers."""
+    collapsed = " ".join(label.strip().split())
+    return re.sub(r"[.:;)\]]+$", "", collapsed)
 
 
 def _slugify(value: str) -> str:
@@ -356,7 +379,7 @@ def parse_semantic_chunks(
             begin_chunk(line_number)
             of_label = proof_match.group("of_label")
             if of_label:
-                parent_label = of_label.strip()
+                parent_label = normalize_entity_label(of_label)
                 parent_evidence_level = "explicit"
             elif last_theorem_label:
                 parent_label = last_theorem_label

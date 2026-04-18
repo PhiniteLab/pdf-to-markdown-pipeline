@@ -70,6 +70,31 @@ def scientific_source_scope(file_path: Path) -> str:
     return str(file_path)
 
 
+def _resolve_local_cross_ref_links(report: Any, scientific_objects: list[Any]) -> None:
+    """Resolve local theorem-like references from semantic objects when raw parsing is ambiguous."""
+    label_to_object_ids: dict[str, list[str]] = {}
+    for obj in scientific_objects:
+        if obj.object_type == OBJECT_EQUATION or not obj.label:
+            continue
+        label_to_object_ids.setdefault(obj.label, []).append(obj.object_id)
+
+    for link in report.links:
+        if link.relation != "references" or link.status not in {"ambiguous", "unresolved"}:
+            continue
+        candidates = label_to_object_ids.get(link.source_label, [])
+        if len(candidates) != 1:
+            continue
+        link.status = "resolved"
+        link.target_object_id = candidates[0]
+        link.target_label = link.source_label
+        link.metadata = dict(link.metadata)
+        link.metadata["resolved_via"] = "semantic_objects"
+        if link.source_label in report.unresolved:
+            report.unresolved = [label for label in report.unresolved if label != link.source_label]
+        if link.source_label not in report.resolved:
+            report.resolved.append(link.source_label)
+
+
 def parse_chunk_file(file_path: Path) -> RAGRecord:
     """Parse a single chunk Markdown file into a RAGRecord.
 
@@ -113,6 +138,7 @@ def parse_chunk_file(file_path: Path) -> RAGRecord:
         extract_definitions(body_text, source_file=str(file_path)),
         extract_mentions(body_text, source_file=str(file_path)),
     )
+    _resolve_local_cross_ref_links(cross_ref_report, scientific_objects)
 
     formulas = extract_formulas(body_text)
     cross_refs = extract_cross_refs(body_text)
