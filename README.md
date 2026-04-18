@@ -47,12 +47,12 @@ This release rebrands the public package and extension surfaces to **CortexMark*
 | PyPI package `phinitelab-pdf-pipeline` | PyPI package `cortexmark` |
 | Python module `phinitelab_pdf_pipeline` | Python module `cortexmark` |
 | CLI command `phinitelab-pdf-pipeline` | CLI command `cortexmark` |
-| VS Code extension `phinitelab-pdf-pipeline-vscode` | VS Code extension `cortexmark-vscode` |
+| VS Code extension `phinitelab-pdf-pipeline-vscode` | VS Code extension `cortexmark-pipeline-vscode` |
 | Session store `.phinitelab-pdf-pipeline/` | Session store `.cortexmark/` |
 
 Notes:
 - This is a **breaking rename** for public package, module, CLI, and extension IDs.
-- The VS Code extension now uses a new extension identity; existing users should install the new `cortexmark-vscode` package manually.
+- The VS Code extension now uses a new extension identity; existing users should install the new `cortexmark-pipeline-vscode` package manually.
 - Existing workspace session data is read from the legacy `.phinitelab-pdf-pipeline/sessions.json` path and copied into `.cortexmark/sessions.json` automatically when needed.
 
 
@@ -302,9 +302,9 @@ PDF files
 
 ### VS Code extension
 
-The published VS Code extension is **`PhiniteLab.cortexmark-vscode`**.
+The published VS Code extension is **`PhiniteLab.cortexmark-pipeline-vscode`**.
 
-Install it from the VS Code Extensions view by searching for **CortexMark**, then:
+Install it from the VS Code Extensions view by searching for **CortexMark Pipeline**, then:
 
 1. install the extension,
 2. install the Python backend separately with `pip install cortexmark` (or `cortexmark[docling]`),

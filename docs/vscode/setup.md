@@ -10,8 +10,8 @@ The VS Code extension gives you a session-based UI for the CortexMark pipeline.
 ### From the Visual Studio Code Marketplace
 
 1. Open **Extensions** in VS Code
-2. Search for **CortexMark**
-3. Install the published extension with ID **`PhiniteLab.cortexmark-vscode`**
+2. Search for **CortexMark Pipeline**
+3. Install the published extension with ID **`PhiniteLab.cortexmark-pipeline-vscode`**
 
 ### From a VSIX file
 

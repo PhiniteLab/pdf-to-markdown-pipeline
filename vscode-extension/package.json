@@ -1,6 +1,6 @@
 {
-  "name": "cortexmark-vscode",
-  "displayName": "CortexMark",
+  "name": "cortexmark-pipeline-vscode",
+  "displayName": "CortexMark Pipeline",
   "description": "Convert PDFs to structured Markdown with sessions, auto-processing, preview panel, dashboard, and a chat panel.",
   "version": "0.3.3",
   "publisher": "PhiniteLab",
@@ -34,7 +34,7 @@
       "activitybar": [
         {
           "id": "cortexmark",
-          "title": "CortexMark",
+          "title": "CortexMark Pipeline",
           "icon": "media/pipeline.svg"
         }
       ]
@@ -321,7 +321,7 @@
       ]
     },
     "configuration": {
-      "title": "CortexMark",
+      "title": "CortexMark Pipeline",
       "properties": {
         "cortexmark.pythonPath": {
           "type": "string",

@@ -1,7 +1,7 @@
 
-# CortexMark — VS Code Extension
+# CortexMark Pipeline — VS Code Extension
 
-A VS Code extension for running the CortexMark PDF → Markdown pipeline from inside the editor.
+A VS Code extension for running the CortexMark PDF → Markdown pipeline from inside the editor under the marketplace display name **CortexMark Pipeline**.
 
 It provides:
 
@@ -20,8 +20,8 @@ It provides:
 
 1. Open VS Code
 2. Open the **Extensions** view
-3. Search for **CortexMark**
-4. Install the published extension ID: **`PhiniteLab.cortexmark-vscode`**
+3. Search for **CortexMark Pipeline**
+4. Install the published extension ID: **`PhiniteLab.cortexmark-pipeline-vscode`**
 
 ### Install from VSIX
 

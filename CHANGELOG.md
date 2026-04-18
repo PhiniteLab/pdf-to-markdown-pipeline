@@ -10,7 +10,7 @@ The project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html
 - Python package rename: `phinitelab-pdf-pipeline` → `cortexmark`
 - Python module rename: `phinitelab_pdf_pipeline` → `cortexmark`
 - CLI rename: `phinitelab-pdf-pipeline` → `cortexmark`
-- VS Code extension rename: `phinitelab-pdf-pipeline-vscode` / publisher `phinitelab` → `cortexmark-vscode` / publisher `cortexmark`
+- VS Code extension rename: `phinitelab-pdf-pipeline-vscode` / publisher `phinitelab` → `cortexmark-pipeline-vscode` / publisher `PhiniteLab` (marketplace display name: `CortexMark Pipeline`)
 - Workspace session metadata now lives in `.cortexmark/`, with read/copy migration from `.phinitelab-pdf-pipeline/`
 
 ### Migration Notes
