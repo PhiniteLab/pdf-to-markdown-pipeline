@@ -1,4 +1,4 @@
-.PHONY: all convert clean chunk render analyze validate benchmark-reference lint format typecheck test docker-build clean-outputs help
+.PHONY: all convert clean chunk render analyze validate benchmark-reference lint format typecheck test docker-build clean-outputs clean-local-artifacts help
 
 PYTHON ?= $(shell if [ -x .venv/bin/python ]; then printf %s .venv/bin/python; elif command -v python3 >/dev/null 2>&1; then command -v python3; else command -v python; fi)
 CONFIG ?= configs/pipeline.yaml
@@ -50,3 +50,9 @@ docker-build: ## Build Docker image
 
 clean-outputs: ## Remove all generated outputs (use with caution)
 	$(PYTHON) -c "from shutil import rmtree; from cortexmark.common import load_config, resolve_configured_path, resolve_manifest_path; cfg = load_config(); [rmtree(target, ignore_errors=True) for target in (resolve_configured_path(cfg, 'output_raw_md', 'outputs/raw_md'), resolve_configured_path(cfg, 'output_cleaned_md', 'outputs/cleaned_md'), resolve_configured_path(cfg, 'output_chunks', 'outputs/chunks'), resolve_configured_path(cfg, 'output_quality', 'outputs/quality'), resolve_configured_path(cfg, 'output_semantic_chunks', 'outputs/semantic_chunks'))]; manifest = resolve_manifest_path(cfg); manifest.exists() and manifest.unlink()"
+
+clean-local-artifacts: ## Remove local caches, build artifacts, docs site output, and extension build artifacts
+	rm -rf .pytest_cache .ruff_cache .mypy_cache .cortexmark cortexmark.egg-info dist site coverage.xml configs/outputs
+	find cortexmark tests -type d -name __pycache__ -prune -exec rm -rf {} +
+	rm -rf vscode-extension/out vscode-extension/node_modules vscode-extension/*.vsix
+	[ ! -d sessions ] || rmdir sessions 2>/dev/null || true

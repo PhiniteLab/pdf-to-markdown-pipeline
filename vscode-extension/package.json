@@ -16,8 +16,17 @@
   "engines": {
     "vscode": "^1.92.0"
   },
-  "categories": ["Other"],
-  "keywords": ["pdf", "markdown", "pipeline", "research", "quality", "analysis"],
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "pdf",
+    "markdown",
+    "pipeline",
+    "research",
+    "quality",
+    "analysis"
+  ],
   "activationEvents": [],
   "main": "./out/extension.js",
   "contributes": {
@@ -49,62 +58,266 @@
       ]
     },
     "commands": [
-      { "command": "cortexmark.refresh",             "title": "Refresh",                   "icon": "$(refresh)" },
-      { "command": "cortexmark.checkEnvironment",    "title": "Environment Doctor",          "icon": "$(server-environment)" },
-      { "command": "cortexmark.setupWizard",         "title": "Setup Wizard",               "icon": "$(tools)" },
-      { "command": "cortexmark.newSession",           "title": "New Session",               "icon": "$(add)" },
-      { "command": "cortexmark.deleteSession",        "title": "Delete Session",            "icon": "$(trash)" },
-      { "command": "cortexmark.setActiveSession",     "title": "Set as Active",             "icon": "$(star-empty)" },
-      { "command": "cortexmark.processSession",       "title": "Process Active Session",    "icon": "$(run-all)" },
-      { "command": "cortexmark.addPdf",               "title": "Add PDFs...",               "icon": "$(file-add)" },
-      { "command": "cortexmark.addFolder",            "title": "Add PDF Folder...",         "icon": "$(folder-add)" },
-      { "command": "cortexmark.openSessionInputFolder", "title": "Open Session Input Folder", "icon": "$(folder-opened)" },
-      { "command": "cortexmark.runFull",              "title": "Run Full Pipeline",         "icon": "$(play-circle)" },
-      { "command": "cortexmark.runConvert",           "title": "Convert Only",              "icon": "$(play)" },
-      { "command": "cortexmark.runQA",                "title": "Generate QA Report",        "icon": "$(graph)" },
-      { "command": "cortexmark.runDiff",              "title": "Compare Two Folders",       "icon": "$(diff)" },
-      { "command": "cortexmark.openConfig",           "title": "Open Config",               "icon": "$(gear)" },
-      { "command": "cortexmark.openOutput",           "title": "Reveal in Explorer",        "icon": "$(folder-opened)" },
-      { "command": "cortexmark.deleteOutput",         "title": "Delete",                   "icon": "$(trash)" },
-      { "command": "cortexmark.runCrossRef",          "title": "Run Cross-Reference Analysis", "icon": "$(references)" },
-      { "command": "cortexmark.runAlgorithm",         "title": "Run Algorithm Extraction",     "icon": "$(code)" },
-      { "command": "cortexmark.runNotation",          "title": "Run Notation Glossary",        "icon": "$(symbol-variable)" },
-      { "command": "cortexmark.runSemanticChunk",     "title": "Run Semantic Chunking",        "icon": "$(split-horizontal)" },
-      { "command": "cortexmark.runAllAnalysis",       "title": "Run All Analyses",             "icon": "$(run-all)" },
-      { "command": "cortexmark.previewFile",          "title": "Preview Markdown",             "icon": "$(open-preview)" },
-      { "command": "cortexmark.refreshPreview",       "title": "Refresh Preview",              "icon": "$(refresh)" },
-      { "command": "cortexmark.refreshDashboard",     "title": "Refresh Dashboard",            "icon": "$(refresh)" }
+      {
+        "command": "cortexmark.refresh",
+        "title": "Refresh",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "cortexmark.checkEnvironment",
+        "title": "Environment Doctor",
+        "icon": "$(server-environment)"
+      },
+      {
+        "command": "cortexmark.setupWizard",
+        "title": "Setup Wizard",
+        "icon": "$(tools)"
+      },
+      {
+        "command": "cortexmark.newSession",
+        "title": "New Session",
+        "icon": "$(add)"
+      },
+      {
+        "command": "cortexmark.deleteSession",
+        "title": "Delete Session",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "cortexmark.setActiveSession",
+        "title": "Set as Active",
+        "icon": "$(star-empty)"
+      },
+      {
+        "command": "cortexmark.processSession",
+        "title": "Process Active Session",
+        "icon": "$(run-all)"
+      },
+      {
+        "command": "cortexmark.addPdf",
+        "title": "Add PDFs...",
+        "icon": "$(file-add)"
+      },
+      {
+        "command": "cortexmark.addFolder",
+        "title": "Add PDF Folder...",
+        "icon": "$(folder-add)"
+      },
+      {
+        "command": "cortexmark.openSessionInputFolder",
+        "title": "Open Session Input Folder",
+        "icon": "$(folder-opened)"
+      },
+      {
+        "command": "cortexmark.runFull",
+        "title": "Run Full Pipeline",
+        "icon": "$(play-circle)"
+      },
+      {
+        "command": "cortexmark.runConvert",
+        "title": "Convert Only",
+        "icon": "$(play)"
+      },
+      {
+        "command": "cortexmark.runQA",
+        "title": "Generate QA Report",
+        "icon": "$(graph)"
+      },
+      {
+        "command": "cortexmark.runDiff",
+        "title": "Compare Two Folders",
+        "icon": "$(diff)"
+      },
+      {
+        "command": "cortexmark.openConfig",
+        "title": "Open Config",
+        "icon": "$(gear)"
+      },
+      {
+        "command": "cortexmark.openOutput",
+        "title": "Reveal in Explorer",
+        "icon": "$(folder-opened)"
+      },
+      {
+        "command": "cortexmark.deleteOutput",
+        "title": "Delete",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "cortexmark.runCrossRef",
+        "title": "Run Cross-Reference Analysis",
+        "icon": "$(references)"
+      },
+      {
+        "command": "cortexmark.runAlgorithm",
+        "title": "Run Algorithm Extraction",
+        "icon": "$(code)"
+      },
+      {
+        "command": "cortexmark.runNotation",
+        "title": "Run Notation Glossary",
+        "icon": "$(symbol-variable)"
+      },
+      {
+        "command": "cortexmark.runSemanticChunk",
+        "title": "Run Semantic Chunking",
+        "icon": "$(split-horizontal)"
+      },
+      {
+        "command": "cortexmark.runAllAnalysis",
+        "title": "Run All Analyses",
+        "icon": "$(run-all)"
+      },
+      {
+        "command": "cortexmark.previewFile",
+        "title": "Preview Markdown",
+        "icon": "$(open-preview)"
+      },
+      {
+        "command": "cortexmark.refreshPreview",
+        "title": "Refresh Preview",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "cortexmark.refreshDashboard",
+        "title": "Refresh Dashboard",
+        "icon": "$(refresh)"
+      }
     ],
     "menus": {
       "view/title": [
-        { "command": "cortexmark.refresh",       "when": "view == cortexmarkPanel", "group": "navigation" },
-        { "command": "cortexmark.checkEnvironment", "when": "view == cortexmarkPanel", "group": "navigation" },
-        { "command": "cortexmark.setupWizard",    "when": "view == cortexmarkPanel", "group": "navigation" },
-        { "command": "cortexmark.newSession",    "when": "view == cortexmarkPanel", "group": "navigation" },
-        { "command": "cortexmark.addPdf",        "when": "view == cortexmarkPanel", "group": "navigation" },
-        { "command": "cortexmark.addFolder",     "when": "view == cortexmarkPanel", "group": "navigation" },
-        { "command": "cortexmark.refreshDashboard", "when": "view == cortexmarkDashboard", "group": "navigation" }
+        {
+          "command": "cortexmark.refresh",
+          "when": "view == cortexmarkPanel",
+          "group": "navigation"
+        },
+        {
+          "command": "cortexmark.checkEnvironment",
+          "when": "view == cortexmarkPanel",
+          "group": "navigation"
+        },
+        {
+          "command": "cortexmark.setupWizard",
+          "when": "view == cortexmarkPanel",
+          "group": "navigation"
+        },
+        {
+          "command": "cortexmark.newSession",
+          "when": "view == cortexmarkPanel",
+          "group": "navigation"
+        },
+        {
+          "command": "cortexmark.addPdf",
+          "when": "view == cortexmarkPanel",
+          "group": "navigation"
+        },
+        {
+          "command": "cortexmark.addFolder",
+          "when": "view == cortexmarkPanel",
+          "group": "navigation"
+        },
+        {
+          "command": "cortexmark.refreshDashboard",
+          "when": "view == cortexmarkDashboard",
+          "group": "navigation"
+        }
       ],
       "view/item/context": [
-        { "command": "cortexmark.processSession",   "when": "view == cortexmarkPanel && viewItem == session.active", "group": "inline" },
-        { "command": "cortexmark.setActiveSession",  "when": "view == cortexmarkPanel && viewItem == session",        "group": "inline" },
-        { "command": "cortexmark.deleteSession",     "when": "view == cortexmarkPanel && viewItem =~ /^session/",     "group": "inline" },
-        { "command": "cortexmark.openSessionInputFolder", "when": "view == cortexmarkPanel && viewItem =~ /^session/", "group": "inline" },
-        { "command": "cortexmark.runFull",           "when": "view == cortexmarkPanel && viewItem == action.runFull",    "group": "inline" },
-        { "command": "cortexmark.runConvert",        "when": "view == cortexmarkPanel && viewItem == action.runConvert", "group": "inline" },
-        { "command": "cortexmark.runQA",             "when": "view == cortexmarkPanel && viewItem == action.runQA",      "group": "inline" },
-        { "command": "cortexmark.runDiff",           "when": "view == cortexmarkPanel && viewItem == action.runDiff",    "group": "inline" },
-        { "command": "cortexmark.openConfig",        "when": "view == cortexmarkPanel && viewItem == action.openConfig", "group": "inline" },
-        { "command": "cortexmark.runCrossRef",       "when": "view == cortexmarkPanel && viewItem == analysis.crossRef",      "group": "inline" },
-        { "command": "cortexmark.runAlgorithm",      "when": "view == cortexmarkPanel && viewItem == analysis.algorithm",     "group": "inline" },
-        { "command": "cortexmark.runNotation",       "when": "view == cortexmarkPanel && viewItem == analysis.notation",      "group": "inline" },
-        { "command": "cortexmark.runSemanticChunk",  "when": "view == cortexmarkPanel && viewItem == analysis.semanticChunk", "group": "inline" },
-        { "command": "cortexmark.runAllAnalysis",    "when": "view == cortexmarkPanel && viewItem == analysis.runAll",        "group": "inline" },
-        { "command": "cortexmark.previewFile",       "when": "view == cortexmarkPanel && viewItem == output.file",            "group": "inline" },
-        { "command": "cortexmark.openOutput",        "when": "view == cortexmarkPanel && viewItem == output.folder",     "group": "inline" },
-        { "command": "cortexmark.deleteOutput",       "when": "view == cortexmarkPanel && viewItem == output.dir",        "group": "inline" },
-        { "command": "cortexmark.deleteOutput",       "when": "view == cortexmarkPanel && viewItem == output.file",       "group": "inline" },
-        { "command": "cortexmark.openSessionInputFolder", "when": "view == cortexmarkPanel && viewItem == session.inputFolder", "group": "inline" }
+        {
+          "command": "cortexmark.processSession",
+          "when": "view == cortexmarkPanel && viewItem == session.active",
+          "group": "inline"
+        },
+        {
+          "command": "cortexmark.setActiveSession",
+          "when": "view == cortexmarkPanel && viewItem == session",
+          "group": "inline"
+        },
+        {
+          "command": "cortexmark.deleteSession",
+          "when": "view == cortexmarkPanel && viewItem =~ /^session/",
+          "group": "inline"
+        },
+        {
+          "command": "cortexmark.openSessionInputFolder",
+          "when": "view == cortexmarkPanel && viewItem =~ /^session/",
+          "group": "inline"
+        },
+        {
+          "command": "cortexmark.runFull",
+          "when": "view == cortexmarkPanel && viewItem == action.runFull",
+          "group": "inline"
+        },
+        {
+          "command": "cortexmark.runConvert",
+          "when": "view == cortexmarkPanel && viewItem == action.runConvert",
+          "group": "inline"
+        },
+        {
+          "command": "cortexmark.runQA",
+          "when": "view == cortexmarkPanel && viewItem == action.runQA",
+          "group": "inline"
+        },
+        {
+          "command": "cortexmark.runDiff",
+          "when": "view == cortexmarkPanel && viewItem == action.runDiff",
+          "group": "inline"
+        },
+        {
+          "command": "cortexmark.openConfig",
+          "when": "view == cortexmarkPanel && viewItem == action.openConfig",
+          "group": "inline"
+        },
+        {
+          "command": "cortexmark.runCrossRef",
+          "when": "view == cortexmarkPanel && viewItem == analysis.crossRef",
+          "group": "inline"
+        },
+        {
+          "command": "cortexmark.runAlgorithm",
+          "when": "view == cortexmarkPanel && viewItem == analysis.algorithm",
+          "group": "inline"
+        },
+        {
+          "command": "cortexmark.runNotation",
+          "when": "view == cortexmarkPanel && viewItem == analysis.notation",
+          "group": "inline"
+        },
+        {
+          "command": "cortexmark.runSemanticChunk",
+          "when": "view == cortexmarkPanel && viewItem == analysis.semanticChunk",
+          "group": "inline"
+        },
+        {
+          "command": "cortexmark.runAllAnalysis",
+          "when": "view == cortexmarkPanel && viewItem == analysis.runAll",
+          "group": "inline"
+        },
+        {
+          "command": "cortexmark.previewFile",
+          "when": "view == cortexmarkPanel && viewItem == output.file",
+          "group": "inline"
+        },
+        {
+          "command": "cortexmark.openOutput",
+          "when": "view == cortexmarkPanel && viewItem == output.folder",
+          "group": "inline"
+        },
+        {
+          "command": "cortexmark.deleteOutput",
+          "when": "view == cortexmarkPanel && viewItem == output.dir",
+          "group": "inline"
+        },
+        {
+          "command": "cortexmark.deleteOutput",
+          "when": "view == cortexmarkPanel && viewItem == output.file",
+          "group": "inline"
+        },
+        {
+          "command": "cortexmark.openSessionInputFolder",
+          "when": "view == cortexmarkPanel && viewItem == session.inputFolder",
+          "group": "inline"
+        }
       ]
     },
     "configuration": {
@@ -132,13 +345,17 @@
         },
         "cortexmark.sessionStorePath": {
           "type": "string",
-          "default": "",
+          "default": ".cortexmark/sessions.json",
           "description": "Optional override for the session store JSON path. Relative values are resolved from the workspace root."
         },
         "cortexmark.defaultEngine": {
           "type": "string",
           "default": "dual",
-          "enum": ["docling", "markitdown", "dual"],
+          "enum": [
+            "docling",
+            "markitdown",
+            "dual"
+          ],
           "description": "Default engine for convert/full pipeline commands."
         },
         "cortexmark.autoProcess": {

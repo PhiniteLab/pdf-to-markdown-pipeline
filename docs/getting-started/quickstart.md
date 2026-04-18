@@ -1,9 +1,12 @@
-
 # Quick Start
 
-This page shows the shortest path from a fresh install to usable outputs.
+This page shows the shortest **actually runnable** path from a fresh install to usable outputs.
 
-## 1) Install CortexMark
+## Option A — Fresh workspace + pip install
+
+If you installed CortexMark from PyPI, start by creating a small working directory with your own config file.
+
+### 1) Install CortexMark
 
 For a lightweight first run:
 
@@ -18,23 +21,49 @@ pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
 pip install "cortexmark[docling]"
 ```
 
-## 2) Prepare input files
-
-The full pipeline starts from **PDF files**.
-
-You can point CortexMark at:
-
-- a single `.pdf`
-- or a directory containing `.pdf` files
-
-Examples:
+### 2) Create a working directory
 
 ```bash
-cortexmark --input path/to/paper.pdf
-cortexmark --input path/to/folder-of-pdfs
+mkdir -p my-cortexmark-project/configs
+mkdir -p my-cortexmark-project/data/raw
+cd my-cortexmark-project
 ```
 
-## 3) Run the default pipeline
+### 3) Create `configs/pipeline.yaml`
+
+Save this minimal config as `configs/pipeline.yaml`:
+
+```yaml
+source_id: default
+
+paths:
+  data_raw: data/raw
+  output_raw_md: outputs/raw_md
+  output_cleaned_md: outputs/cleaned_md
+  output_chunks: outputs/chunks
+  output_quality: outputs/quality
+  output_semantic_chunks: outputs/semantic_chunks
+
+convert:
+  engine: dual
+
+idempotency:
+  enabled: true
+  manifest_file: outputs/.manifest.json
+```
+
+### 4) Add input PDFs
+
+Put one or more PDFs under `data/raw/`, for example:
+
+```text
+my-cortexmark-project/
+├── configs/pipeline.yaml
+└── data/raw/
+    └── paper.pdf
+```
+
+### 5) Run the default pipeline
 
 ```bash
 cortexmark --config configs/pipeline.yaml --input data/raw
@@ -46,9 +75,9 @@ This runs the default stage chain:
 convert -> clean -> chunk -> render
 ```
 
-## 4) Inspect the outputs
+### 6) Inspect the outputs
 
-By default, look here:
+Look here:
 
 - `outputs/raw_md/`
 - `outputs/cleaned_md/`
@@ -59,10 +88,10 @@ If you enable additional stages, also inspect:
 - `outputs/semantic_chunks/`
 - `outputs/quality/`
 
-## 5) Run optional analysis and validation stages
+### 7) Run optional analysis and validation
 
 ```bash
-cortexmark --stages analyze validate --input data/raw
+cortexmark --config configs/pipeline.yaml --stages analyze validate --input data/raw
 ```
 
 This produces artifacts such as:
@@ -74,7 +103,7 @@ This produces artifacts such as:
 - scientific QA reports
 - citation context reports
 
-## 6) Use a named session (recommended for repeated work)
+### 8) Use a named session (recommended for repeated work)
 
 ```bash
 cortexmark --config configs/pipeline.yaml --input data/raw --session-name experiment-1
@@ -90,23 +119,19 @@ sessions/experiment-1/
 
 That same layout is used by the VS Code extension.
 
-## Common commands
+## Option B — Cloned repository workflow
+
+If you cloned the repository, you can use the checked-in config and Makefile helpers directly:
 
 ```bash
-# Choose an engine
-cortexmark --engine markitdown --input data/raw
-cortexmark --engine docling --input data/raw
-cortexmark --engine dual --input data/raw
-
-# Run only specific stages
-cortexmark --stages convert clean
-cortexmark --stages analyze validate
-
-# Force reprocessing
-cortexmark --no-manifest
+git clone https://github.com/PhiniteLab/pdf-to-markdown-pipeline.git
+cd pdf-to-markdown-pipeline
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev]"
 ```
 
-## Makefile shortcuts
+Then use:
 
 ```bash
 make all
@@ -117,14 +142,30 @@ make test
 make lint
 ```
 
+## Common commands
+
+```bash
+# Choose an engine
+cortexmark --config configs/pipeline.yaml --engine markitdown --input data/raw
+cortexmark --config configs/pipeline.yaml --engine docling --input data/raw
+cortexmark --config configs/pipeline.yaml --engine dual --input data/raw
+
+# Run only specific stages
+cortexmark --config configs/pipeline.yaml --stages convert clean --input data/raw
+cortexmark --config configs/pipeline.yaml --stages analyze validate --input data/raw
+
+# Force reprocessing
+cortexmark --config configs/pipeline.yaml --no-manifest --input data/raw
+```
+
 ## Module-level examples
 
 ```bash
-python -m cortexmark.convert --input data/raw/paper.pdf --engine docling
-python -m cortexmark.clean --input outputs/raw_md --output-dir outputs/cleaned_md
-python -m cortexmark.chunk --input outputs/cleaned_md --output-dir outputs/chunks
-python -m cortexmark.cross_ref --input outputs/cleaned_md
-python -m cortexmark.rag_export --input outputs/chunks
+python -m cortexmark.convert --config configs/pipeline.yaml --input data/raw/paper.pdf --engine docling
+python -m cortexmark.clean --config configs/pipeline.yaml --input outputs/raw_md --output-dir outputs/cleaned_md
+python -m cortexmark.chunk --config configs/pipeline.yaml --input outputs/cleaned_md --output-dir outputs/chunks
+python -m cortexmark.cross_ref --config configs/pipeline.yaml --input outputs/cleaned_md
+python -m cortexmark.rag_export --config configs/pipeline.yaml --input outputs/chunks
 ```
 
 ## Next steps

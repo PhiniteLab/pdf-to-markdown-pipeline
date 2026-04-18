@@ -220,6 +220,11 @@ With `--session-name`, all of the above are isolated under `sessions/<session-na
 
 ## Basic usage
 
+> **Important:** the published `cortexmark` package ships the CLI and Python modules, but it does **not** ship the repository's example `configs/pipeline.yaml`.
+>
+> If you are working from a cloned repository, you can use the checked-in `configs/pipeline.yaml`.
+> If you installed from PyPI into a fresh working directory, create your own config file first as shown in `docs/getting-started/quickstart.md`.
+
 ### CLI command
 
 After installation, use the `cortexmark` command:
