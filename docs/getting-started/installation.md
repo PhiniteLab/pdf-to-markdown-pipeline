@@ -1,16 +1,110 @@
 # Installation
 
-## Requirements
+This page explains:
 
-- Python 3.11 or later
-- `poppler-utils` and `tesseract-ocr` (for PDF extraction)
+1. how to install CortexMark,
+2. which dependencies are optional,
+3. which tools are actually used at runtime.
 
-Install system dependencies:
+## Quick recommendation
+
+If you are starting fresh, install the lightweight package first:
+
+```bash
+pip install cortexmark
+```
+
+That gives you:
+
+- the `cortexmark` CLI,
+- the default `markitdown` conversion path,
+- the rest of the Markdown cleaning / chunking / analysis / export pipeline.
+
+If you later need stronger layout-aware PDF parsing, move to the Docling-enabled install.
+
+## Installation matrix
+
+| Scenario | Command | Best for |
+|---|---|---|
+| Lightweight CPU install | `pip install cortexmark` | First-time users, simple PDFs, CPU-only hosts |
+| Layout-aware CPU install | `pip install "cortexmark[docling]"` | Complex academic PDFs, equations, stronger structure recovery |
+| GPU-oriented install | `pip install "cortexmark[gpu]"` | CUDA-capable systems using Docling workloads |
+| Developer install | `pip install -e ".[dev]"` | Local development, testing, linting, packaging |
+| Docs build install | `pip install -e ".[docs]"` | Building the MkDocs site locally |
+
+## Core requirements
+
+- **Python 3.11+**
+- `pip`
+- local PDF files to process
+
+CortexMark does **not** require:
+
+- an LLM,
+- an API key,
+- a cloud service.
+
+## Optional components
+
+| Component | When you need it | Required? |
+|---|---|---|
+| `docling` | `docling` / `dual` engine workflows | Optional |
+| PyTorch | Docling runtime | Optional |
+| Poppler | Some PDF and OCR-adjacent environments | Optional |
+| Tesseract OCR | Scanned or image-heavy PDFs | Optional |
+| Docker | Containerized workflow | Optional |
+| VS Code | Extension-based UI workflow | Optional |
+
+## Recommended install commands
+
+### 1) Lightweight install
+
+```bash
+pip install cortexmark
+```
+
+Default runtime dependencies include:
+
+- `markitdown[pdf]`
+- `PyYAML`
+
+This is enough for:
+
+- `--engine markitdown`
+- downstream Markdown analysis/export modules
+
+### 2) Docling on CPU
+
+On CPU-only systems, preinstall CPU PyTorch first:
+
+```bash
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+pip install "cortexmark[docling]"
+```
+
+This is the recommended setup for:
+
+- `--engine docling`
+- `--engine dual`
+- layout-aware academic PDFs
+
+### 3) GPU-oriented install
+
+```bash
+pip install "cortexmark[gpu]"
+```
+
+If you need a specific CUDA build, preinstall the matching PyTorch variant first.
+
+## Optional system packages
+
+Install these only when your environment or documents benefit from them.
 
 === "Ubuntu / Debian"
 
     ```bash
-    sudo apt-get update && sudo apt-get install -y poppler-utils tesseract-ocr
+    sudo apt-get update
+    sudo apt-get install -y poppler-utils tesseract-ocr
     ```
 
 === "macOS"
@@ -22,74 +116,45 @@ Install system dependencies:
 === "Windows (WSL)"
 
     ```bash
-    sudo apt-get update && sudo apt-get install -y poppler-utils tesseract-ocr
+    sudo apt-get update
+    sudo apt-get install -y poppler-utils tesseract-ocr
     ```
 
-## Install with pip (lightweight, CPU-only)
+Use them when:
 
-```bash
-pip install -e .
-```
-
-This installs the MarkItDown engine only.
-
-## Install with Docling engine (CPU)
-
-```bash
-pip install -e ".[docling]"
-```
-
-Docling provides deep layout analysis with better accuracy for complex PDFs.
-
-## Install with GPU support
-
-```bash
-pip install -e ".[gpu]"
-```
-
-Requires CUDA-compatible GPU and `torch` with CUDA.
-
-## Which installation should I choose?
-
-| Setup | Best for | Size |
-|-------|----------|------|
-| `pip install -e .` | Quick testing, simple PDFs | ~50 MB |
-| `pip install -e ".[docling]"` | Production, complex layouts | ~2 GB |
-| `pip install -e ".[gpu]"` | Large batches, GPU available | ~4 GB |
+- your PDFs are scanned or image-heavy,
+- you rely on OCR-oriented workflows,
+- or environment diagnostics specifically ask for them.
 
 ## Developer installation
 
 ```bash
 git clone https://github.com/PhiniteLab/pdf-to-markdown-pipeline.git
 cd pdf-to-markdown-pipeline
-python -m venv .venv
+python3 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
-pre-commit install
-pre-commit install --hook-type commit-msg
 ```
 
-## Portable path overrides
-
-CortexMark can be relocated to another user account, machine, workspace path, CI runner, or container without code edits.
-Use CLI arguments first, then environment variables or a `.env` file, and fall back to `configs/pipeline.yaml` only when you want a checked-in project default.
-
-Common overrides:
+Optional docs tooling:
 
 ```bash
-cp .env.example .env
-# edit values as needed
-export OUTPUT_DIR=/tmp/cortexmark-output
-export CACHE_DIR=/tmp/cortexmark-cache
+pip install -e ".[docs]"
 ```
 
-Useful variables: `PROJECT_ROOT`, `DATA_DIR`, `OUTPUT_DIR`, `REPORT_DIR`, `LOG_DIR`, `CHECKPOINT_DIR`, `CACHE_DIR`, `MODEL_DIR`, `EXTERNAL_BIN_DIR`.
+## What gets used at runtime?
 
-## Docker
+| Tool / package | What CortexMark does with it |
+|---|---|
+| `cortexmark` | Installs the package and CLI |
+| `markitdown[pdf]` | Runs PDF extraction in `markitdown` mode and supports text recovery in `dual` mode |
+| `docling` | Runs layout-aware PDF parsing in `docling` mode and structural parsing in `dual` mode |
+| `PyYAML` | Loads `configs/pipeline.yaml` |
+| PyTorch | Supports Docling execution |
+| Poppler / Tesseract | Only used when document/environment needs them |
 
-```bash
-docker build -t pdf-pipeline .
-docker run --rm -v "$PWD/data:/app/data" -v "$PWD/outputs:/app/outputs" pdf-pipeline
-```
+## Next steps
 
-See the [Docker guide](../guide/docker.md) for details.
+- Continue to **[Quick Start](quickstart.md)**
+- Review **[Requirements, Inputs, and Outputs](../guide/inputs-and-outputs.md)**
+- If you prefer an editor workflow, see **[VS Code Setup](../vscode/setup.md)**

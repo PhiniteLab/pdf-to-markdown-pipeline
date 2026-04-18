@@ -26,7 +26,7 @@ A multi-stage pipeline that converts PDF documents into structured Markdown, cle
 - **Plugin architecture**: custom pipeline hooks (`pre_convert`, `post_convert`, `pre_clean`, `post_clean`, `pre_chunk`, `post_chunk`, `post_pipeline`) via file-based discovery
 - **Template rendering**: deterministic source profile and section template population
 - **Docker support**: containerized execution with minimal setup
-- **VS Code extension**: session management, Markdown preview panel, quality dashboard, analysis module integration, progress visualization, and chat panel with 22 commands
+- **VS Code extension**: session management, Markdown preview panel, quality dashboard, analysis module integration, progress visualization, and a chat-oriented control surface
 - **Validated by an extensive pytest suite** with a minimum coverage threshold of 70%
 
 ## Dual-Engine Approach
@@ -55,67 +55,97 @@ Notes:
 - The VS Code extension now uses a new extension identity; existing users should install the new `cortexmark-vscode` package manually.
 - Existing workspace session data is read from the legacy `.phinitelab-pdf-pipeline/sessions.json` path and copied into `.cortexmark/sessions.json` automatically when needed.
 
+
 ## Installation
 
-### Requirements
+### Recommended installation paths
 
-- Python 3.11 or newer
-- Optional: Poppler and Tesseract for OCR and advanced PDF handling
+Choose the smallest installation that matches your workload.
 
-### Install with pip (lightweight, CPU-only)
+| Scenario | Command | What you get |
+|---|---|---|
+| Lightweight CPU setup | `pip install cortexmark` | Installs the CLI plus the `markitdown` engine |
+| Layout-aware CPU setup | `pip install "cortexmark[docling]"` | Adds Docling for `docling` and `dual` modes |
+| GPU-oriented setup | `pip install "cortexmark[gpu]"` | Same Docling-enabled workflow, intended for CUDA-capable hosts |
+| Developer setup | `pip install -e ".[dev]"` | Runtime + tests + lint/type/build tooling |
+| Docs build setup | `pip install -e ".[docs]"` | MkDocs + mkdocstrings for local docs builds |
 
-The default installation is lightweight and does **not** include Docling, PyTorch,
-or any GPU/CUDA packages. It provides the `markitdown` conversion engine:
+### Requirements and dependency matrix
+
+| Item | Needed for | Required? | Notes |
+|---|---|---|---|
+| Python 3.11+ | All installs | Yes | Supported baseline runtime |
+| `cortexmark` package | CLI + modules | Yes | Provides the `cortexmark` command |
+| `markitdown[pdf]` | `markitdown` engine and `dual` gap-fill | Installed by default | Lightweight CPU-friendly path |
+| `docling` | `docling` engine and `dual` structural parsing | Optional | Install via `cortexmark[docling]` or `cortexmark[gpu]` |
+| PyTorch | Docling runtime | Optional | Pre-install CPU PyTorch on CPU-only hosts to avoid large CUDA downloads |
+| Poppler | Some PDF/OCR-adjacent workflows | Optional | Helpful, not mandatory for every document |
+| Tesseract OCR | Scanned/image-heavy PDFs and OCR-style workflows | Optional | Only useful when OCR is needed |
+| Docker | Containerized execution | Optional | Good for reproducible setups |
+
+> CortexMark does **not** require an API key, LLM, or cloud service for its core pipeline.
+
+### Install with pip
 
 ```bash
-pip install git+https://github.com/PhiniteLab/pdf-to-markdown-pipeline.git
+pip install cortexmark
 ```
 
-This is sufficient for running the pipeline with `--engine markitdown`.
+This installs the lightweight default runtime declared in `pyproject.toml` and is enough for:
 
-### Install with Docling engine (CPU)
+- `cortexmark --engine markitdown`
+- Markdown cleaning, chunking, export, quality reports, and downstream analysis on produced Markdown
 
-To use the `docling` or `dual` conversion engine on **CPU**, first install
-CPU-only PyTorch, then install the package with the `[docling]` extra:
+### Install with Docling on CPU
 
 ```bash
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
-pip install "cortexmark[docling] @ git+https://github.com/PhiniteLab/pdf-to-markdown-pipeline.git"
+pip install "cortexmark[docling]"
 ```
 
-> **Note:** Pre-installing CPU-only PyTorch prevents pip from downloading the
-> much larger GPU-enabled build (~2 GB+) from PyPI.
+Use this when you want:
+
+- `--engine docling`
+- `--engine dual`
+- stronger layout recovery for complex academic PDFs
 
 ### Install with GPU support
 
-If you have an NVIDIA GPU with CUDA, you can install with GPU support directly:
-
 ```bash
-pip install "cortexmark[gpu] @ git+https://github.com/PhiniteLab/pdf-to-markdown-pipeline.git"
+pip install "cortexmark[gpu]"
 ```
 
-This pulls the default PyTorch from PyPI, which includes CUDA support on Linux.
-To target a specific CUDA version (e.g. CUDA 12.8):
+Or preinstall a specific CUDA-targeted PyTorch build first, then install the extra.
 
-```bash
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
-pip install "cortexmark[gpu] @ git+https://github.com/PhiniteLab/pdf-to-markdown-pipeline.git"
-```
+### System tools
 
-### Which installation should I choose?
+Optional system tools:
 
-| Scenario | Command |
-|----------|---------|
-| Lightweight / markitdown only | `pip install cortexmark` |
-| Docling engine on CPU | Pre-install CPU torch, then `pip install "cortexmark[docling]"` |
-| Docling engine with NVIDIA GPU | `pip install "cortexmark[gpu]"` |
+=== "Ubuntu / Debian"
 
-### WSL / Linux notes
+    ```bash
+    sudo apt-get update
+    sudo apt-get install -y poppler-utils tesseract-ocr
+    ```
 
-- On WSL2 with GPU passthrough, the `[gpu]` extra works if NVIDIA drivers are
-  properly configured on the Windows host.
-- On headless Linux servers without a GPU, always use the CPU installation path
-  to avoid pulling unnecessary CUDA libraries.
+=== "macOS"
+
+    ```bash
+    brew install poppler tesseract
+    ```
+
+=== "Windows (WSL)"
+
+    ```bash
+    sudo apt-get update
+    sudo apt-get install -y poppler-utils tesseract-ocr
+    ```
+
+These tools are **not mandatory for every installation**. They become useful when:
+
+- your PDFs are scanned or image-heavy,
+- your environment doctor asks for them,
+- or your preferred PDF workflow depends on them.
 
 ### Developer installation
 
@@ -124,167 +154,189 @@ git clone https://github.com/PhiniteLab/pdf-to-markdown-pipeline.git
 cd pdf-to-markdown-pipeline
 python3 -m venv .venv
 source .venv/bin/activate
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
 pip install -e ".[dev]"
 ```
 
-This installs the runtime dependencies together with Docling and the development toolchain, including pytest, pytest-cov, Ruff, Pyright, and pre-commit.
-
-## Portable path and environment configuration
-
-CortexMark now resolves runtime paths with a consistent precedence order:
-
-1. **CLI arguments** (`--config`, `--input`, `--output`, `--output-dir`, `--session-name`)
-2. **Environment variables**
-3. **`.env` file** in the project root
-4. **`configs/pipeline.yaml`**
-5. **Repo-relative defaults**
-
-Supported overrides include `PROJECT_ROOT`, `DATA_DIR`, `OUTPUT_DIR`, `REPORT_DIR`, `LOG_DIR`, `CHECKPOINT_DIR`, `CACHE_DIR`, `MODEL_DIR`, `EXTERNAL_BIN_DIR`, plus direct overrides such as `RAW_DATA_DIR`, `OUTPUT_RAW_MD`, `OUTPUT_CLEANED_MD`, `OUTPUT_CHUNKS`, `OUTPUT_SEMANTIC_CHUNKS`, and `MANIFEST_FILE`.
-
-A ready-to-copy template is included at [`.env.example`](.env.example). Relative values in `.env` or config files are resolved safely from the project root or config directory, so the repo can move across machines, users, and working directories without editing code.
-
-### Install with Docker
+For local documentation builds:
 
 ```bash
-docker compose up pipeline        # Run the pipeline
-docker compose --profile test up  # Run the test profile
+pip install -e ".[docs]"
 ```
 
-## Usage
+## What CortexMark processes
+
+### Primary input types
+
+The full pipeline starts from **PDF files**:
+
+- a single `.pdf`
+- or a directory tree containing `.pdf` files
+
+Examples:
+
+```bash
+cortexmark --input path/to/paper.pdf
+cortexmark --input path/to/folder-of-pdfs
+```
+
+### Downstream module input types
+
+After conversion, most modules work on **Markdown files** produced by the pipeline.
+
+| Input type | Used by |
+|---|---|
+| `.pdf` | `convert`, full `cortexmark` pipeline entrypoint |
+| `.md` trees | `clean`, `chunk`, `metadata`, `citations`, `doc_type`, `topics`, `figures`, `rag_export`, `semantic_chunk`, `cross_ref`, `algorithm_extract`, `notation_glossary`, `formula_validate`, `citation_context`, `scientific_qa`, `multi_format`, `ghpages` |
+| `outline` / `syllabus` `.md` or `.txt` helper files | `render_templates` |
+
+### Best-fit document categories
+
+CortexMark is optimized for:
+
+- academic papers
+- lecture notes
+- textbooks and book chapters
+- theses and reports
+- math/theorem-heavy PDFs
+- algorithm/code-heavy technical documents
+- scanned or noisy PDFs where a fallback recovery path helps
+
+## Outputs you will get
+
+By default, CortexMark writes under `outputs/`.
+
+| Output | Typical path | Description |
+|---|---|---|
+| Raw Markdown | `outputs/raw_md/` | First-pass PDF → Markdown conversion |
+| Cleaned Markdown | `outputs/cleaned_md/` | Normalized Markdown with repeated noise reduced |
+| Chunks | `outputs/chunks/` | Section-based chunk files such as `chunk_001_Introduction.md` |
+| Semantic chunks | `outputs/semantic_chunks/` | Theorem/proof/definition-aware chunk artifacts |
+| Quality reports | `outputs/quality/` | QA, citation, formula, cross-ref, notation, and scientific validation reports |
+| Rendered templates | render-specific folders | Source profile and section/task templates |
+| RAG exports | quality/export locations | JSON / JSONL records with chunk IDs and scholarly metadata |
+| Static site exports | GitHub Pages / HTML outputs | HTML pages for browsing processed content |
+
+With `--session-name`, all of the above are isolated under `sessions/<session-name>/...`.
+
+## Basic usage
 
 ### CLI command
 
-After installation, you can use the `cortexmark` command:
+After installation, use the `cortexmark` command:
 
 ```bash
-# Run all stages in order
+# Run the default pipeline
 cortexmark
+
+# Use a specific file or directory
+cortexmark --input path/to/paper.pdf
+cortexmark --input path/to/folder-of-pdfs
+
+# Choose a conversion engine
+cortexmark --engine markitdown
+cortexmark --engine docling
+cortexmark --engine dual
 
 # Run only selected stages
 cortexmark --stages convert clean
+cortexmark --stages analyze validate
 
-# Use a different config file
-cortexmark --config configs/pipeline.yaml
-
-# Select a conversion engine
-cortexmark --engine docling      # Docling only
-cortexmark --engine markitdown   # markitdown only
-cortexmark --engine dual         # combined mode (default)
-
-# Custom input directory or single file
-cortexmark --input path/to/my.pdf
-
-# Session-scoped output directories
-cortexmark --session-name sample-session
-
-# Disable idempotency (force reprocess)
-cortexmark --no-manifest
+# Isolate outputs inside a named session workspace
+cortexmark --session-name experiment-1
 ```
 
-Run `cortexmark --help` to view all available arguments.
+Run `cortexmark --help` to view all arguments.
 
 ### Makefile shortcuts
 
 ```bash
-make help           # List available commands
-make all            # Run the full pipeline
-make convert        # Run only PDF → Markdown conversion
-make clean          # Run only the cleaning stage
-make chunk          # Run only chunk generation
-make render         # Run only template rendering
-make benchmark-reference  # Run reference benchmark + baseline gate
-make test           # Run the test suite
-make lint           # Run Ruff lint and formatting checks
-make format         # Apply automatic formatting fixes
-make clean-outputs  # Remove all generated outputs
+make help                # List available commands
+make all                 # Run convert → clean → chunk → render
+make analyze             # Run semantic/cross-ref/algorithm/notation modules
+make validate            # Run formula/scientific QA/citation validation modules
+make benchmark-reference # Run the reference benchmark gate
+make test                # Run pytest
+make lint                # Run Ruff checks
 ```
 
 ### Run modules directly
 
-Each module can also be executed independently:
-
 ```bash
-# Core stages
-python -m cortexmark.convert --config configs/pipeline.yaml
-python -m cortexmark.clean --config configs/pipeline.yaml
-python -m cortexmark.chunk --config configs/pipeline.yaml
-python -m cortexmark.render_templates --config configs/pipeline.yaml
-
-# Quality & analysis
-python -m cortexmark.qa_pipeline --input outputs/cleaned_md
-python -m cortexmark.ocr_quality --input outputs/raw_md
-python -m cortexmark.formula_score --input outputs/raw_md
-
-# Metadata & classification
-python -m cortexmark.metadata --input outputs/cleaned_md
-python -m cortexmark.citations --input outputs/cleaned_md
-python -m cortexmark.doc_type --input outputs/cleaned_md
-python -m cortexmark.topics --input outputs/cleaned_md
-python -m cortexmark.figures --input outputs/cleaned_md
-
-# Export & output
+python -m cortexmark.convert --input data/raw/paper.pdf --engine docling
+python -m cortexmark.clean --input outputs/raw_md --output-dir outputs/cleaned_md
+python -m cortexmark.chunk --input outputs/cleaned_md --output-dir outputs/chunks
+python -m cortexmark.cross_ref --input outputs/cleaned_md
 python -m cortexmark.rag_export --input outputs/chunks
 python -m cortexmark.reference_eval --benchmarks benchmarks/references --baseline benchmarks/references/baseline.json
-python -m cortexmark.multi_format --input outputs/cleaned_md
-python -m cortexmark.ghpages --input outputs/cleaned_md
-python -m cortexmark.diff --old outputs/v1 --new outputs/v2
-
-# Utilities
-python -m cortexmark.parallel --help
-python -m cortexmark.plugin --help
 ```
 
-## Pipeline Stages
+## Pipeline stages
 
 ```text
 PDF files
    │
    ▼
 ┌──────────┐   raw_md/    ┌───────┐  cleaned_md/  ┌───────┐  chunks/
-│ convert  │ ───────────►  │ clean │ ────────────►  │ chunk │ ──────────► output
-│ (dual)   │               │       │                │       │
-└──────────┘               └───────┘                └───────┘
-                                                        │
-                                                        ▼
-                                                ┌───────────────┐
-                                                │    render      │
-                                                │  (templates)   │
-                                                └───────────────┘
+│ convert  │ ───────────► │ clean │ ────────────► │ chunk │ ──────────► output
+│ (engine) │              │       │               │       │
+└──────────┘              └───────┘               └───────┘
+                                                       │
+                                                       ▼
+                                               ┌───────────────┐
+                                               │    render     │
+                                               │  templates    │
+                                               └───────────────┘
 ```
 
-1. **convert**: PDF → raw Markdown. Docling handles structure (headings, formulas, algorithms), while markitdown fills text gaps via fingerprint-based deduplication.
-2. **clean**: removes page numbers, repeated headers/footers, and broken line wraps. Normalizes heading hierarchy and table blocks.
-3. **chunk**: splits cleaned Markdown into logical sections based on heading levels (default: H1 and H2). Files are numbered (e.g., `chunk_001_Introduction.md`).
-4. **render** *(optional)*: fills source profile and section template files deterministically from outline/content metadata.
-5. **analyze** *(optional)*: runs semantic chunking, cross-reference analysis, algorithm extraction, and notation glossary on cleaned Markdown.
-6. **validate** *(optional)*: runs formula validation, scientific QA checks, and citation context analysis. Produces quality reports under `outputs/quality/` (or `sessions/<session-name>/outputs/quality/` when session-scoped).
+1. **convert** — PDF → raw Markdown using `markitdown`, `docling`, or `dual`
+2. **clean** — normalize repeated headers/footers, line wraps, and noisy formatting
+3. **chunk** — split cleaned Markdown into logical sections
+4. **render** *(optional)* — generate source-profile and section templates
+5. **analyze** *(optional)* — semantic chunking, cross-reference analysis, algorithm extraction, notation glossary
+6. **validate** *(optional)* — formula validation, citation context extraction, scientific QA
 
-### Optional Analysis Modules
+### VS Code extension
 
-| Module | Purpose | Output |
-|--------|---------|--------|
-| `qa_pipeline` | Encoding errors, missing text, broken links, orphan headings, table integrity | Markdown/JSON report with GOLD/SILVER/BRONZE/FAIL badges |
-| `ocr_quality` | Garble count, symbol-soup, repeat artifacts, common-word ratio | A–F confidence grade (0–1 score) |
-| `formula_score` | Recovered equations, incomplete markers, balanced parentheses | Per-file fidelity percentage |
-| `metadata` | Title, authors, abstract, keywords, DOI, journal, year, emails, funding | YAML front-matter, BibTeX, APA7 |
-| `citations` | Author-year and numeric `[1,2,3]` citation patterns | JSON graph, Graphviz DOT |
-| `doc_type` | Document type (paper, textbook, syllabus, slides, report, generic) | Type, confidence (0–1), detection signals |
-| `topics` | Topic distribution (RL, ML, NLP, CV, optimization, etc.) | Per-file and aggregated distribution |
-| `figures` | Markdown `![alt](src)` and HTML `<img>` image references | JSON manifest, Markdown gallery |
-| `diff` | File tree comparison with unified diff | JSON change statistics |
-| `rag_export` | RAG-ready chunks with SHA-256 IDs, token estimates, entity types, formulas, cross-refs | JSONL or JSON array |
-| `semantic_chunk` | Scientific-aware chunking: theorems, proofs, definitions, algorithms, examples | Numbered chunk files with entity metadata |
-| `cross_ref` | Cross-reference resolution: definition sites, mention detection, kind normalization | JSON report with resolution rate, unresolved refs |
-| `algorithm_extract` | Algorithm/pseudocode extraction: fenced blocks, header lines, input/output/step parsing | JSON report with algorithm structures |
-| `notation_glossary` | Mathematical notation glossary: explicit definitions, list/table notations, common LaTeX symbols | JSON report, Markdown glossary table |
-| `formula_validate` | Enhanced LaTeX formula validation: balanced delimiters, environment matching, command validation, complexity scoring | JSON report with per-formula issues |
-| `citation_context` | Citation context extraction: purpose classification (7 categories), co-citation analysis, self-citation detection | JSON report with sentence-level context |
-| `scientific_qa` | Scientific document QA: theorem-proof pairing, definition-before-use, notation consistency, algorithm validity, formula quality gate | JSON report with GOLD/SILVER/BRONZE/FAIL badges |
-| `multi_format` | HTML, plain text, YAML with front-matter | Standalone pages per document |
-| `ghpages` | GitHub Pages-compatible static site | HTML index with document cards |
-| `parallel` | Thread/process pool abstraction with timing | `TaskResult` and `ParallelReport` |
-| `plugin` | Custom hooks via file-based discovery in `plugins/` | Hook-based extensibility |
+The published VS Code extension is **`PhiniteLab.cortexmark-vscode`**.
+
+Install it from the VS Code Extensions view by searching for **CortexMark**, then:
+
+1. install the extension,
+2. install the Python backend separately with `pip install cortexmark` (or `cortexmark[docling]`),
+3. open your workspace,
+4. run **CortexMark: Environment Doctor**,
+5. create a session and add PDFs.
+
+The extension documentation lives in:
+
+- `vscode-extension/README.md`
+- `docs/vscode/setup.md`
+- `docs/vscode/commands.md`
+
+## Portable path and environment configuration
+
+CortexMark resolves runtime paths with a stable precedence order:
+
+1. CLI arguments
+2. environment variables
+3. workspace or project `.env`
+4. `configs/pipeline.yaml`
+5. repo-relative defaults
+
+Useful overrides include `PROJECT_ROOT`, `DATA_DIR`, `OUTPUT_DIR`, `REPORT_DIR`, `LOG_DIR`, `CHECKPOINT_DIR`, `CACHE_DIR`, `MODEL_DIR`, `EXTERNAL_BIN_DIR`, plus direct output overrides such as `RAW_DATA_DIR`, `OUTPUT_RAW_MD`, `OUTPUT_CLEANED_MD`, `OUTPUT_CHUNKS`, `OUTPUT_SEMANTIC_CHUNKS`, and `MANIFEST_FILE`.
+
+A ready-to-copy template is available in [`.env.example`](.env.example).
+
+## Docker
+
+For a containerized workflow:
+
+```bash
+docker compose up pipeline
+docker compose --profile test up
+```
+
+This is useful when you want a reproducible local environment or do not want to manage host dependencies manually.
 
 ## Configuration
 
@@ -373,7 +425,7 @@ pdf-to-markdown-pipeline/
 ├── configs/
 │   └── pipeline.yaml                  # Central configuration file
 ├── tests/
-│   └── test_pipeline_structure.py     # 755 tests (70% minimum coverage)
+│   └── test_pipeline_structure.py     # Extensive pytest suite (70% minimum coverage)
 ├── data/raw/                          # Source PDF files (user-provided)
 │   ├── books/
 │   ├── notes/
@@ -386,13 +438,13 @@ pdf-to-markdown-pipeline/
 │   ├── cleaned_md/                    #   Cleaned and normalized Markdown
 │   └── chunks/                        #   Chunked output sections
 ├── vscode-extension/                  # VS Code extension v0.3.3 (TypeScript)
-│   ├── src/extension.ts               #   Activation, 22 commands, file watchers
+│   ├── src/extension.ts               #   Activation, command registration, file watchers
 │   ├── src/sessionManager.ts          #   Session persistence and events
 │   ├── src/sessionTree.ts             #   Tree data provider (Sessions, Actions, Analysis, Outputs)
 │   ├── src/pipelineRunner.ts          #   Subprocess spawning with progress bar & cancellation
 │   ├── src/previewPanel.ts            #   Markdown preview WebView with QA badges & math
 │   ├── src/dashboardPanel.ts          #   Quality metrics dashboard WebView
-│   ├── src/chatView.ts                #   Chat panel (11 commands, EN + TR)
+│   ├── src/chatView.ts                #   Chat panel with command-driven workflows
 │   └── src/types.ts                   #   TypeScript interfaces
 ├── .github/workflows/ci.yml          # GitHub Actions CI (lint + test + typecheck)
 ├── pyproject.toml                     # Package metadata, dependencies, tool config

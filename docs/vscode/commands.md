@@ -25,6 +25,7 @@ All commands are accessible via the **Command Palette** (`Ctrl+Shift+P`) with th
 |---------|-------|-------------|
 | `cortexmark.addPdf` | Add PDFs… | Select one or more PDFs and register them with the active session by workspace-relative path |
 | `cortexmark.addFolder` | Add PDF Folder… | Select a folder and register all discovered PDFs with the active session by workspace-relative path |
+| `cortexmark.openSessionInputFolder` | Open Session Input Folder | Reveal the active session's staged input folder in the file explorer |
 | `cortexmark.openOutput` | Reveal in Explorer | Open an output folder in the VS Code file explorer |
 | `cortexmark.deleteOutput` | Delete | Remove output files or directories |
 | `cortexmark.openConfig` | Open Config | Open `configs/pipeline.yaml` in the editor |

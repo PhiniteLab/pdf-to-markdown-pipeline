@@ -1,56 +1,102 @@
-# VS Code Extension — Setup
 
-## Installation
+# VS Code Extension — Setup and Usage
 
-### From VSIX (recommended)
+The VS Code extension gives you a session-based UI for the CortexMark pipeline.
 
-1. Build the extension:
+> The extension does **not** bundle the Python backend. You must install `cortexmark` separately in a Python environment the extension can reach.
 
-    ```bash
-    cd vscode-extension
-    npm install && npm run compile
-    npx @vscode/vsce package
-    ```
+## Install the extension
 
-2. Install the `.vsix` file in VS Code:
+### From the Visual Studio Code Marketplace
 
-    ```
-    Ctrl+Shift+P → Extensions: Install from VSIX…
-    ```
+1. Open **Extensions** in VS Code
+2. Search for **CortexMark**
+3. Install the published extension with ID **`PhiniteLab.cortexmark-vscode`**
 
-### From source (development)
+### From a VSIX file
+
+If you prefer an offline/manual install:
+
+1. Open the Command Palette
+2. Run **Extensions: Install from VSIX...**
+3. Select your `.vsix` package
+
+## Install the Python backend
+
+Choose one backend setup:
+
+### Lightweight backend
 
 ```bash
-cd vscode-extension
-npm install
-npm run compile
+pip install cortexmark
 ```
 
-Press **F5** in VS Code to launch an Extension Development Host.
+### Layout-aware backend
+
+```bash
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+pip install "cortexmark[docling]"
+```
 
 ## Requirements
 
-- VS Code **1.92** or later
-- Python 3.11+ with the pipeline installed (`pip install cortexmark` in the target interpreter)
-- `poppler-utils` and `tesseract-ocr` on the system PATH
+| Requirement | Why it matters | Required? |
+|---|---|---|
+| VS Code 1.92+ | Minimum supported editor runtime | Yes |
+| Python 3.11+ | Runs the CortexMark backend | Yes |
+| `cortexmark` Python package | Provides the CLI/modules the extension launches | Yes |
+| `docling` extra | Needed only for `docling` / `dual` workflows | Optional |
+| Poppler / Tesseract | Useful for OCR-heavy or image-heavy PDF workflows | Optional |
+| A workspace folder | The extension resolves config, `.env`, and outputs relative to the workspace | Yes |
 
-> Important: The `.vsix` package only contains the VS Code extension (UI). It does **not** bundle the Python backend package (`cortexmark`). Backend setup must be completed on the target machine.
+## What the extension can process
 
-## Recommended setup workflow
+The extension is designed around **PDF-first workflows**.
 
-1. Open workspace
-2. Run **CortexMark: Environment Doctor** (`cortexmark.checkEnvironment`)
-   to get a diagnostics report in the `CortexMark Environment` output channel.
-3. If checks fail, run **CortexMark: Setup Wizard** (`cortexmark.setupWizard`) for quick remediation actions.
-   The wizard links back to this extension-specific setup guide and only offers one-click backend install when the resolved interpreter is actually runnable.
-4. Keep each processing session scoped to a **single PDF folder root**. The current extension patch blocks mixing PDFs from different directories in one session to avoid ambiguous backend input paths.
+You can:
+
+- add one or more `.pdf` files to a session,
+- add a folder containing PDFs,
+- run the pipeline on that session,
+- preview and inspect the generated Markdown and reports.
+
+The extension also works with the backend outputs generated from those PDFs, including Markdown, chunk files, semantic chunks, and quality reports.
+
+## Recommended workspace layout
+
+A common workspace layout is:
+
+```text
+my-project/
+├── configs/pipeline.yaml
+├── data/raw/
+├── outputs/
+├── sessions/
+└── .env
+```
+
+If you use sessions, the extension stages files under:
+
+```text
+sessions/<session-name>/data/raw/
+sessions/<session-name>/outputs/
+```
+
+## First-run workflow
+
+1. Open your project folder in VS Code
+2. Install the extension
+3. Make sure the backend is installed in the interpreter you want to use
+4. Run **CortexMark: Environment Doctor**
+5. If needed, run **CortexMark: Setup Wizard**
+6. Create a new session
+7. Add PDFs or add a PDF folder
+8. Run **CortexMark: Run Full Pipeline**
+9. Open outputs in the tree view, preview panel, or dashboard
 
 ## Settings
 
-Open **Settings → Extensions → CortexMark** or edit
-`settings.json`:
-
-Path/config resolution follows this precedence:
+Path/config resolution precedence:
 
 1. explicit VS Code setting (`cortexmark.*`)
 2. process environment variables
@@ -58,7 +104,7 @@ Path/config resolution follows this precedence:
 4. `paths:` entries in the selected pipeline config
 5. workspace-relative defaults
 
-Python resolution follows:
+Python resolution precedence:
 
 1. explicit `cortexmark.pythonPath`
 2. `CORTEXMARK_PYTHON_PATH` / `CORTEXMARK_PYTHON` / `PIPELINE_PYTHON`
@@ -68,14 +114,14 @@ Python resolution follows:
 6. `python3` (or `python` on Windows)
 
 | Setting | Default | Description |
-|---------|---------|-------------|
-| `cortexmark.pythonPath` | `"python3"` | Python executable override. Leave empty or as `python3` to keep portable discovery fallbacks enabled. |
-| `cortexmark.configPath` | `"configs/pipeline.yaml"` | Pipeline config file path relative to workspace root. |
-| `cortexmark.dataRoot` | `""` | Optional input root override. Relative values resolve from the workspace root. |
-| `cortexmark.outputRoot` | `""` | Optional shared output root override. When set, extension outputs are derived under this directory. |
-| `cortexmark.sessionStorePath` | `".cortexmark/sessions.json"` | Optional absolute/relative path to extension session metadata JSON. Relative values are resolved with workspace root. |
-| `cortexmark.defaultEngine` | `"dual"` | Default engine: `docling`, `markitdown`, or `dual`. |
-| `cortexmark.autoProcess` | `false` | Automatically run pipeline when new PDFs appear in `data/raw/`. |
+|---|---|---|
+| `cortexmark.pythonPath` | `python3` | Python executable override |
+| `cortexmark.configPath` | `configs/pipeline.yaml` | Pipeline config path relative to the workspace |
+| `cortexmark.dataRoot` | `` | Optional input root override |
+| `cortexmark.outputRoot` | `` | Optional shared output root override |
+| `cortexmark.sessionStorePath` | `.cortexmark/sessions.json` | Session metadata location |
+| `cortexmark.defaultEngine` | `dual` | Default engine |
+| `cortexmark.autoProcess` | `false` | Auto-run when new PDFs are detected |
 
 ### Example `settings.json`
 
@@ -91,47 +137,29 @@ Python resolution follows:
 }
 ```
 
-> On Windows, set `cortexmark.pythonPath` explicitly (for example:
-> `${workspaceFolder}\\.venv\\Scripts\\python.exe`).
+## Outputs you will see in VS Code
 
-### Optional `.env` / environment overrides
+After a run, the extension helps you browse:
 
-Instead of committing machine-specific absolute paths into VS Code settings, you can place overrides in the workspace `.env`:
+- raw Markdown
+- cleaned Markdown
+- chunk files
+- semantic chunk files
+- quality reports
+- dashboard metrics
+- previewable Markdown outputs
 
-```dotenv
-PIPELINE_CONFIG=configs/pipeline.yaml
-CORTEXMARK_PYTHON_PATH=.venv/bin/python
-CORTEXMARK_DATA_ROOT=data/raw
-CORTEXMARK_OUTPUT_ROOT=outputs
-CORTEXMARK_SESSION_STORE_PATH=.cortexmark/sessions.json
-```
+## Typical daily usage
 
-Supported output-specific overrides:
+- **Run Full Pipeline** — default end-to-end processing
+- **Convert Only** — PDF → Markdown only
+- **Generate QA Report** — quality-focused inspection
+- **Run Cross-Reference / Algorithm / Notation / Semantic Chunking** — selective analysis
+- **Preview Markdown** — open a rendered preview
+- **Refresh Dashboard** — reload the metrics panel
 
-- `CORTEXMARK_OUTPUT_RAW_MD`
-- `CORTEXMARK_OUTPUT_CLEANED_MD`
-- `CORTEXMARK_OUTPUT_CHUNKS`
-- `CORTEXMARK_OUTPUT_QUALITY`
-- `CORTEXMARK_OUTPUT_SEMANTIC_CHUNKS`
+## Notes and limitations
 
-Relative values from settings, environment variables, and `.env` resolve from the workspace root. `paths:` values inside `pipeline.yaml` continue to resolve relative to the config file directory.
-
-### Engine-specific install notes
-
-- `markitdown`: `pip install cortexmark`
-- `docling`: `pip install "cortexmark[docling]"`
-- `dual`: use `cortexmark[docling]` if you want docling-assisted conversion available.
-
-## Sidebar Views
-
-The extension adds a **CortexMark** activity bar icon with three views:
-
-| View | Description |
-|------|-------------|
-| **Pipeline** | Tree view with sessions, actions, analysis modules, and outputs |
-| **Dashboard** | Webview showing run statistics and output summaries |
-| **Chat** | Webview chat panel for interactive Q&A about documents |
-
-When a pipeline run uses a session name, the extension stages PDFs into
-`sessions/<session-name>/data/raw/` and reads quality artifacts from
-`sessions/<session-name>/outputs/quality/`.
+- Keep each processing session scoped to a **single PDF folder root** when possible.
+- The extension is a UI/orchestration layer; heavy lifting is still done by the Python backend.
+- For the best experience, run **Environment Doctor** before your first real batch.

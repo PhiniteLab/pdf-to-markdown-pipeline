@@ -71,6 +71,7 @@ nav:
       - Installation: getting-started/installation.md
       - Quick Start: getting-started/quickstart.md
   - User Guide:
+      - Requirements, Inputs, and Outputs: guide/inputs-and-outputs.md
       - Pipeline Stages: guide/pipeline-stages.md
       - Configuration: guide/configuration.md
       - Docker: guide/docker.md
