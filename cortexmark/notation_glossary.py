@@ -29,6 +29,7 @@ from cortexmark.common import (
     resolve_quality_report_path,
     setup_logging,
 )
+from cortexmark.scientific_ir import OBJECT_NOTATION, ScientificObject, make_object_id, stable_source_label
 
 # ── Detection patterns ───────────────────────────────────────────────────────
 
@@ -142,6 +143,7 @@ class NotationEntry:
     source_file: str = ""
     line_number: int = 0
     context: str = ""  # surrounding text for disambiguation
+    object_id: str = ""
 
 
 @dataclass
@@ -239,7 +241,7 @@ def extract_table_notations(text: str, source_file: str = "") -> list[NotationEn
     return entries
 
 
-def detect_common_notations(text: str) -> list[NotationEntry]:
+def detect_common_notations(text: str, source_file: str = "") -> list[NotationEntry]:
     """Detect usage of well-known mathematical symbols in the text."""
     entries: list[NotationEntry] = []
     for symbol, meaning in COMMON_NOTATIONS.items():
@@ -252,6 +254,7 @@ def detect_common_notations(text: str) -> list[NotationEntry]:
                     symbol=symbol,
                     definition=meaning,
                     source="convention",
+                    source_file=source_file,
                 )
             )
     return entries
@@ -264,7 +267,7 @@ def extract_all(text: str, source_file: str = "", *, include_conventions: bool =
     entries.extend(extract_list_notations(text, source_file))
     entries.extend(extract_table_notations(text, source_file))
     if include_conventions:
-        entries.extend(detect_common_notations(text))
+        entries.extend(detect_common_notations(text, source_file))
     return NotationGlossary(entries=entries)
 
 
@@ -276,7 +279,8 @@ def extract_from_file(file_path: Path, *, include_conventions: bool = True) -> N
     if not file_path.exists():
         raise FileNotFoundError(f"File not found: {file_path}")
     text = file_path.read_text(encoding="utf-8")
-    return extract_all(text, source_file=str(file_path), include_conventions=include_conventions)
+    glossary = extract_all(text, source_file=stable_source_label(file_path), include_conventions=include_conventions)
+    return glossary
 
 
 def extract_from_tree(input_root: Path, *, include_conventions: bool = True) -> NotationGlossary:
@@ -287,7 +291,11 @@ def extract_from_tree(input_root: Path, *, include_conventions: bool = True) -> 
 
     all_entries: list[NotationEntry] = []
     for md_path in md_files:
-        glossary = extract_from_file(md_path, include_conventions=include_conventions)
+        glossary = extract_all(
+            md_path.read_text(encoding="utf-8"),
+            source_file=stable_source_label(md_path, root=input_root),
+            include_conventions=include_conventions,
+        )
         all_entries.extend(glossary.entries)
 
     return NotationGlossary(entries=all_entries)
@@ -308,10 +316,45 @@ def build_summary(glossary: NotationGlossary) -> dict[str, Any]:
     }
 
 
+def glossary_to_scientific_objects(glossary: NotationGlossary) -> list[ScientificObject]:
+    """Convert notation entries into stable scholarly objects."""
+    objects: list[ScientificObject] = []
+    for index, entry in enumerate(glossary.entries, start=1):
+        object_id = entry.object_id or make_object_id(
+            entry.source_file,
+            OBJECT_NOTATION,
+            label=entry.symbol,
+            name=entry.definition,
+            line_number=entry.line_number,
+            ordinal=index,
+        )
+        entry.object_id = object_id
+        objects.append(
+            ScientificObject(
+                object_id=object_id,
+                object_type=OBJECT_NOTATION,
+                object_kind=OBJECT_NOTATION,
+                label=entry.symbol,
+                title=entry.symbol,
+                source_file=entry.source_file,
+                line_number=entry.line_number,
+                text=entry.definition,
+                evidence_level="explicit" if entry.source != "convention" else "convention",
+                metadata={
+                    "definition": entry.definition,
+                    "source": entry.source,
+                    "context": entry.context,
+                },
+            )
+        )
+    return objects
+
+
 def write_report(glossary: NotationGlossary, output_path: Path) -> Path:
     """Write notation glossary as JSON."""
     output_path.parent.mkdir(parents=True, exist_ok=True)
     deduped = glossary.deduplicated()
+    canonical_objects = glossary_to_scientific_objects(glossary)
     data: dict[str, Any] = {
         "summary": build_summary(glossary),
         "glossary": [
@@ -321,9 +364,24 @@ def write_report(glossary: NotationGlossary, output_path: Path) -> Path:
                 "source": e.source,
                 "source_file": e.source_file,
                 "line_number": e.line_number,
+                "object_id": e.object_id,
             }
             for e in deduped
         ],
+        "canonical_ir": {
+            "objects": [
+                {
+                    "object_id": obj.object_id,
+                    "object_type": obj.object_type,
+                    "label": obj.label,
+                    "source_file": obj.source_file,
+                    "line_number": obj.line_number,
+                    "evidence_level": obj.evidence_level,
+                    "metadata": obj.metadata,
+                }
+                for obj in canonical_objects
+            ]
+        },
     }
     output_path.write_text(
         json.dumps(data, indent=2, ensure_ascii=False) + "\n",

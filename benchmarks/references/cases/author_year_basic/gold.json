@@ -1,0 +1,26 @@
+{
+  "document_id": "author_year_basic",
+  "phenomena": ["author_year_basic"],
+  "citation_mentions": [{"raw_text": "Smith, 2020"}],
+  "references": [
+    {
+      "reference_id": "smith2020",
+      "year": "2020",
+      "title": "A Great Paper",
+      "doi": "10.1234/example.2020"
+    }
+  ],
+  "citation_links": [
+    {
+      "target_ref": "smith2020",
+      "status": "resolved"
+    }
+  ],
+  "citation_audit": {
+    "missing_references": [],
+    "phantom_references": [],
+    "ambiguous_references": []
+  },
+  "scientific_link_assertions": [],
+  "rag_assertions": {}
+}

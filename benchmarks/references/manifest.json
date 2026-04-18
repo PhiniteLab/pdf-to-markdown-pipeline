@@ -1,0 +1,26 @@
+{
+  "benchmark_name": "reference_robustness",
+  "version": 1,
+  "cases": [
+    {
+      "case_id": "author_year_basic",
+      "tags": ["author_year_basic", "resolved_link"]
+    },
+    {
+      "case_id": "ambiguous_author_year",
+      "tags": ["ambiguous_author_year"]
+    },
+    {
+      "case_id": "missing_reference",
+      "tags": ["missing_reference", "phantom_reference"]
+    },
+    {
+      "case_id": "year_suffix",
+      "tags": ["year_suffix"]
+    },
+    {
+      "case_id": "proof_parent_link",
+      "tags": ["proof_parent_link", "rag_link_propagation"]
+    }
+  ]
+}

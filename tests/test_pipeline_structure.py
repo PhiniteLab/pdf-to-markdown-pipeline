@@ -202,6 +202,7 @@ from cortexmark.notation_glossary import (
     extract_explicit_definitions,
     extract_list_notations,
     extract_table_notations,
+    glossary_to_scientific_objects,
     write_markdown_glossary,
 )
 from cortexmark.notation_glossary import (
@@ -284,6 +285,35 @@ from cortexmark.rag_export import (
 from cortexmark.rag_export import (
     build_summary as rag_build_summary,
 )
+from cortexmark.reference_eval import (
+    BENCHMARK_DEFAULT,
+    ReferenceEvalFailure,
+    evaluate_baseline_gate,
+    evaluate_benchmark,
+    evaluate_case,
+    validate_gold_case,
+)
+from cortexmark.reference_eval import (
+    build_summary as reference_eval_build_summary,
+)
+from cortexmark.reference_eval import (
+    load_baseline as load_reference_baseline,
+)
+from cortexmark.reference_eval import (
+    load_manifest as load_reference_manifest,
+)
+from cortexmark.reference_eval import (
+    load_schema as load_reference_schema,
+)
+from cortexmark.reference_eval import (
+    write_failures_jsonl as write_reference_failures_jsonl,
+)
+from cortexmark.reference_eval import (
+    write_json_report as write_reference_eval_json,
+)
+from cortexmark.reference_eval import (
+    write_markdown_report as write_reference_eval_markdown,
+)
 from cortexmark.render_templates import (
     build_assignment_text,
     build_global_rules_text,
@@ -316,7 +346,9 @@ from cortexmark.semantic_chunk import (
     PROOF_OPENER_RE,
     SemanticChunk,
     build_entity_summary,
+    build_scientific_object_links,
     chunks_to_records,
+    chunks_to_scientific_objects,
     classify_env_kind,
     extract_cross_refs,
     extract_formulas,
@@ -1675,6 +1707,31 @@ class TestRAGBuildSummary:
         s = rag_build_summary(records)
         assert s["total_formulas"] == 3
 
+    def test_summary_tracks_cross_ref_and_notation_counts(self) -> None:
+        records = [
+            RAGRecord(
+                id="1",
+                source="a.md",
+                title="A",
+                text="x",
+                metadata={
+                    "token_estimate": 1,
+                    "cross_ref_links": [{"relation": "references"}],
+                    "notation_symbols": [r"\alpha", r"\beta"],
+                },
+            ),
+            RAGRecord(
+                id="2",
+                source="b.md",
+                title="B",
+                text="y",
+                metadata={"token_estimate": 1, "cross_ref_links": [{}, {}], "notation_symbols": [r"\gamma"]},
+            ),
+        ]
+        s = rag_build_summary(records)
+        assert s["total_cross_ref_links"] == 3
+        assert s["total_notation_symbols"] == 3
+
 
 class TestRAGSemanticEnrichment:
     """Test semantic metadata enrichment in parse_chunk_file."""
@@ -1709,6 +1766,50 @@ class TestRAGSemanticEnrichment:
         assert rec.metadata["entity_type"] == "narrative"
         assert rec.metadata["formulas"] == []
         assert rec.metadata["cross_refs"] == []
+
+    def test_proof_metadata_in_chunk(self, tmp_path: Path) -> None:
+        f = tmp_path / "chunk.md"
+        f.write_text("**Proof of Theorem 2.** The argument is immediate. □\n", encoding="utf-8")
+        rec = parse_chunk_file(f)
+        assert rec.metadata["entity_type"] == "proof"
+        assert rec.metadata["entity_kind"] == "proof"
+        assert rec.metadata["parent_label"] == "Theorem 2"
+
+    def test_object_level_metadata_in_chunk(self, tmp_path: Path) -> None:
+        f = tmp_path / "chunk.md"
+        f.write_text(
+            "**Theorem 1 (Main Result).** Let $\\alpha$ denote the learning rate and $$V(s)=0$$.\n\n"
+            "**Proof of Theorem 1.** See Theorem 1. □\n",
+            encoding="utf-8",
+        )
+        rec = parse_chunk_file(f)
+        assert rec.metadata["entity_kind"] == "theorem"
+        assert rec.metadata["entity_name"] == "Main Result"
+        assert any(obj["object_kind"] == "proof" for obj in rec.metadata["scientific_objects"])
+        assert any(link["relation"] == "proof_of" for link in rec.metadata["object_links"])
+        assert any(link["status"] == "resolved" for link in rec.metadata["cross_ref_links"])
+        assert rec.metadata["notation_symbols"]
+        assert rec.metadata["notation_object_ids"]
+        assert rec.metadata["equations"]
+
+    def test_parent_object_link_survives_real_chunk_files(self, tmp_path: Path) -> None:
+        src = tmp_path / "paper.md"
+        src.write_text(
+            "# Chapter 1\n\n**Theorem 1.** Statement.\n\n**Proof.** Argument. □\n",
+            encoding="utf-8",
+        )
+        written = semantic_chunk_file(src, tmp_path / "chunks")
+        records = [parse_chunk_file(path) for path in written]
+        theorem_record = next(record for record in records if record.metadata["entity_type"] == "theorem")
+        proof_record = next(record for record in records if record.metadata["entity_type"] == "proof")
+        theorem_object_id = theorem_record.metadata["scientific_object_ids"][0]
+
+        assert proof_record.metadata["parent_label"] == "Theorem 1"
+        assert proof_record.metadata["parent_object_id"] == theorem_object_id
+        assert any(
+            link["relation"] == "proof_of" and link["target_object_id"] == theorem_object_id
+            for link in proof_record.metadata["object_links"]
+        )
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -3304,6 +3405,23 @@ class TestCitationExtraction:
         citations = extract_inline_citations(text)
         assert citations[0].line_number == 3
 
+    def test_author_year_suffix_citation(self) -> None:
+        citations = extract_inline_citations("(Smith, 2020a) extends prior work.")
+        assert len(citations) == 1
+        assert citations[0].target_hints == ["smith2020a"]
+
+    def test_lowercase_author_like_suffix_pattern_not_treated_as_citation(self) -> None:
+        citations = extract_inline_citations("(version, 2020a) is metadata, not a citation.")
+        assert citations == []
+
+    def test_numeric_mention_id_not_affected_by_earlier_citation_on_other_line(self) -> None:
+        baseline = extract_inline_citations("Intro line.\nSee [1].")
+        shifted = extract_inline_citations("(Smith, 2020)\nSee [1].")
+        baseline_numeric = next(c for c in baseline if c.cite_type == "numeric")
+        shifted_numeric = next(c for c in shifted if c.cite_type == "numeric")
+        assert baseline_numeric.line_number == shifted_numeric.line_number
+        assert baseline_numeric.mention_id == shifted_numeric.mention_id
+
 
 class TestReferenceExtraction:
     def test_no_references(self) -> None:
@@ -3322,6 +3440,11 @@ class TestReferenceExtraction:
         refs = extract_references(text)
         assert len(refs) >= 1
         assert refs[0].year == "2020"
+
+    def test_lowercase_author_like_suffix_pattern_not_treated_as_reference(self) -> None:
+        text = "## References\n\nversion (2020a). Not a scholarly reference.\n"
+        refs = extract_references(text)
+        assert refs == []
 
     def test_doi_extraction(self) -> None:
         text = "# References\n\n[1] Smith (2020). Title. 10.1234/example.2020"
@@ -3349,7 +3472,8 @@ class TestCitationGraph:
         cites = [Citation(raw_text="Smith, 2020", cite_type="author-year")]
         graph = build_citation_graph(cites, [])
         assert len(graph.edges) == 1
-        assert graph.edges[0].target_ref == "Smith"
+        assert graph.edges[0].target_ref == "smith2020"
+        assert graph.edges[0].status == "missing"
 
     def test_top_cited(self) -> None:
         cites = [
@@ -3360,6 +3484,84 @@ class TestCitationGraph:
         graph = build_citation_graph(cites, [])
         assert graph.top_cited[0] == ("1", 2)
 
+    def test_resolves_author_year_edges_to_reference_key(self) -> None:
+        cites = [Citation(raw_text="Smith, 2020", cite_type="author-year")]
+        refs = [
+            Reference(key="smith2020", raw_text="Smith (2020). Paper.", authors="Smith", year="2020", title="Paper")
+        ]
+        graph = build_citation_graph(cites, refs)
+        assert len(graph.edges) == 1
+        assert graph.edges[0].target_ref == "smith2020"
+        assert graph.edges[0].reference_id == "smith2020"
+        assert graph.edges[0].status == "resolved"
+
+    def test_audit_flags_missing_duplicate_and_phantom_references(self) -> None:
+        cites = [
+            Citation(raw_text="Smith, 2020", cite_type="author-year"),
+            Citation(raw_text="Jones, 2021", cite_type="author-year"),
+        ]
+        refs = [
+            Reference(
+                key="smith2020",
+                raw_text="Smith (2020). Same paper. 10.1234/example",
+                authors="Smith",
+                year="2020",
+                title="Same paper",
+                doi="10.1234/example",
+            ),
+            Reference(
+                key="smith2020-copy",
+                raw_text="Smith (2020). Same paper. 10.1234/example",
+                authors="Smith",
+                year="2020",
+                title="Same paper",
+                doi="10.1234/example",
+            ),
+            Reference(
+                key="unused2018",
+                raw_text="Unused (2018). Never cited.",
+                authors="Unused",
+                year="2018",
+                title="Never cited",
+            ),
+        ]
+        graph = build_citation_graph(cites, refs)
+        assert "jones2021" in graph.audit.missing_references
+        assert "unused2018" in graph.audit.phantom_references
+        assert graph.audit.duplicate_references
+        assert graph.audit.duplicate_references[0].reason == "doi"
+
+    def test_ambiguous_duplicate_match_is_not_marked_phantom(self) -> None:
+        cites = [Citation(raw_text="Smith, 2020", cite_type="author-year")]
+        refs = [
+            Reference(
+                key="smith2020", raw_text="Smith (2020). Paper A.", authors="Smith", year="2020", title="Paper A"
+            ),
+            Reference(
+                key="smith2020b", raw_text="Smith (2020). Paper B.", authors="Smith", year="2020", title="Paper B"
+            ),
+        ]
+        graph = build_citation_graph(cites, refs)
+        assert graph.edges[0].status == "ambiguous"
+        assert graph.edges[0].candidate_reference_ids
+        assert graph.audit.phantom_references == []
+
+    def test_author_year_suffix_reference_links(self) -> None:
+        cites = [Citation(raw_text="Smith, 2020a", cite_type="author-year")]
+        refs = extract_references("## References\n\nSmith (2020a). Variant Paper.\n")
+        graph = build_citation_graph(cites, refs)
+        assert graph.edges[0].status == "resolved"
+        assert graph.edges[0].target_ref == "smith2020a"
+
+    def test_build_citation_graph_does_not_mutate_inputs(self) -> None:
+        cite = Citation(raw_text="Smith, 2020", cite_type="author-year")
+        ref = Reference(key="smith2020", raw_text="Smith (2020). Paper.", authors="Smith", year="2020", title="Paper")
+        build_citation_graph([cite], [ref])
+        assert cite.mention_id == ""
+        assert cite.target_hints == []
+        assert ref.reference_id == ""
+        assert ref.aliases == []
+
 
 class TestCitationFileOps:
     def test_analyze_file(self, tmp_path: Path) -> None:
@@ -3367,10 +3569,21 @@ class TestCitationFileOps:
         md.write_text("(Smith, 2020) proved this.\n\n## References\n\n[1] Smith (2020). Paper.\n", encoding="utf-8")
         graph = analyze_file(md)
         assert len(graph.citations) >= 1
+        assert graph.citations[0].surface_text == "(Smith, 2020)"
 
     def test_analyze_file_missing(self, tmp_path: Path) -> None:
         with pytest.raises(FileNotFoundError):
             analyze_file(tmp_path / "nope.md")
+
+    def test_analyze_file_uses_cwd_relative_source_label_when_possible(self, tmp_path: Path, monkeypatch) -> None:
+        nested = tmp_path / "nested"
+        nested.mkdir()
+        md = nested / "paper.md"
+        md.write_text("(Smith, 2020).\n", encoding="utf-8")
+        monkeypatch.chdir(tmp_path)
+        graph = analyze_file(md)
+        assert graph.citations[0].source_file == "nested/paper.md"
+        assert graph.edges[0].source_doc == "nested/paper.md"
 
     def test_analyze_tree(self, tmp_path: Path) -> None:
         d = tmp_path / "papers"
@@ -3379,6 +3592,32 @@ class TestCitationFileOps:
         (d / "b.md").write_text("[1] cited.\n", encoding="utf-8")
         graph = analyze_tree(d)
         assert len(graph.citations) >= 1
+
+    def test_analyze_tree_uses_document_local_reference_scope(self, tmp_path: Path) -> None:
+        d = tmp_path / "papers"
+        d.mkdir()
+        (d / "a.md").write_text("(Smith, 2020).\n\n## References\n\nSmith (2020). Local Paper.\n", encoding="utf-8")
+        (d / "b.md").write_text("(Jones, 2021).\n\n## References\n\nBrown (2018). Unused Paper.\n", encoding="utf-8")
+        graph = analyze_tree(d)
+        assert "jones2021" in graph.audit.missing_references
+        assert any("brown2018" in phantom for phantom in graph.audit.phantom_references)
+
+    def test_analyze_tree_aggregates_top_cited_from_all_edges(self, tmp_path: Path) -> None:
+        d = tmp_path / "papers"
+        d.mkdir()
+        (d / "a.md").write_text("(Smith, 2020).\n", encoding="utf-8")
+        (d / "b.md").write_text("(Smith, 2020).\n(Jones, 2021).\n", encoding="utf-8")
+        graph = analyze_tree(d)
+        assert graph.top_cited[0] == ("smith2020", 2)
+
+    def test_analyze_tree_uses_relative_source_labels(self, tmp_path: Path) -> None:
+        d = tmp_path / "papers"
+        nested = d / "nested"
+        nested.mkdir(parents=True)
+        (nested / "a.md").write_text("(Smith, 2020).\n", encoding="utf-8")
+        graph = analyze_tree(d)
+        assert graph.citations[0].source_file == "nested/a.md"
+        assert graph.edges[0].source_doc == "nested/a.md"
 
     def test_analyze_tree_empty(self, tmp_path: Path) -> None:
         d = tmp_path / "empty"
@@ -3400,6 +3639,9 @@ class TestCitationWriters:
         data = json.loads(out.read_text(encoding="utf-8"))
         assert data["summary"]["total_citations"] == 1
         assert data["summary"]["total_references"] == 1
+        assert "audit" in data
+        assert "canonical_ir" in data
+        assert "references" in data["canonical_ir"]
 
     def test_write_dot(self, tmp_path: Path) -> None:
         graph = CitationGraph(
@@ -3426,6 +3668,229 @@ class TestCitationCLI:
         assert result.returncode == 0
         data = json.loads(out.read_text(encoding="utf-8"))
         assert "summary" in data
+
+
+class TestReferenceEvalBenchmarks:
+    def test_manifest_and_schema_load(self) -> None:
+        benchmark_root = REPO_ROOT / BENCHMARK_DEFAULT
+        baseline = load_reference_baseline(benchmark_root / "baseline.json")
+        manifest = load_reference_manifest(benchmark_root)
+        schema = load_reference_schema(benchmark_root)
+        assert baseline["benchmark_name"] == "reference_robustness"
+        assert manifest["benchmark_name"] == "reference_robustness"
+        assert len(manifest["cases"]) >= 5
+        assert "required" in schema
+
+    def test_evaluate_single_case(self) -> None:
+        benchmark_root = REPO_ROOT / BENCHMARK_DEFAULT
+        case_dir = benchmark_root / "cases" / "ambiguous_author_year"
+        gold = json.loads((case_dir / "gold.json").read_text(encoding="utf-8"))
+        result = evaluate_case("ambiguous_author_year", case_dir, gold)
+        assert result.passed is True
+        assert result.metrics["mention_f1"] == 1.0
+        assert result.metrics["reference_f1"] == 1.0
+
+    def test_evaluate_benchmark_repo_fixtures(self) -> None:
+        report = evaluate_benchmark(REPO_ROOT / BENCHMARK_DEFAULT)
+        assert report.summary["total_cases"] >= 5
+        assert report.summary["failed_cases"] == 0
+        assert report.summary["false_resolve_rate"] == 0.0
+        assert report.summary["id_stability_rate"] == 1.0
+
+    def test_write_reports(self, tmp_path: Path) -> None:
+        report = evaluate_benchmark(REPO_ROOT / BENCHMARK_DEFAULT)
+        benchmark_root = REPO_ROOT / BENCHMARK_DEFAULT
+        report.gate = evaluate_baseline_gate(
+            report,
+            load_reference_manifest(benchmark_root),
+            load_reference_baseline(benchmark_root / "baseline.json"),
+            baseline_path=benchmark_root / "baseline.json",
+        )
+        json_path = write_reference_eval_json(report, tmp_path / "reference_eval.json")
+        markdown_path = write_reference_eval_markdown(report, tmp_path / "reference_eval.md")
+        failures_path = write_reference_failures_jsonl(report.failures, tmp_path / "reference_eval_failures.jsonl")
+
+        assert json_path.exists()
+        assert markdown_path.exists()
+        assert failures_path.exists()
+        markdown = markdown_path.read_text(encoding="utf-8")
+        assert "Reference Robustness Benchmark" in markdown
+        assert "Baseline gate" in markdown
+        data = json.loads(json_path.read_text(encoding="utf-8"))
+        assert data["summary"]["passed_cases"] >= 5
+        assert data["gate"]["passed"] is True
+
+    def test_evaluate_baseline_gate_passes_repo_baseline(self) -> None:
+        benchmark_root = REPO_ROOT / BENCHMARK_DEFAULT
+        report = evaluate_benchmark(benchmark_root)
+        manifest = load_reference_manifest(benchmark_root)
+        baseline = load_reference_baseline(benchmark_root / "baseline.json")
+        gate = evaluate_baseline_gate(report, manifest, baseline, baseline_path=benchmark_root / "baseline.json")
+        assert gate["passed"] is True
+        assert gate["failed_checks"] == []
+
+    def test_evaluate_baseline_gate_detects_stale_manifest(self) -> None:
+        benchmark_root = REPO_ROOT / BENCHMARK_DEFAULT
+        report = evaluate_benchmark(benchmark_root)
+        manifest = load_reference_manifest(benchmark_root)
+        baseline = load_reference_baseline(benchmark_root / "baseline.json")
+        baseline["manifest_case_count"] = 999
+        gate = evaluate_baseline_gate(report, manifest, baseline, baseline_path=benchmark_root / "baseline.json")
+        assert gate["passed"] is False
+        assert any("manifest_case_count" in item for item in gate["failed_checks"])
+
+    def test_build_summary_from_case_results(self) -> None:
+        case = evaluate_benchmark(REPO_ROOT / BENCHMARK_DEFAULT).cases[0]
+        summary = reference_eval_build_summary([case])
+        assert summary["total_cases"] == 1
+        assert "mention_f1" in summary
+        assert "false_resolve_rate" in summary
+
+    def test_write_failures_jsonl(self, tmp_path: Path) -> None:
+        failure = ReferenceEvalFailure(
+            case_id="demo",
+            category="citation_mentions",
+            expected="Smith, 2020",
+            observed=None,
+        )
+        out = write_reference_failures_jsonl([failure], tmp_path / "failures.jsonl")
+        assert out.exists()
+        line = out.read_text(encoding="utf-8").strip()
+        assert json.loads(line)["case_id"] == "demo"
+
+    def test_validate_gold_case_rejects_missing_required_field(self) -> None:
+        schema = load_reference_schema(REPO_ROOT / BENCHMARK_DEFAULT)
+        with pytest.raises(ValueError, match="missing required field"):
+            validate_gold_case(
+                {
+                    "document_id": "broken",
+                    "phenomena": [],
+                    "citation_mentions": [],
+                    "references": [],
+                    "citation_links": [],
+                    "citation_audit": {},
+                    "scientific_link_assertions": [],
+                },
+                schema,
+                case_id="broken",
+            )
+
+    def test_validate_gold_case_rejects_invalid_citation_mentions_item(self) -> None:
+        schema = load_reference_schema(REPO_ROOT / BENCHMARK_DEFAULT)
+        with pytest.raises(ValueError, match="invalid citation_mentions entry"):
+            validate_gold_case(
+                {
+                    "document_id": "broken-mentions",
+                    "phenomena": [],
+                    "citation_mentions": [{}],
+                    "references": [],
+                    "citation_links": [],
+                    "citation_audit": {
+                        "missing_references": [],
+                        "phantom_references": [],
+                        "ambiguous_references": [],
+                    },
+                    "scientific_link_assertions": [],
+                    "rag_assertions": {},
+                },
+                schema,
+                case_id="broken-mentions",
+            )
+
+    def test_validate_gold_case_rejects_invalid_rag_assertions_shape(self) -> None:
+        schema = load_reference_schema(REPO_ROOT / BENCHMARK_DEFAULT)
+        with pytest.raises(ValueError, match="required_parent_labels"):
+            validate_gold_case(
+                {
+                    "document_id": "broken-rag",
+                    "phenomena": [],
+                    "citation_mentions": [],
+                    "references": [],
+                    "citation_links": [],
+                    "citation_audit": {
+                        "missing_references": [],
+                        "phantom_references": [],
+                        "ambiguous_references": [],
+                    },
+                    "scientific_link_assertions": [],
+                    "rag_assertions": {"required_parent_labels": "Theorem 1"},
+                },
+                schema,
+                case_id="broken-rag",
+            )
+
+    def test_validate_gold_case_rejects_non_string_phenomena(self) -> None:
+        schema = load_reference_schema(REPO_ROOT / BENCHMARK_DEFAULT)
+        with pytest.raises(ValueError, match="phenomena"):
+            validate_gold_case(
+                {
+                    "document_id": "broken-phenomena",
+                    "phenomena": [1],
+                    "citation_mentions": [],
+                    "references": [],
+                    "citation_links": [],
+                    "citation_audit": {
+                        "missing_references": [],
+                        "phantom_references": [],
+                        "ambiguous_references": [],
+                    },
+                    "scientific_link_assertions": [],
+                    "rag_assertions": {},
+                },
+                schema,
+                case_id="broken-phenomena",
+            )
+
+    def test_validate_gold_case_rejects_non_string_audit_entries(self) -> None:
+        schema = load_reference_schema(REPO_ROOT / BENCHMARK_DEFAULT)
+        with pytest.raises(ValueError, match="missing_references"):
+            validate_gold_case(
+                {
+                    "document_id": "broken-audit",
+                    "phenomena": [],
+                    "citation_mentions": [],
+                    "references": [],
+                    "citation_links": [],
+                    "citation_audit": {
+                        "missing_references": [1],
+                        "phantom_references": [],
+                        "ambiguous_references": [],
+                    },
+                    "scientific_link_assertions": [],
+                    "rag_assertions": {},
+                },
+                schema,
+                case_id="broken-audit",
+            )
+
+    def test_duplicate_mentions_and_links_are_counted(self, tmp_path: Path) -> None:
+        case_dir = tmp_path / "case"
+        case_dir.mkdir()
+        (case_dir / "input.md").write_text(
+            "(Smith, 2020) and again (Smith, 2020).\n\n## References\n\nSmith (2020). Repeated Paper.\n",
+            encoding="utf-8",
+        )
+        gold = {
+            "document_id": "duplicate_mentions",
+            "phenomena": ["author_year_basic", "multi_citation_cluster"],
+            "citation_mentions": [{"raw_text": "Smith, 2020"}, {"raw_text": "Smith, 2020"}],
+            "references": [{"reference_id": "smith2020", "year": "2020", "title": "Repeated Paper"}],
+            "citation_links": [
+                {"target_ref": "smith2020", "status": "resolved"},
+                {"target_ref": "smith2020", "status": "resolved"},
+            ],
+            "citation_audit": {
+                "missing_references": [],
+                "phantom_references": [],
+                "ambiguous_references": [],
+            },
+            "scientific_link_assertions": [],
+            "rag_assertions": {},
+        }
+        result = evaluate_case("duplicate_mentions", case_dir, gold)
+        assert result.passed is True
+        assert result.counts["mention_tp"] == 2
+        assert result.counts["link_tp"] == 2
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -4157,6 +4622,14 @@ class TestParseSemanticChunks:
         proof_chunks = [c for c in chunks if c.entity_type == ENTITY_PROOF]
         assert len(proof_chunks) == 1
         assert proof_chunks[0].parent_label == "Theorem 1"
+        assert proof_chunks[0].parent_evidence_level == "inferred"
+
+    def test_explicit_proof_parent_evidence(self) -> None:
+        text = "# Chapter 1\n\n**Proof of Theorem 3.** We proceed directly. □\n"
+        chunks = parse_semantic_chunks(text)
+        proof = next(c for c in chunks if c.entity_type == ENTITY_PROOF)
+        assert proof.parent_label == "Theorem 3"
+        assert proof.parent_evidence_level == "explicit"
 
     def test_definition_detection(self) -> None:
         text = "# Ch\n\n**Definition 1 (Segments).** A Markov Decision Process is a tuple.\n"
@@ -4165,6 +4638,16 @@ class TestParseSemanticChunks:
         assert len(def_chunks) == 1
         assert def_chunks[0].entity_name == "Segments"
         assert def_chunks[0].entity_label == "Definition 1"
+
+    def test_entity_kind_preserves_exact_role(self) -> None:
+        text = "**Lemma 2.** Auxiliary claim.\n\n**Assumption 1.** Regularity holds.\n"
+        chunks = parse_semantic_chunks(text, split_on_headings=False)
+        lemma = next(c for c in chunks if c.entity_label == "Lemma 2")
+        assumption = next(c for c in chunks if c.entity_label == "Assumption 1")
+        assert lemma.entity_type == ENTITY_THEOREM
+        assert lemma.entity_kind == "lemma"
+        assert assumption.entity_type == ENTITY_DEFINITION
+        assert assumption.entity_kind == "assumption"
 
     def test_algorithm_code_fence(self) -> None:
         text = "# Algorithms\n\n```text\nInitialize Q(s,a)\nLoop for each episode:\n  Choose action\n```\n"
@@ -4304,6 +4787,38 @@ class TestChunksToRecords:
         assert records[0]["entity_label"] == "Theorem 1"
         assert records[0]["source"] == "test.md"
 
+    def test_records_include_object_metadata(self) -> None:
+        chunks = parse_semantic_chunks(
+            "**Theorem 1.** Statement.\n\n**Proof of Theorem 1.** Argument. □\n",
+            split_on_headings=False,
+        )
+        records = chunks_to_records(chunks, "paper.md")
+        theorem_record = next(r for r in records if r["entity_type"] == ENTITY_THEOREM)
+        proof_record = next(r for r in records if r["entity_type"] == ENTITY_PROOF)
+        assert theorem_record["object_id"]
+        assert proof_record["object_id"]
+        assert proof_record["parent_object_id"]
+
+
+class TestScientificObjectLinks:
+    def test_chunks_to_scientific_objects_and_links(self) -> None:
+        chunks = parse_semantic_chunks(
+            "**Theorem 1.** We have $$V(s)=0$$.\n\n**Proof.** Therefore $V(s)=0$. □\n",
+            split_on_headings=False,
+        )
+        objects = chunks_to_scientific_objects(chunks, "paper.md")
+        theorem = next(obj for obj in objects if obj.object_type == ENTITY_THEOREM)
+        proof = next(obj for obj in objects if obj.object_type == ENTITY_PROOF)
+        equations = [obj for obj in objects if obj.object_type == "equation"]
+        links = build_scientific_object_links(objects)
+
+        assert theorem.object_kind == "theorem"
+        assert proof.parent_object_id == theorem.object_id
+        assert equations
+        assert all(eq.parent_object_id for eq in equations)
+        assert any(link.relation == "proof_of" and link.target_object_id == theorem.object_id for link in links)
+        assert any(link.relation == "appears_in" for link in links)
+
 
 class TestBuildEntitySummary:
     def test_counts(self) -> None:
@@ -4426,6 +4941,39 @@ class TestResolveReferences:
         report = resolve_references(defs, mentions)
         assert report.resolution_rate == 1.0
 
+    def test_builds_canonical_objects_and_links(self) -> None:
+        defs = [
+            RefDefinition(kind="Theorem", label="1", name="Main", source_file="a.md", line_number=1),
+        ]
+        mentions = [
+            RefMention(kind="Theorem", label="1", source_file="b.md", line_number=4),
+            RefMention(kind="Figure", label="2", source_file="b.md", line_number=8),
+        ]
+        report = resolve_references(defs, mentions)
+        assert len(report.objects) == 3
+        assert len(report.links) == 2
+        assert report.links[0].relation == "references"
+        assert report.links[0].status == "resolved"
+        assert report.links[1].status == "unresolved"
+        assert any(obj.object_type == "xref_mention" for obj in report.objects)
+
+    def test_prefers_local_definition_and_marks_ambiguous_tree_matches(self) -> None:
+        defs = [
+            RefDefinition(kind="Theorem", label="1", source_file="a.md", line_number=1),
+            RefDefinition(kind="Theorem", label="1", source_file="b.md", line_number=1),
+        ]
+        mentions = [
+            RefMention(kind="Theorem", label="1", source_file="a.md", line_number=4),
+            RefMention(kind="Theorem", label="1", source_file="c.md", line_number=9),
+        ]
+        report = resolve_references(defs, mentions)
+        local_link = next(link for link in report.links if link.source_file == "a.md")
+        ambiguous_link = next(link for link in report.links if link.source_file == "c.md")
+
+        assert local_link.status == "resolved"
+        assert ambiguous_link.status == "ambiguous"
+        assert ambiguous_link.metadata["candidate_sources"] == ["a.md", "b.md"]
+
 
 class TestClassifyKind:
     def test_theorem_category(self) -> None:
@@ -4487,6 +5035,9 @@ class TestCrossRefFile:
         assert written.exists()
         data = json.loads(written.read_text())
         assert "resolution_rate" in data.get("summary", data)
+        assert "canonical_ir" in data
+        assert "objects" in data["canonical_ir"]
+        assert "links" in data["canonical_ir"]
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -4778,6 +5329,11 @@ class TestDetectCommonNotations:
         entries = detect_common_notations(md)
         assert any(r"\sum" in e.symbol for e in entries)
 
+    def test_preserves_source_file_for_conventions(self) -> None:
+        md = "The policy $\\pi$ is updated.\n"
+        entries = detect_common_notations(md, source_file="doc.md")
+        assert any(e.source_file == "doc.md" for e in entries)
+
     def test_no_math(self) -> None:
         md = "No math content here.\n"
         entries = detect_common_notations(md)
@@ -4825,6 +5381,8 @@ class TestNotationFileOps:
         assert written.exists()
         data = json.loads(written.read_text())
         assert "glossary" in data
+        assert "canonical_ir" in data
+        assert data["canonical_ir"]["objects"]
 
     def test_write_markdown_glossary(self, tmp_path: Path) -> None:
         glossary = NotationGlossary(
@@ -4849,6 +5407,22 @@ class TestNotationFileOps:
         )
         summary = notation_build_summary(glossary)
         assert summary["unique_symbols"] == 2
+
+
+class TestNotationScientificObjects:
+    def test_glossary_to_scientific_objects(self) -> None:
+        glossary = NotationGlossary(
+            entries=[
+                NotationEntry(symbol=r"\alpha", definition="learning rate", source="explicit", source_file="a.md"),
+                NotationEntry(symbol=r"\pi", definition="policy", source="convention", source_file="a.md"),
+            ]
+        )
+        objects = glossary_to_scientific_objects(glossary)
+        assert len(objects) == 2
+        assert all(obj.object_type == "notation" for obj in objects)
+        assert objects[0].metadata["source"] == "explicit"
+        assert objects[1].evidence_level == "convention"
+        assert all(entry.object_id for entry in glossary.entries)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -8119,6 +8693,14 @@ class TestAllBuildParsers:
         p = bp()
         ns = p.parse_args(["--input", "/tmp/x"])
         assert ns.input == Path("/tmp/x")
+
+    def test_reference_eval_parser(self) -> None:
+        from cortexmark.reference_eval import build_parser as bp
+
+        p = bp()
+        ns = p.parse_args(["--benchmarks", "/tmp/bench", "--baseline", "/tmp/base.json"])
+        assert ns.benchmarks == Path("/tmp/bench")
+        assert ns.baseline == Path("/tmp/base.json")
 
     def test_qa_pipeline_parser(self) -> None:
         from cortexmark.qa_pipeline import build_parser as bp

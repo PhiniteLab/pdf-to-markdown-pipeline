@@ -1,4 +1,4 @@
-.PHONY: all convert clean chunk render analyze validate lint format typecheck test docker-build clean-outputs help
+.PHONY: all convert clean chunk render analyze validate benchmark-reference lint format typecheck test docker-build clean-outputs help
 
 PYTHON ?= $(shell if [ -x .venv/bin/python ]; then printf %s .venv/bin/python; elif command -v python3 >/dev/null 2>&1; then command -v python3; else command -v python; fi)
 CONFIG ?= configs/pipeline.yaml
@@ -27,6 +27,9 @@ analyze: ## Run analysis modules (semantic chunk, cross-ref, algorithm, notation
 
 validate: ## Run validation modules (formula, scientific QA, citation context)
 	$(PYTHON) -m cortexmark.run_pipeline --config $(CONFIG) --stages validate
+
+benchmark-reference: ## Run reference benchmark with baseline gate
+	$(PYTHON) -m cortexmark.reference_eval --benchmarks benchmarks/references --baseline benchmarks/references/baseline.json
 
 lint: ## Run ruff linter + formatter check
 	$(PYTHON) -m ruff check cortexmark/ tests/

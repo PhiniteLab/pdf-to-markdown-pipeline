@@ -26,6 +26,7 @@ from cortexmark.common import (
     resolve_quality_report_path,
     setup_logging,
 )
+from cortexmark.scientific_ir import ScientificObject, ScientificObjectLink, make_object_id, stable_source_label
 
 # ── Reference categories ─────────────────────────────────────────────────────
 
@@ -131,6 +132,8 @@ class CrossRefReport:
     mentions: list[RefMention] = field(default_factory=list)
     resolved: list[str] = field(default_factory=list)
     unresolved: list[str] = field(default_factory=list)
+    objects: list[ScientificObject] = field(default_factory=list)
+    links: list[ScientificObjectLink] = field(default_factory=list)
 
     @property
     def resolution_rate(self) -> float:
@@ -277,31 +280,118 @@ def resolve_references(
     mentions: list[RefMention],
 ) -> CrossRefReport:
     """Match mentions against definitions, identify resolved/unresolved."""
-    def_index: set[str] = set()
+    def_object_map: dict[str, list[ScientificObject]] = {}
+    objects: list[ScientificObject] = []
     for d in definitions:
         norm_kind = _normalize_kind(d.kind)
-        def_index.add(f"{norm_kind} {d.label}".lower())
+        key = f"{norm_kind} {d.label}".lower()
+        obj = ScientificObject(
+            object_id=make_object_id(
+                d.source_file,
+                d.category or norm_kind.lower(),
+                label=d.full_label,
+                line_number=d.line_number,
+            ),
+            object_type=d.category or norm_kind.lower(),
+            object_kind=norm_kind.lower(),
+            label=d.full_label,
+            name=d.name,
+            title=d.full_label,
+            source_file=d.source_file,
+            line_number=d.line_number,
+            text="",
+            metadata={"category": d.category},
+        )
+        def_object_map.setdefault(key, []).append(obj)
+        objects.append(obj)
 
     resolved: list[str] = []
     unresolved: list[str] = []
-    seen: set[str] = set()
+    seen_resolved: set[str] = set()
+    seen_unresolved: set[str] = set()
+    links: list[ScientificObjectLink] = []
 
     for mention in mentions:
         norm_kind = _normalize_kind(mention.kind)
         key = f"{norm_kind} {mention.label}".lower()
-        if key in seen:
+        mention_object = ScientificObject(
+            object_id=make_object_id(
+                mention.source_file,
+                "xref_mention",
+                label=mention.full_label,
+                line_number=mention.line_number,
+            ),
+            object_type="xref_mention",
+            object_kind=norm_kind.lower(),
+            label=mention.full_label,
+            title=mention.full_label,
+            source_file=mention.source_file,
+            line_number=mention.line_number,
+            text="",
+            metadata={"category": mention.category},
+        )
+        objects.append(mention_object)
+        candidates = def_object_map.get(key, [])
+        local_candidates = [obj for obj in candidates if obj.source_file == mention.source_file]
+        target: ScientificObject | None = None
+        status = "unresolved"
+        if len(local_candidates) == 1:
+            target = local_candidates[0]
+            status = "resolved"
+        elif len(candidates) == 1:
+            target = candidates[0]
+            status = "resolved"
+        elif candidates:
+            status = "ambiguous"
+
+        if status == "resolved" and target is not None:
+            if key not in seen_resolved:
+                resolved.append(mention.full_label)
+                seen_resolved.add(key)
+            links.append(
+                ScientificObjectLink(
+                    source_object_id=mention_object.object_id,
+                    target_object_id=target.object_id,
+                    relation="references",
+                    status="resolved",
+                    source_label=mention.full_label,
+                    target_label=target.label,
+                    source_file=mention.source_file,
+                    line_number=mention.line_number,
+                    metadata={"category": mention.category},
+                )
+            )
             continue
-        seen.add(key)
-        if key in def_index:
-            resolved.append(mention.full_label)
-        else:
+
+        if key not in seen_unresolved:
             unresolved.append(mention.full_label)
+            seen_unresolved.add(key)
+
+        link_metadata: dict[str, Any] = {"category": mention.category}
+        if candidates:
+            link_metadata["candidate_object_ids"] = [candidate.object_id for candidate in candidates]
+            link_metadata["candidate_sources"] = [candidate.source_file for candidate in candidates]
+        links.append(
+            ScientificObjectLink(
+                source_object_id=mention_object.object_id,
+                target_object_id=target.object_id if target is not None else "",
+                relation="references",
+                status=status,
+                source_label=mention.full_label,
+                target_label=target.label if target is not None else mention.full_label,
+                source_file=mention.source_file,
+                line_number=mention.line_number,
+                metadata=link_metadata,
+            )
+        )
 
     return CrossRefReport(
         definitions=definitions,
         mentions=mentions,
         resolved=resolved,
         unresolved=unresolved,
+        objects=objects,
+        links=links,
     )
 
 
@@ -313,8 +403,9 @@ def analyze_file(file_path: Path) -> CrossRefReport:
     if not file_path.exists():
         raise FileNotFoundError(f"File not found: {file_path}")
     text = file_path.read_text(encoding="utf-8")
-    defs = extract_definitions(text, source_file=str(file_path))
-    mentions = extract_mentions(text, source_file=str(file_path))
+    source_label = stable_source_label(file_path)
+    defs = extract_definitions(text, source_file=source_label)
+    mentions = extract_mentions(text, source_file=source_label)
     return resolve_references(defs, mentions)
 
 
@@ -329,8 +420,9 @@ def analyze_tree(input_root: Path) -> CrossRefReport:
 
     for md_path in md_files:
         text = md_path.read_text(encoding="utf-8")
-        all_defs.extend(extract_definitions(text, source_file=str(md_path)))
-        all_mentions.extend(extract_mentions(text, source_file=str(md_path)))
+        source_label = stable_source_label(md_path, root=input_root)
+        all_defs.extend(extract_definitions(text, source_file=source_label))
+        all_mentions.extend(extract_mentions(text, source_file=source_label))
 
     return resolve_references(all_defs, all_mentions)
 
@@ -358,6 +450,10 @@ def write_report(report: CrossRefReport, output_path: Path) -> Path:
         "mentions": [asdict(m) for m in report.mentions],
         "resolved": report.resolved,
         "unresolved": report.unresolved,
+        "canonical_ir": {
+            "objects": [asdict(obj) for obj in report.objects],
+            "links": [asdict(link) for link in report.links],
+        },
     }
     output_path.write_text(
         json.dumps(data, indent=2, ensure_ascii=False) + "\n",

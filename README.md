@@ -193,6 +193,7 @@ make convert        # Run only PDF → Markdown conversion
 make clean          # Run only the cleaning stage
 make chunk          # Run only chunk generation
 make render         # Run only template rendering
+make benchmark-reference  # Run reference benchmark + baseline gate
 make test           # Run the test suite
 make lint           # Run Ruff lint and formatting checks
 make format         # Apply automatic formatting fixes
@@ -224,6 +225,7 @@ python -m cortexmark.figures --input outputs/cleaned_md
 
 # Export & output
 python -m cortexmark.rag_export --input outputs/chunks
+python -m cortexmark.reference_eval --benchmarks benchmarks/references --baseline benchmarks/references/baseline.json
 python -m cortexmark.multi_format --input outputs/cleaned_md
 python -m cortexmark.ghpages --input outputs/cleaned_md
 python -m cortexmark.diff --old outputs/v1 --new outputs/v2

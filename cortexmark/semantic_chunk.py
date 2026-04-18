@@ -27,6 +27,12 @@ from cortexmark.common import (
     resolve_manifest_path,
     setup_logging,
 )
+from cortexmark.scientific_ir import (
+    OBJECT_EQUATION,
+    ScientificObject,
+    ScientificObjectLink,
+    make_object_id,
+)
 
 # ── Entity types ─────────────────────────────────────────────────────────────
 
@@ -141,9 +147,12 @@ class SemanticChunk:
     section: str | None = None
     body: list[str] = field(default_factory=list)
     entity_type: str = ENTITY_NARRATIVE
+    entity_kind: str = ENTITY_NARRATIVE
     entity_label: str | None = None  # e.g. "Theorem 3.2"
     entity_name: str | None = None  # e.g. "Bellman Optimality"
     parent_label: str | None = None  # proof → parent theorem label
+    parent_evidence_level: str = ""
+    line_number: int = 0
     formulas: list[str] = field(default_factory=list)
     cross_refs: list[str] = field(default_factory=list)
 
@@ -243,14 +252,18 @@ def parse_semantic_chunks(
     entity_type: str = ENTITY_NARRATIVE
     entity_label: str | None = None
     entity_name: str | None = None
+    entity_kind: str = ENTITY_NARRATIVE
     parent_label: str | None = None
+    parent_evidence_level: str = ""
+    chunk_line_number: int = 0
     last_theorem_label: str | None = None
 
     in_code_fence = False
     in_proof = False
 
     def flush() -> None:
-        nonlocal body, entity_type, entity_label, entity_name, parent_label
+        nonlocal body, entity_type, entity_label, entity_name, entity_kind, parent_label, parent_evidence_level
+        nonlocal chunk_line_number
         content = [line for line in body if line.strip()]
         if content:
             full_text = "\n".join(content)
@@ -260,20 +273,31 @@ def parse_semantic_chunks(
                     section=section,
                     body=content,
                     entity_type=entity_type,
+                    entity_kind=entity_kind,
                     entity_label=entity_label,
                     entity_name=entity_name,
                     parent_label=parent_label,
+                    parent_evidence_level=parent_evidence_level,
+                    line_number=chunk_line_number,
                     formulas=extract_formulas(full_text),
                     cross_refs=extract_cross_refs(full_text),
                 )
             )
         body = []
         entity_type = ENTITY_NARRATIVE
+        entity_kind = ENTITY_NARRATIVE
         entity_label = None
         entity_name = None
         parent_label = None
+        parent_evidence_level = ""
+        chunk_line_number = 0
 
-    for raw_line in text.splitlines():
+    def begin_chunk(line_number: int) -> None:
+        nonlocal chunk_line_number
+        if chunk_line_number == 0:
+            chunk_line_number = line_number
+
+    for line_number, raw_line in enumerate(text.splitlines(), start=1):
         line = raw_line.rstrip()
         stripped = line.strip()
 
@@ -282,6 +306,7 @@ def parse_semantic_chunks(
             if in_code_fence:
                 # Closing fence
                 in_code_fence = False
+                begin_chunk(line_number)
                 body.append(line)
                 # If this was an algorithm block, flush after close
                 if entity_type == ENTITY_ALGORITHM:
@@ -292,10 +317,15 @@ def parse_semantic_chunks(
             if ALGORITHM_FENCE_RE.match(stripped) and entity_type != ENTITY_ALGORITHM:
                 flush()
                 entity_type = ENTITY_ALGORITHM
+                entity_kind = ENTITY_ALGORITHM
+                begin_chunk(line_number)
+            else:
+                begin_chunk(line_number)
             body.append(line)
             continue
 
         if in_code_fence:
+            begin_chunk(line_number)
             body.append(line)
             continue
 
@@ -322,11 +352,15 @@ def parse_semantic_chunks(
         if proof_match and not in_proof:
             flush()
             entity_type = ENTITY_PROOF
+            entity_kind = ENTITY_PROOF
+            begin_chunk(line_number)
             of_label = proof_match.group("of_label")
             if of_label:
                 parent_label = of_label.strip()
+                parent_evidence_level = "explicit"
             elif last_theorem_label:
                 parent_label = last_theorem_label
+                parent_evidence_level = "inferred"
             in_proof = True
             rest = proof_match.group("rest")
             if rest:
@@ -335,6 +369,7 @@ def parse_semantic_chunks(
 
         # ── QED detection (end of proof) ─────────────────────────────
         if in_proof and has_qed(stripped):
+            begin_chunk(line_number)
             body.append(line)
             in_proof = False
             flush()
@@ -354,8 +389,10 @@ def parse_semantic_chunks(
             # Flush previous block
             flush()
             entity_type = new_type
+            entity_kind = kind.lower()
             entity_label = full_label
             entity_name = name
+            begin_chunk(line_number)
             if new_type == ENTITY_THEOREM:
                 last_theorem_label = full_label
             if rest:
@@ -367,13 +404,16 @@ def parse_semantic_chunks(
         if algo_match:
             flush()
             entity_type = ENTITY_ALGORITHM
+            entity_kind = ENTITY_ALGORITHM
             entity_label = f"Algorithm {algo_match.group('label')}"
+            begin_chunk(line_number)
             rest = algo_match.group("rest")
             if rest:
                 body.append(rest)
             continue
 
         # ── Regular line ─────────────────────────────────────────────
+        begin_chunk(line_number)
         body.append(line)
 
     # Flush remaining
@@ -445,16 +485,27 @@ def chunk_tree(
 def chunks_to_records(chunks: list[SemanticChunk], source: str) -> list[dict[str, object]]:
     """Convert semantic chunks to metadata-rich dictionaries for export."""
     records: list[dict[str, object]] = []
+    object_map = {
+        (obj.label or obj.title, obj.line_number, obj.object_kind): obj
+        for obj in chunks_to_scientific_objects(chunks, source)
+        if obj.object_type != OBJECT_EQUATION
+    }
     for i, chunk in enumerate(chunks):
+        linked_object = object_map.get(((chunk.entity_label or chunk.title), chunk.line_number, chunk.entity_kind))
         records.append(
             {
                 "index": i,
                 "source": source,
                 "title": chunk.title,
                 "entity_type": chunk.entity_type,
+                "entity_kind": chunk.entity_kind,
                 "entity_label": chunk.entity_label,
                 "entity_name": chunk.entity_name,
                 "parent_label": chunk.parent_label,
+                "parent_evidence_level": chunk.parent_evidence_level,
+                "line_number": chunk.line_number,
+                "object_id": linked_object.object_id if linked_object else "",
+                "parent_object_id": linked_object.parent_object_id if linked_object else "",
                 "formulas": chunk.formulas,
                 "cross_refs": chunk.cross_refs,
                 "chapter": chunk.chapter,
@@ -471,6 +522,135 @@ def build_entity_summary(chunks: list[SemanticChunk]) -> dict[str, int]:
     for chunk in chunks:
         summary[chunk.entity_type] = summary.get(chunk.entity_type, 0) + 1
     return summary
+
+
+def chunks_to_scientific_objects(chunks: list[SemanticChunk], source: str) -> list[ScientificObject]:
+    """Convert semantic chunks into stable scholarly objects."""
+    objects: list[ScientificObject] = []
+    label_to_object_id: dict[str, str] = {}
+
+    for index, chunk in enumerate(chunks, start=1):
+        if chunk.entity_type == ENTITY_NARRATIVE:
+            continue
+        if chunk.entity_label:
+            object_id = make_object_id(source, chunk.entity_type, label=chunk.entity_label)
+        else:
+            object_id = make_object_id(
+                source,
+                chunk.entity_type,
+                label="",
+                name=chunk.entity_name or chunk.title,
+                line_number=chunk.line_number,
+                ordinal=index,
+            )
+        obj = ScientificObject(
+            object_id=object_id,
+            object_type=chunk.entity_type,
+            object_kind=chunk.entity_kind,
+            label=chunk.entity_label or "",
+            name=chunk.entity_name or "",
+            title=chunk.title,
+            source_file=source,
+            line_number=chunk.line_number,
+            chapter=chunk.chapter or "",
+            section=chunk.section or "",
+            text="\n".join(chunk.body).strip(),
+            evidence_level="explicit",
+            metadata={
+                "formulas": list(chunk.formulas),
+                "cross_refs": list(chunk.cross_refs),
+                "parent_label": chunk.parent_label or "",
+                "parent_evidence_level": chunk.parent_evidence_level,
+            },
+        )
+        objects.append(obj)
+        if chunk.entity_label:
+            label_to_object_id[chunk.entity_label] = object_id
+
+    for obj in objects:
+        parent_label = str(obj.metadata.get("parent_label", "")).strip()
+        if parent_label and parent_label in label_to_object_id:
+            obj.parent_object_id = label_to_object_id[parent_label]
+        elif parent_label:
+            parent_kind = parent_label.split(" ", 1)[0]
+            parent_type = classify_env_kind(parent_kind)
+            if parent_type != ENTITY_NARRATIVE:
+                obj.parent_object_id = make_object_id(source, parent_type, label=parent_label)
+
+    equation_ordinal = 0
+    for chunk_index, chunk in enumerate(chunks, start=1):
+        parent_candidates = [
+            obj for obj in objects if obj.line_number == chunk.line_number and obj.source_file == source
+        ]
+        parent_object_id = parent_candidates[0].object_id if parent_candidates else ""
+        for formula_index, formula in enumerate(chunk.formulas, start=1):
+            equation_ordinal += 1
+            objects.append(
+                ScientificObject(
+                    object_id=make_object_id(
+                        source,
+                        OBJECT_EQUATION,
+                        label=f"{chunk.entity_label or chunk.title}:{formula_index}",
+                        line_number=chunk.line_number,
+                        ordinal=equation_ordinal,
+                    ),
+                    object_type=OBJECT_EQUATION,
+                    object_kind=OBJECT_EQUATION,
+                    title=f"Equation {equation_ordinal}",
+                    source_file=source,
+                    line_number=chunk.line_number,
+                    chapter=chunk.chapter or "",
+                    section=chunk.section or "",
+                    text=formula,
+                    parent_object_id=parent_object_id,
+                    metadata={
+                        "formula": formula,
+                        "source_kind": "chunk_formula",
+                        "chunk_index": chunk_index,
+                    },
+                )
+            )
+
+    return objects
+
+
+def build_scientific_object_links(objects: list[ScientificObject]) -> list[ScientificObjectLink]:
+    """Create typed links between scholarly objects."""
+    links: list[ScientificObjectLink] = []
+    object_index = {obj.object_id: obj for obj in objects}
+    for obj in objects:
+        if obj.object_type == OBJECT_EQUATION and obj.parent_object_id:
+            parent = object_index.get(obj.parent_object_id)
+            links.append(
+                ScientificObjectLink(
+                    source_object_id=obj.object_id,
+                    target_object_id=obj.parent_object_id,
+                    relation="appears_in",
+                    status="resolved",
+                    source_label=obj.title,
+                    target_label=(parent.label or parent.title) if parent else "",
+                    source_file=obj.source_file,
+                    line_number=obj.line_number,
+                )
+            )
+        elif obj.object_type == ENTITY_PROOF and obj.parent_object_id:
+            parent = object_index.get(obj.parent_object_id)
+            links.append(
+                ScientificObjectLink(
+                    source_object_id=obj.object_id,
+                    target_object_id=obj.parent_object_id,
+                    relation="proof_of",
+                    status="resolved",
+                    source_label=obj.label or obj.title,
+                    target_label=(parent.label or parent.title)
+                    if parent
+                    else str(obj.metadata.get("parent_label", "")),
+                    source_file=obj.source_file,
+                    line_number=obj.line_number,
+                    metadata={"evidence_level": obj.metadata.get("parent_evidence_level", "")},
+                )
+            )
+    return links
 
 
 # ── CLI ──────────────────────────────────────────────────────────────────────

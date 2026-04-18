@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Reference Robustness Benchmark Case",
+  "type": "object",
+  "required": [
+    "document_id",
+    "phenomena",
+    "citation_mentions",
+    "references",
+    "citation_links",
+    "citation_audit",
+    "scientific_link_assertions",
+    "rag_assertions"
+  ],
+  "properties": {
+    "document_id": { "type": "string" },
+    "phenomena": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "citation_mentions": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          { "type": "string" },
+          {
+            "type": "object",
+            "required": ["raw_text"],
+            "properties": {
+              "raw_text": { "type": "string" }
+            }
+          }
+        ]
+      }
+    },
+    "references": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          { "type": "string" },
+          {
+            "type": "object",
+            "required": ["reference_id"],
+            "properties": {
+              "reference_id": { "type": "string" },
+              "year": { "type": "string" },
+              "title": { "type": "string" },
+              "doi": { "type": "string" }
+            }
+          }
+        ]
+      }
+    },
+    "citation_links": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["target_ref", "status"],
+        "properties": {
+          "target_ref": { "type": "string" },
+          "status": { "type": "string" }
+        }
+      }
+    },
+    "citation_audit": {
+      "type": "object",
+      "properties": {
+        "missing_references": { "type": "array", "items": { "type": "string" } },
+        "phantom_references": { "type": "array", "items": { "type": "string" } },
+        "ambiguous_references": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "scientific_link_assertions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["relation"],
+        "properties": {
+          "relation": { "type": "string" },
+          "target_label": { "type": "string" },
+          "status": { "type": "string" }
+        }
+      }
+    },
+    "rag_assertions": {
+      "type": "object",
+      "properties": {
+        "required_parent_labels": { "type": "array", "items": { "type": "string" } },
+        "required_object_link_relations": { "type": "array", "items": { "type": "string" } },
+        "required_cross_ref_statuses": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

@@ -20,8 +20,13 @@ from pathlib import Path
 from typing import Any
 
 from cortexmark.common import get_path_settings, load_config, resolve_configured_path, setup_logging
+from cortexmark.cross_ref import extract_definitions, extract_mentions, resolve_references
+from cortexmark.notation_glossary import extract_all, glossary_to_scientific_objects
+from cortexmark.scientific_ir import OBJECT_EQUATION
 from cortexmark.semantic_chunk import (
     ENTITY_NARRATIVE,
+    build_scientific_object_links,
+    chunks_to_scientific_objects,
     extract_cross_refs,
     extract_formulas,
     parse_semantic_chunks,
@@ -30,6 +35,7 @@ from cortexmark.semantic_chunk import (
 # ── Data structures ──────────────────────────────────────────────────────────
 
 WHITESPACE_RUN_RE = re.compile(r"\s+")
+CHUNK_BASENAME_RE = re.compile(r"^chunk_\d+_")
 
 
 @dataclass
@@ -55,6 +61,13 @@ def make_chunk_id(source: str, title: str, index: int) -> str:
     """Deterministic chunk ID from source + title + index."""
     raw = f"{source}::{title}::{index}"
     return hashlib.sha256(raw.encode()).hexdigest()[:16]
+
+
+def scientific_source_scope(file_path: Path) -> str:
+    """Return a document-level scope for scholarly objects when parsing chunk files."""
+    if CHUNK_BASENAME_RE.match(file_path.name):
+        return file_path.parent.as_posix()
+    return str(file_path)
 
 
 def parse_chunk_file(file_path: Path) -> RAGRecord:
@@ -92,9 +105,20 @@ def parse_chunk_file(file_path: Path) -> RAGRecord:
         primary = sem_chunks[0]
         entity_type = primary.entity_type
         entity_label = primary.entity_label
+    scientific_objects = chunks_to_scientific_objects(sem_chunks, source=scientific_source_scope(file_path))
+    object_links = build_scientific_object_links(scientific_objects)
+    notation_glossary = extract_all(body_text, source_file=str(file_path), include_conventions=True)
+    notation_objects = glossary_to_scientific_objects(notation_glossary)
+    cross_ref_report = resolve_references(
+        extract_definitions(body_text, source_file=str(file_path)),
+        extract_mentions(body_text, source_file=str(file_path)),
+    )
 
     formulas = extract_formulas(body_text)
     cross_refs = extract_cross_refs(body_text)
+    primary_parent_label = sem_chunks[0].parent_label if sem_chunks else None
+    primary_object = next((obj for obj in scientific_objects if obj.object_type != OBJECT_EQUATION), None)
+    primary_parent_object_id = primary_object.parent_object_id if primary_object else ""
 
     return RAGRecord(
         id=make_chunk_id(str(file_path), title, 0),
@@ -107,8 +131,38 @@ def parse_chunk_file(file_path: Path) -> RAGRecord:
             "token_estimate": estimate_tokens(body_text),
             "entity_type": entity_type,
             "entity_label": entity_label,
+            "entity_kind": sem_chunks[0].entity_kind if sem_chunks else ENTITY_NARRATIVE,
+            "entity_name": sem_chunks[0].entity_name if sem_chunks else None,
+            "parent_label": primary_parent_label,
+            "parent_object_id": primary_parent_object_id,
             "formulas": formulas,
+            "equations": [
+                {
+                    "object_id": obj.object_id,
+                    "formula": obj.metadata.get("formula", obj.text),
+                    "source_kind": obj.metadata.get("source_kind", ""),
+                    "parent_object_id": obj.parent_object_id,
+                }
+                for obj in scientific_objects
+                if obj.object_type == OBJECT_EQUATION
+            ],
             "cross_refs": cross_refs,
+            "cross_ref_links": [asdict(link) for link in cross_ref_report.links],
+            "scientific_object_ids": [obj.object_id for obj in scientific_objects],
+            "scientific_objects": [asdict(obj) for obj in scientific_objects],
+            "object_links": [asdict(link) for link in object_links],
+            "notation_symbols": [entry.symbol for entry in notation_glossary.entries],
+            "notation_sources": [entry.source for entry in notation_glossary.entries],
+            "notation_object_ids": [obj.object_id for obj in notation_objects],
+            "notation_entries": [
+                {
+                    "symbol": entry.symbol,
+                    "definition": entry.definition,
+                    "source": entry.source,
+                    "object_id": entry.object_id,
+                }
+                for entry in notation_glossary.entries
+            ],
         },
     )
 
@@ -167,6 +221,8 @@ def build_summary(records: list[RAGRecord]) -> dict[str, Any]:
         etype = r.metadata.get("entity_type", ENTITY_NARRATIVE)
         entity_counts[etype] = entity_counts.get(etype, 0) + 1
     total_formulas = sum(len(r.metadata.get("formulas", [])) for r in records)
+    total_cross_ref_links = sum(len(r.metadata.get("cross_ref_links", [])) for r in records)
+    total_notation_symbols = sum(len(r.metadata.get("notation_symbols", [])) for r in records)
     return {
         "total_records": len(records),
         "total_tokens_estimate": total_tokens,
@@ -174,6 +230,8 @@ def build_summary(records: list[RAGRecord]) -> dict[str, Any]:
         "sources": len({r.source for r in records}),
         "entity_types": entity_counts,
         "total_formulas": total_formulas,
+        "total_cross_ref_links": total_cross_ref_links,
+        "total_notation_symbols": total_notation_symbols,
     }
 
 

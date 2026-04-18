@@ -1,0 +1,25 @@
+{
+  "document_id": "year_suffix",
+  "phenomena": ["year_suffix"],
+  "citation_mentions": [{"raw_text": "Smith, 2020a"}],
+  "references": [
+    {
+      "reference_id": "smith2020a",
+      "year": "2020a",
+      "title": "Variant Paper"
+    }
+  ],
+  "citation_links": [
+    {
+      "target_ref": "smith2020a",
+      "status": "resolved"
+    }
+  ],
+  "citation_audit": {
+    "missing_references": [],
+    "phantom_references": [],
+    "ambiguous_references": []
+  },
+  "scientific_link_assertions": [],
+  "rag_assertions": {}
+}

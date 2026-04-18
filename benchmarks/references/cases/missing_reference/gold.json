@@ -1,0 +1,25 @@
+{
+  "document_id": "missing_reference",
+  "phenomena": ["missing_reference", "phantom_reference"],
+  "citation_mentions": [{"raw_text": "Jones, 2021"}],
+  "references": [
+    {
+      "reference_id": "smith2020",
+      "year": "2020",
+      "title": "Local Reference"
+    }
+  ],
+  "citation_links": [
+    {
+      "target_ref": "jones2021",
+      "status": "missing"
+    }
+  ],
+  "citation_audit": {
+    "missing_references": ["jones2021"],
+    "phantom_references": ["smith2020"],
+    "ambiguous_references": []
+  },
+  "scientific_link_assertions": [],
+  "rag_assertions": {}
+}

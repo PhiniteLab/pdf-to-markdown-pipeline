@@ -1,0 +1,30 @@
+{
+  "document_id": "ambiguous_author_year",
+  "phenomena": ["ambiguous_author_year"],
+  "citation_mentions": [{"raw_text": "Smith, 2020"}],
+  "references": [
+    {
+      "reference_id": "smith2020",
+      "year": "2020",
+      "title": "Paper Alpha"
+    },
+    {
+      "reference_id": "smith2020-2",
+      "year": "2020",
+      "title": "Paper Beta"
+    }
+  ],
+  "citation_links": [
+    {
+      "target_ref": "smith2020",
+      "status": "ambiguous"
+    }
+  ],
+  "citation_audit": {
+    "missing_references": [],
+    "phantom_references": [],
+    "ambiguous_references": ["smith2020"]
+  },
+  "scientific_link_assertions": [],
+  "rag_assertions": {}
+}

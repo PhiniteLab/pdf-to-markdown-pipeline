@@ -1,0 +1,27 @@
+{
+  "benchmark_name": "reference_robustness",
+  "benchmark_version": 1,
+  "manifest_case_count": 5,
+  "manifest_case_ids": [
+    "author_year_basic",
+    "ambiguous_author_year",
+    "missing_reference",
+    "year_suffix",
+    "proof_parent_link"
+  ],
+  "summary_thresholds": {
+    "failed_cases_max": 0,
+    "false_resolve_rate_max": 0.0,
+    "id_stability_rate_min": 1.0,
+    "mention_f1_min": 1.0,
+    "reference_f1_min": 1.0,
+    "link_status_macro_f1_min": 1.0,
+    "resolved_link_accuracy_min": 1.0,
+    "scientific_link_f1_min": 1.0,
+    "rag_reference_propagation_recall_min": 1.0,
+    "parent_link_accuracy_min": 1.0
+  },
+  "report_only_metrics": {
+    "avg_runtime_ms_per_case_warn_if_above": 10.0
+  }
+}

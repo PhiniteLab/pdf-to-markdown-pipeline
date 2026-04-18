@@ -1,0 +1,23 @@
+{
+  "document_id": "proof_parent_link",
+  "phenomena": ["proof_parent_link", "rag_link_propagation"],
+  "citation_mentions": [],
+  "references": [],
+  "citation_links": [],
+  "citation_audit": {
+    "missing_references": [],
+    "phantom_references": [],
+    "ambiguous_references": []
+  },
+  "scientific_link_assertions": [
+    {
+      "relation": "proof_of",
+      "target_label": "Theorem 1",
+      "status": "resolved"
+    }
+  ],
+  "rag_assertions": {
+    "required_parent_labels": ["Theorem 1"],
+    "required_object_link_relations": ["proof_of"]
+  }
+}
