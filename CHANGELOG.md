@@ -118,6 +118,20 @@ The project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html
 - `plugin.py`: suppressed spurious Pyright `reportUnnecessaryIsInstance` warning on `register()` method
 - GitHub CI badge and all `git clone` / `pip install git+` URLs now point to the correct repository
 
+## [0.3.3] - 2026-04-18
+
+### Added
+- Reference benchmark gate artifacts and baseline-driven regression evaluation for scholarly references.
+- Canonical scholarly IR support for references, theorems, proofs, notation, and object-level links.
+
+### Changed
+- Version bump to `0.3.3` for the Python package and VS Code extension release surfaces.
+- Release metadata, README version note, issue template example, and extension lockfile were aligned for the `v0.3.3` tag.
+
+### Fixed
+- Theorem/proof metadata roundtrip preservation across semantic chunk rendering and RAG export.
+- Local same-chunk cross-reference resolution now stays consistent when semantic objects disambiguate theorem-like references.
+
 ## [0.1.0] - 2026-04-12
 
 ### Added

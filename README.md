@@ -385,7 +385,7 @@ pdf-to-markdown-pipeline/
 │   ├── raw_md/                        #   Raw Markdown from conversion
 │   ├── cleaned_md/                    #   Cleaned and normalized Markdown
 │   └── chunks/                        #   Chunked output sections
-├── vscode-extension/                  # VS Code extension v0.3.0 (TypeScript)
+├── vscode-extension/                  # VS Code extension v0.3.3 (TypeScript)
 │   ├── src/extension.ts               #   Activation, 22 commands, file watchers
 │   ├── src/sessionManager.ts          #   Session persistence and events
 │   ├── src/sessionTree.ts             #   Tree data provider (Sessions, Actions, Analysis, Outputs)
