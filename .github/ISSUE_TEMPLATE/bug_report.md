@@ -28,7 +28,7 @@ What actually happened. Include error messages or log output if available.
 
 - **OS**: (e.g. Ubuntu 22.04, macOS 14)
 - **Python**: (e.g. 3.12.3)
-- **Package version**: (e.g. 0.3.3)
+- **Package version**: (e.g. 0.3.4)
 - **Install method**: pip / Docker / source
 
 ## Additional Context

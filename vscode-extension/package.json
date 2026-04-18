@@ -2,7 +2,7 @@
   "name": "cortexmark-pipeline-vscode",
   "displayName": "CortexMark Pipeline",
   "description": "Convert PDFs to structured Markdown with sessions, auto-processing, preview panel, dashboard, and a chat panel.",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "publisher": "PhiniteLab",
   "license": "MIT",
   "repository": {

@@ -5,6 +5,8 @@ The project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html
 
 ## [Unreleased]
 
+## [0.3.4] - 2026-04-18
+
 ### Breaking Changes
 - Rebranded the public package, module, CLI, and VS Code extension surfaces from **PhiniteLab PDF Pipeline** to **CortexMark**.
 - Python package rename: `phinitelab-pdf-pipeline` → `cortexmark`
